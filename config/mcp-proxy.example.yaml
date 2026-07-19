@@ -1,0 +1,25 @@
+# Current Talon main MCP proxy schema audited at commit
+# 631695d8713337cee3bef79e65225e40ba03c923 (2026-07-19).
+#
+# Explicit intercept mode is mandatory for this demo. Current Talon still has
+# an open unset-mode fail-open defect (#346), so never remove this field.
+agent:
+  name: coding-assistant-release-tools
+  type: mcp_proxy
+  description: "Synthetic release boundary for the Talon full demo"
+  version: "0.1.0"
+
+proxy:
+  mode: intercept
+  upstream:
+    vendor: synthetic-release-mcp
+    url: http://127.0.0.1:8090/mcp
+    region: LOCAL
+  allowed_tools:
+    - name: release_status
+    - name: release_prepare
+    - name: release_publish
+  forbidden_tools:
+    - release_publish
+  rate_limits:
+    requests_per_minute: 60
