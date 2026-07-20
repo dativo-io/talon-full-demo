@@ -20,8 +20,9 @@ cp "$SRC/talon.config.yaml" "$STAGE/talon.config.yaml"
 cp -R "$SRC/agents" "$STAGE/agents"
 git -C "$TALON_REPO" rev-parse HEAD > "$STAGE/TALON_SOURCE_COMMIT"
 
-# Shadow mode is a runtime override since Talon v1.9.3 (#368):
-#   talon serve --gateway --gateway-mode shadow --config config/generated/talon.config.yaml
+# Shadow mode is a runtime override since Talon v1.9.3 (#368), run from the
+# generated-config directory because agents_dir resolves against the server cwd:
+#   (cd config/generated && talon serve --gateway --gateway-mode shadow --proxy-config ../mcp-proxy.example.yaml)
 # No shadow copy of the YAML is generated any more. The previous approach
 # (regex-editing the mode key) silently produced an enforce config named
 # "shadow" because gateway.mode is nested, not top-level; do not resurrect it.
@@ -32,4 +33,5 @@ mv "$STAGE" "$OUT"
 trap - EXIT
 
 echo "Copied canonical Talon product-demo config to $OUT from $(cat "$OUT/TALON_SOURCE_COMMIT")"
-echo "Shadow demo: talon serve --gateway --gateway-mode shadow --config $OUT/talon.config.yaml"
+echo "Serve (agents_dir is cwd-relative): (cd $OUT && talon serve --host 127.0.0.1 --port 8080 --gateway --proxy-config ../mcp-proxy.example.yaml)"
+echo "Shadow demo: same command plus --gateway-mode shadow"

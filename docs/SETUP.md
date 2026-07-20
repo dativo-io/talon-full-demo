@@ -88,16 +88,24 @@ Provider keys remain in Talon's vault. The Zendesk browser and adapter never rec
 
 ## 5. Start Talon
 
-Current Talon CLI contract, audited against `main` commit `24046ca690a616c2710c3084d59857839364bcf3`:
+Current Talon CLI contract, audited against `main` commit `24046ca690a616c2710c3084d59857839364bcf3` and executed against a server built from that commit:
 
 ```bash
+cd config/generated
 talon serve \
   --host 127.0.0.1 \
   --port 8080 \
   --gateway \
-  --gateway-config "$TALON_CONFIG" \
-  --proxy-config config/mcp-proxy.example.yaml
+  --proxy-config ../mcp-proxy.example.yaml
 ```
+
+Run the server from `config/generated`: the canonical config's `agents_dir: agents`
+resolves relative to the server's working directory in v1.9.3 (upstream's own
+`examples/product-demo/demo.sh` also starts the server from the directory holding
+`talon.config.yaml`). Started from the repository root, the same command fails at
+boot with "gateway mode requires at least one keyed agent" — `--gateway-config`
+does not change the `agents_dir` base, so it is omitted; the server discovers
+`./talon.config.yaml` in its working directory.
 
 Both the LLM gateway and `POST /mcp/proxy` use the same loopback Talon server on port 8080.
 
@@ -114,9 +122,9 @@ To run the same config in shadow mode for the policy-comparison beat, do
 not edit YAML; use the v1.9.3 runtime override (#368):
 
 ```bash
+cd config/generated
 talon serve --host 127.0.0.1 --port 8080 --gateway \
-  --gateway-config "$TALON_CONFIG" \
-  --proxy-config config/mcp-proxy.example.yaml \
+  --proxy-config ../mcp-proxy.example.yaml \
   --gateway-mode shadow
 ```
 
@@ -160,6 +168,15 @@ Reset the dependency-free fixture and render a session-only MCP config:
 scripts/reset-billing-fixture.sh
 scripts/render-copilot-mcp-config.sh
 ```
+
+Known v1.9.3 auth gate (executed, not hypothetical): when the same `talon serve`
+process runs the gateway, `/mcp/proxy` is a fail-closed "native execution" route
+behind `RequireAdminKeyMiddleware` (upstream #266) — the rendered config's agent
+bearer alone is rejected with 401, and the scene authenticates only with an
+`X-Talon-Admin-Key` header. Either add that header to the rendered MCP config
+(operator-native execution, evidence attribution is unaffected) or run the MCP
+proxy from a second non-gateway `talon serve`, where agent keys authenticate.
+This choice is tracked in `docs/BLOCKERS.md`.
 
 Configure Copilot's current BYOK variables:
 

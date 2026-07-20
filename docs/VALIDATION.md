@@ -30,8 +30,8 @@ The local mock proves adapter and transport behavior only. It does not produce T
 Source-audited on 2026-07-20 against `dativo-io/talon/main` commit `24046ca690a616c2710c3084d59857839364bcf3`:
 
 - gateway route `/v1/proxy/{provider}/v1/...`;
-- `talon serve --host ... --port ... --gateway --gateway-config ... --proxy-config ...`;
-- MCP endpoint `POST /mcp/proxy`;
+- `talon serve --host ... --port ... --gateway --proxy-config ...`, run from the generated-config directory (`agents_dir` is working-directory-relative in v1.9.3; from the repository root the server fails at boot);
+- MCP endpoint `POST /mcp/proxy` (admin-gated when the same process serves the gateway — upstream #266 fail-closed);
 - strict proxy YAML with object-form `allowed_tools` and top-level `pii_handling`;
 - issue #346 fail-closed/default-mode behavior;
 - issue #350 authenticated agent plus session/correlation evidence attribution;
@@ -40,7 +40,20 @@ Source-audited on 2026-07-20 against `dativo-io/talon/main` commit `24046ca690a6
 - v1.9.3 #368 `talon serve --gateway-mode` runtime override (used instead of a generated shadow config);
 - `talon agents --url` runtime fleet verification, binary-verified against a build of `24046ca` (implemented in `internal/cmd/agents_queue.go` since v1.9.0; QUICKSTART's snippet is accurate).
 
-Source compatibility is not an executed live integration result.
+## Executed live-server run (2026-07-20)
+
+The following was executed from scratch against a real server built from Talon `24046ca` (v1.9.3) — a mock-independent result, distinct from the source audit above:
+
+- `make env` → bootstrap from the canonical product-demo config → all six vault secrets seeded → `talon validate --dir` green → `talon doctor` 11 passed / 1 pre-existing warning;
+- server boot from `config/generated` with gateway + MCP proxy, 3 agents discovered; `talon agents --url` returned the live fleet table;
+- component startup behind the H4 readiness gates; `scripts/preflight.sh` green (run nonce issued, Ollama confirmed offline, billing fixture failing as required);
+- `/mcp/proxy` answered `initialize` locally as `talon-mcp-proxy v1.9.3` (#367), accepted `notifications/initialized` (202), and `tools/list` advertised only the two allowed tools;
+- nonce-tagged `release_status`/`release_prepare` succeeded; `release_publish` was denied with JSON-RPC `-32000` and `error.data.talon_code == "TALON_TOOL_FORBIDDEN"` (#369), with no publish receipt at the synthetic upstream; `scripts/assert-release-blocked.sh` passed against the live receipts;
+- `talon audit list` showed the session with 2 allowed / 1 denied requests attributed to the authenticated proxy agent and the client-asserted session; the signed export verified offline, 3/3 records valid.
+
+Auth caveat: the MCP calls authenticated with `X-Talon-Admin-Key` — in single-process gateway mode `/mcp/proxy` rejects the agent bearer alone (401, upstream #266); see `docs/BLOCKERS.md`.
+
+Still external: driving the same scene from a real Copilot CLI binary, the Zendesk private-app installation, the n8n UI workflow export, and real-provider routes (LLM and budget calibration used no real provider keys in this run).
 
 ## External validation still required
 
