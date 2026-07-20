@@ -105,14 +105,10 @@ Verify:
 
 ```bash
 curl -fsS -D- "$TALON_GATEWAY/health"
-talon validate --dir config/generated/agents
+talon agents --url "$TALON_GATEWAY"
 ```
 
-Note: Talon's QUICKSTART documents `talon agents --url` as the runtime
-"which agents is this server serving" check (#370), but v1.9.3 ships the
-documentation without the command implementation -- `talon agents` has no
-`--url` flag yet. Use the offline `talon validate --dir` check above until
-the upstream command lands.
+The runtime fleet check has shipped since Talon v1.9.0 (`internal/cmd/agents_queue.go`); an explicit `--url` is authoritative and errors rather than silently falling back to the offline config view.
 
 To run the same config in shadow mode for the policy-comparison beat, do
 not edit YAML; use the v1.9.3 runtime override (#368):

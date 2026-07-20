@@ -37,9 +37,8 @@ Source-audited on 2026-07-20 against `dativo-io/talon/main` commit `24046ca690a6
 - issue #350 authenticated agent plus session/correlation evidence attribution;
 - v1.9.3 #367 local MCP `initialize` handshake on `/mcp/proxy` (required by spec-conformant clients);
 - v1.9.3 #369 stable denial machine codes in `error.data.talon_code`;
-- v1.9.3 #368 `talon serve --gateway-mode` runtime override (used instead of a generated shadow config).
-
-Known upstream doc/implementation gap: Talon QUICKSTART's `talon agents --url` verification snippet (#370) has no corresponding CLI implementation in v1.9.3; the setup guide uses `talon validate --dir` instead.
+- v1.9.3 #368 `talon serve --gateway-mode` runtime override (used instead of a generated shadow config);
+- `talon agents --url` runtime fleet verification, binary-verified against a build of `24046ca` (implemented in `internal/cmd/agents_queue.go` since v1.9.0; QUICKSTART's snippet is accurate).
 
 Source compatibility is not an executed live integration result.
 
