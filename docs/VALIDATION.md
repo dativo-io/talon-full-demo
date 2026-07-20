@@ -53,6 +53,13 @@ The following was executed from scratch against a real server built from Talon `
 
 Auth caveat: the MCP calls authenticated with `X-Talon-Admin-Key` — in single-process gateway mode `/mcp/proxy` rejects the agent bearer alone (401, upstream #266); see `docs/BLOCKERS.md`.
 
+This run is now reproducible as a script — `make live-check` (`scripts/test-live-talon.sh`) — so it is a rerunnable gate, not a one-time transcript. It needs a `dativo-io/talon` checkout (`TALON_REPO`, default `../talon`; a mismatch with `TALON_PINNED_COMMIT` warns) and builds the Talon binary itself. Two hermetic phases in a temp dir (the repo's `.env`/`.state`/`config/generated` are untouched):
+
+1. the canonical MCP forbidden-tool scene above, asserted end to end (local `initialize`, allowed calls, `TALON_TOOL_FORBIDDEN` denial, nonce-correlated receipts with a stale-nonce negative, and `scripts/assert-evidence.sh` over the signed export);
+2. the **session-budget engine itself** (#198/#283, not the mock's imitation): a synthetic OpenAI-compatible provider returns large usage so one request's real cost dwarfs the pre-request estimate; the cap is measured at runtime (1.5× one request's actual signed-evidence cost, robust to pricing-table changes) and Talon denies request 3 with a real `403 session_budget_exceeded` at zero cost. Executed 2026-07-20: measured cost 1.6, cap 2.4, allow/allow/deny, evidence 3/3 valid.
+
+This closes the gap between "matches the 403 contract read in Talon's `session_budget_test.go`" and "Talon's real budget path produced the denial." Real-*provider* budget calibration (actual LLM spend and latency) remains external.
+
 Still external: driving the same scene from a real Copilot CLI binary, the Zendesk private-app installation, the n8n UI workflow export, and real-provider routes (LLM and budget calibration used no real provider keys in this run).
 
 ## External validation still required

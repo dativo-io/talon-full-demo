@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight
+.PHONY: all build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check
 
 all: test
 
@@ -33,6 +33,13 @@ validate-local: fmt-check vet build test shell-check
 
 integration-local: build
 	./scripts/test-integration-local.sh
+
+# Executable proof against a REAL Talon server built from source (no mock):
+# the MCP forbidden-tool scene, the signed-evidence chain, and the
+# session-budget engine. Needs a dativo-io/talon checkout (TALON_REPO,
+# default ../talon). Run before presenting.
+live-check:
+	./scripts/test-live-talon.sh
 
 ci: validate-local
 	git diff --check

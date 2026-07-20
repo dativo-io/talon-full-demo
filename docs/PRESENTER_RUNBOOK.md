@@ -54,14 +54,25 @@ n8n 127.0.0.1:5678
 
 Only the Zendesk adapter is exposed outside loopback, through an authenticated HTTPS tunnel.
 
-## Before the audience joins
+## Scene 0 — pre-flight (before the audience joins)
+
+Run the offline contract and, if a `dativo-io/talon` checkout is available, the
+live end-to-end proof against a real server. `make live-check` is the fastest
+way to discover a broken environment now instead of mid-demo — it boots real
+Talon, runs the MCP forbidden-tool scene, and exercises the real session-budget
+engine, all in a throwaway temp dir.
 
 ```bash
 make ci
+make live-check   # needs a dativo-io/talon checkout (TALON_REPO, default ../talon)
 make preflight
 scripts/reset-billing-fixture.sh
 scripts/render-copilot-mcp-config.sh
 ```
+
+If `make live-check` cannot run (no Talon checkout on the presenting machine),
+run it beforehand on a machine that has one; a green result is the go/no-go
+signal for Scenes 2–3.
 
 Confirm:
 

@@ -50,7 +50,9 @@ status=0
 for name in zendesk-adapter copilot-shim release-mcp talon-mcp talon-gateway; do
   stop_one "$name" || status=1
 done
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+# docker info (not just compose version) so a machine with the CLI installed
+# but no running daemon skips cleanly instead of failing the stop.
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   N8N_ENCRYPTION_KEY="${N8N_ENCRYPTION_KEY:-stop-only-placeholder}" \
     docker compose -f "$ROOT/integrations/n8n/compose.yaml" down || status=1
 fi

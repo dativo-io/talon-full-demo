@@ -30,6 +30,12 @@ make ci
 
 This is the same command GitHub Actions runs. Do not continue to external setup when it fails.
 
+With a `dativo-io/talon` checkout next to this repository you can also run the
+live end-to-end proof against a real Talon server (no mock): `make live-check`.
+It builds Talon, runs the MCP forbidden-tool scene and the real session-budget
+engine in a throwaway temp dir, and is the recommended go/no-go check before
+presenting (see `docs/VALIDATION.md`).
+
 ## 2. Generate isolated local secrets
 
 ```bash
@@ -51,9 +57,10 @@ The command copies:
 ```text
 ../talon/examples/product-demo/talon.config.yaml
 ../talon/examples/product-demo/agents/**
+../talon/pricing/models.yaml            # so served costs use the real table
 ```
 
-It records the source Talon commit and creates `talon.shadow.config.yaml` by changing only the gateway mode. Shadow/enforce selection is gateway-wide and restart-bound.
+It records the source Talon commit in `TALON_SOURCE_COMMIT` and warns if the checkout does not match `TALON_PINNED_COMMIT` (the audited commit this demo tracks). No shadow config file is generated: shadow mode is the v1.9.3 `--gateway-mode shadow` runtime override (see section 5), gateway-wide and restart-bound.
 
 ## 4. Seed Talon secrets
 
