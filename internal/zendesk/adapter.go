@@ -220,6 +220,15 @@ Latest requester message:
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		log.Printf("Talon denied or failed Zendesk session=%s status=%d", sessionID, response.StatusCode)
+		// A gateway 4xx is a Talon policy/budget decision (e.g. 403 with a
+		// session_budget_exceeded machine code); anything else is an
+		// availability failure. Collapsing both into 502 hid the exact
+		// distinction the demo asks the operator to investigate. The upstream
+		// body is never forwarded to the browser -- only a sanitized marker.
+		if response.StatusCode >= 400 && response.StatusCode < 500 {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "request denied by Talon policy", "session_id": sessionID})
+			return
+		}
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "governed draft unavailable", "session_id": sessionID})
 		return
 	}

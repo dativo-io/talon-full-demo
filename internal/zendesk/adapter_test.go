@@ -97,3 +97,70 @@ func TestDraftRejectsTrailingJSON(t *testing.T) {
 		t.Fatalf("expected 400, got %d", recorder.Code)
 	}
 }
+
+func denialTestHandler(t *testing.T, talonStatus int, talonBody string) http.Handler {
+	t.Helper()
+	talon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(talonStatus)
+		_, _ = w.Write([]byte(talonBody))
+	}))
+	t.Cleanup(talon.Close)
+	handler, err := New(Config{
+		AdapterToken: "adapter-secret",
+		Gateway:      talon.URL,
+		CustomerKey:  "customer-key",
+		Provider:     "local-llama",
+		Model:        "llama3.2:1b",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return handler
+}
+
+func doDraft(t *testing.T, handler http.Handler) (*http.Response, map[string]string) {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	payload := `{"ticket_id":"7","subject":"s","requester":{"name":"n","email":"e@example.com"},"message":"m"}`
+	req, _ := http.NewRequest(http.MethodPost, server.URL+"/v1/zendesk/draft", strings.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer adapter-secret")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { resp.Body.Close() })
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	return resp, body
+}
+
+func TestDraftSurfacesTalonPolicyDenialAs403WithoutLeakingUpstreamBody(t *testing.T) {
+	upstream := `{"error":{"message":"denied: session_budget_exceeded: cap reached","type":"session_budget_exceeded","code":"session_budget_exceeded"}}`
+	resp, body := doDraft(t, denialTestHandler(t, http.StatusForbidden, upstream))
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("Talon 4xx must surface as 403, got %d", resp.StatusCode)
+	}
+	if body["error"] != "request denied by Talon policy" || body["session_id"] != "zendesk-ticket-7" {
+		t.Fatalf("unexpected denial body: %v", body)
+	}
+	for _, v := range body {
+		if strings.Contains(v, "session_budget_exceeded") {
+			t.Fatalf("upstream error body leaked to the client: %v", body)
+		}
+	}
+}
+
+func TestDraftSurfacesTalonOutageAs502DistinctFromDenial(t *testing.T) {
+	resp, body := doDraft(t, denialTestHandler(t, http.StatusBadGateway, `{"error":"upstream provider unreachable"}`))
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("Talon 5xx must surface as 502, got %d", resp.StatusCode)
+	}
+	if body["error"] != "governed draft unavailable" {
+		t.Fatalf("unexpected outage body: %v", body)
+	}
+}

@@ -19,7 +19,7 @@ This repository deliberately separates what is implemented and locally testable 
 | Zendesk ticket-editor app | Implemented; requires a Zendesk private-app installation test |
 | Synthetic release MCP server | Implemented and tested |
 | Billing repository fixture | Implemented; fails before the expected patch |
-| n8n Compose and workflow specification | Implemented; exported workflow must be produced from the pinned n8n UI |
+| n8n Compose and workflow specification | Compose implemented; workflow is a specification only -- the exported workflow must be produced from the pinned n8n UI. The budget allow/allow/deny scenario is asserted against the local mock; real-provider budget calibration remains external |
 | Talon configuration | Bootstrapped from the canonical `talon/examples/product-demo` source |
 | MCP policy-denial proof | Talon #346/#350 are fixed; implementation is compatible with current `main`, but end-to-end Copilot/Talon evidence proof remains external |
 | Real-provider evidence choreography | Requires provider keys and a real Talon gateway |
@@ -30,15 +30,19 @@ The short Talon hero proves the product outcome. This repository is the adopter-
 
 ## Quick local validation
 
-No provider keys, Zendesk account, Copilot installation, Docker, or Talon binary are required:
+No provider keys, Zendesk account, Copilot installation, Docker, or Talon binary are required.
+
+Local prerequisites: `go` (1.23+), `node` and `npm` (Node 20+), `python3`, `jq`, `curl`, `git`.
 
 ```bash
 make validate-local
 ```
 
-This builds the Go services, runs unit tests, exercises the Zendesk adapter and Copilot shim against a mock Talon gateway, exercises the synthetic MCP server, and verifies the billing fixture.
+This builds the Go services, runs unit tests, exercises the Zendesk adapter and Copilot shim against a mock Talon gateway, exercises the synthetic MCP server with a nonce-correlated forbidden-tool proof, asserts the session-budget scenario (request 1 allowed, request 2 allowed, request 3 denied with `session_budget_exceeded` at zero simulated cost), and verifies the billing fixture.
 
 ## Real setup
+
+Requires Talon **v1.9.3 or later**: the demo depends on the local MCP `initialize` handshake (#367), stable `error.data.talon_code` denial codes (#369), and the `talon serve --gateway-mode` override (#368).
 
 1. Clone `dativo-io/talon` next to this repository.
 2. Generate `.env`:

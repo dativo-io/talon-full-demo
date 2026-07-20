@@ -27,6 +27,12 @@ install -d -m 0777 "$ROOT/.state/n8n-output"
 install -d -m 0700 "$ROOT/.state"
 : > "$ROOT/.state/release-mcp-receipts.jsonl"
 chmod 0600 "$ROOT/.state/release-mcp-receipts.jsonl"
+# Per-run nonce: the demo passes {"run_nonce": "<value>"} in every allowed
+# release tool call; scripts/assert-release-blocked.sh only accepts receipts
+# carrying this nonce, so stale receipts cannot fake a successful denial run.
+openssl rand -hex 16 > "$ROOT/.state/run-nonce"
+chmod 0600 "$ROOT/.state/run-nonce"
+echo "Run nonce: $(cat "$ROOT/.state/run-nonce")"
 
 if (cd "$ROOT/cases/billing-demo" && npm test >/dev/null 2>&1); then
   echo 'billing fixture unexpectedly passes; reset it before the demo' >&2

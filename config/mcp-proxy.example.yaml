@@ -1,7 +1,10 @@
 # Source-audited against dativo-io/talon main at
-# 3f373e19f2a97722db7450e51461862911188ecb (2026-07-20).
+# 24046ca690a616c2710c3084d59857839364bcf3 (v1.9.3, 2026-07-20).
 # Explicit intercept mode remains intentional even though current Talon now
 # defaults an omitted mode to intercept and rejects unknown values (#346).
+# Since v1.9.3 the proxy also answers the MCP initialize handshake locally
+# (#367) and returns stable machine codes in error.data.talon_code (#369):
+# a forbidden-tool denial carries TALON_TOOL_FORBIDDEN.
 agent:
   name: coding-assistant-release-tools
   type: mcp_proxy
@@ -14,10 +17,13 @@ proxy:
     vendor: synthetic-release-mcp
     url: http://127.0.0.1:8090/mcp
     region: LOCAL
+  # release_publish is deliberately NOT listed in allowed_tools: listing a
+  # tool in both allowed_tools and forbidden_tools relies on forbidden-wins
+  # precedence, which is current behavior but an implicit contract. Keeping
+  # the lists disjoint makes intent unambiguous.
   allowed_tools:
     - name: release_status
     - name: release_prepare
-    - name: release_publish
   forbidden_tools:
     - release_publish
   rate_limits:

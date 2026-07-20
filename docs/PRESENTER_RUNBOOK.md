@@ -96,17 +96,20 @@ Do not display the adapter token, Talon agent key, or provider key. The adapter 
 
 This scene is permitted only after the current-Talon end-to-end gate passes.
 
-1. Ask Copilot to call `release_status` and `release_prepare` through `release-gateway`.
-2. Ask for `release_publish`.
-3. Show the native Talon denial.
-4. Run:
+1. Read the run nonce printed by `scripts/preflight.sh` (also in `.state/run-nonce`).
+2. Ask Copilot to call `release_status` and `release_prepare` through `release-gateway`, passing `{"run_nonce": "<nonce>"}` in the tool arguments. The nonce ties this run's upstream receipts to this demo; without it, stale receipts from an earlier run could fake the proof.
+3. Ask for `release_publish`.
+4. Show the native Talon denial: the JSON-RPC error carries `error.data.talon_code == "TALON_TOOL_FORBIDDEN"` (stable since Talon v1.9.3, #369).
+5. Run:
 
 ```bash
 scripts/assert-release-blocked.sh
 ```
 
-5. Display the synthetic upstream receipt file. It must contain `release_status` and `release_prepare`, and no `release_publish`.
-6. Inspect the signed Talon evidence. It must carry authenticated `coding-assistant`, the asserted Copilot session, one request-scoped correlation ID, and the native deterministic tool-denial explanation.
+The assertion only accepts `release_status`/`release_prepare` receipts carrying the current run nonce, and fails on any `release_publish` receipt.
+
+6. Display the synthetic upstream receipt file. It must contain nonce-tagged `release_status` and `release_prepare`, and no `release_publish`.
+7. Inspect the signed Talon evidence. It must carry authenticated `coding-assistant`, the asserted Copilot session, one request-scoped correlation ID, and the `TALON_TOOL_FORBIDDEN` denial code.
 
 The synthetic release server has no external publishing implementation; even an allowed call can only append a local synthetic receipt.
 

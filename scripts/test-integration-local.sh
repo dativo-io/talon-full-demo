@@ -100,10 +100,60 @@ curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$MCP_PORT/mcp"
 curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$MCP_PORT/mcp" \
   -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
   | jq -e '.result.tools|length==3' >/dev/null
+RUN_NONCE="$(python3 -c 'import secrets;print(secrets.token_hex(16))')"
+for tool in release_status release_prepare; do
+  curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$MCP_PORT/mcp" \
+    -H 'Content-Type: application/json' \
+    -d "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":{\"version\":\"demo\",\"run_nonce\":\"$RUN_NONCE\"}}}" \
+    | jq -e '.result.isError==false' >/dev/null
+done
+# Nonce-correlated denial proof (finding H1): passes for the current run...
+RELEASE_RUN_NONCE="$RUN_NONCE" RELEASE_MCP_RECEIPTS="$TMP/receipts.jsonl" \
+  "$ROOT/scripts/assert-release-blocked.sh" >/dev/null
+# ...fails for a different nonce even though the same receipts file exists
+# (a stale file from an earlier run can no longer fake success)...
+if RELEASE_RUN_NONCE="stale-run" RELEASE_MCP_RECEIPTS="$TMP/receipts.jsonl" \
+  "$ROOT/scripts/assert-release-blocked.sh" >/dev/null 2>&1; then
+  echo 'assert-release-blocked accepted receipts from a different run' >&2
+  exit 1
+fi
+# ...and fails when release_publish reached the upstream.
 curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$MCP_PORT/mcp" \
   -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"release_prepare","arguments":{"version":"demo"}}}' \
-  | jq -e '.result.isError==false' >/dev/null
-jq -e 'select(.tool=="release_prepare" and .synthetic==true)' "$TMP/receipts.jsonl" >/dev/null
+  -d "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"release_publish\",\"arguments\":{\"version\":\"demo\",\"run_nonce\":\"$RUN_NONCE\"}}}" \
+  >/dev/null
+if RELEASE_RUN_NONCE="$RUN_NONCE" RELEASE_MCP_RECEIPTS="$TMP/receipts.jsonl" \
+  "$ROOT/scripts/assert-release-blocked.sh" >/dev/null 2>&1; then
+  echo 'assert-release-blocked missed a release_publish receipt' >&2
+  exit 1
+fi
+
+# Session-budget scenario (finding H2): request 1 allowed, request 2 allowed,
+# request 3 denied with 403 session_budget_exceeded and zero simulated cost.
+BUDGET_PORT="$(free_port)"
+MOCK_TALON_PORT="$BUDGET_PORT" MOCK_TALON_LOG="$TMP/budget.jsonl" \
+  MOCK_TALON_SESSION_BUDGET_REQUESTS=2 \
+  python3 "$ROOT/mock/mock_talon.py" >"$TMP/budget-mock.log" 2>&1 &
+PIDS+=("$!")
+wait_for budget-mock "http://127.0.0.1:$BUDGET_PORT/health" "$TMP/budget-mock.log"
+budget_call() {
+  curl --silent --output /dev/null --write-out '%{http_code}' --max-time 10 \
+    "http://127.0.0.1:$BUDGET_PORT/v1/proxy/openai/v1/chat/completions" \
+    -H 'Authorization: Bearer doc-key' -H 'Content-Type: application/json' \
+    -H 'X-Talon-Session-ID: n8n-quarterly-report' \
+    -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"summarize"}]}'
+}
+[[ "$(budget_call)" == "200" ]] || { echo 'budget request 1 not allowed' >&2; exit 1; }
+[[ "$(budget_call)" == "200" ]] || { echo 'budget request 2 not allowed' >&2; exit 1; }
+[[ "$(budget_call)" == "403" ]] || { echo 'budget request 3 not denied' >&2; exit 1; }
+python3 - "$TMP/budget.jsonl" <<'PYBUDGET'
+import json, sys
+from pathlib import Path
+
+rows = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
+assert len(rows) == 3, rows
+assert [r['denied'] for r in rows] == [False, False, True]
+assert rows[2]['cost_usd'] == 0.0, 'denied request must incur zero simulated cost'
+PYBUDGET
 
 echo 'Local HTTP integration passed'

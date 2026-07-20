@@ -88,7 +88,7 @@ Provider keys remain in Talon's vault. The Zendesk browser and adapter never rec
 
 ## 5. Start Talon
 
-Current Talon CLI contract, audited against `main` commit `3f373e19f2a97722db7450e51461862911188ecb`:
+Current Talon CLI contract, audited against `main` commit `24046ca690a616c2710c3084d59857839364bcf3`:
 
 ```bash
 talon serve \
@@ -105,7 +105,23 @@ Verify:
 
 ```bash
 curl -fsS -D- "$TALON_GATEWAY/health"
-talon agents --url "$TALON_GATEWAY"
+talon validate --dir config/generated/agents
+```
+
+Note: Talon's QUICKSTART documents `talon agents --url` as the runtime
+"which agents is this server serving" check (#370), but v1.9.3 ships the
+documentation without the command implementation -- `talon agents` has no
+`--url` flag yet. Use the offline `talon validate --dir` check above until
+the upstream command lands.
+
+To run the same config in shadow mode for the policy-comparison beat, do
+not edit YAML; use the v1.9.3 runtime override (#368):
+
+```bash
+talon serve --host 127.0.0.1 --port 8080 --gateway \
+  --gateway-config "$TALON_CONFIG" \
+  --proxy-config config/mcp-proxy.example.yaml \
+  --gateway-mode shadow
 ```
 
 ## 6. Start local components

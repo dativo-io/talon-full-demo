@@ -1,6 +1,6 @@
 # Current release gates
 
-Compatibility was source-audited against `dativo-io/talon/main` commit `3f373e19f2a97722db7450e51461862911188ecb` on 2026-07-20.
+Compatibility was source-audited against `dativo-io/talon/main` commit `24046ca690a616c2710c3084d59857839364bcf3` on 2026-07-20.
 
 ## Resolved Talon defects
 
@@ -13,6 +13,12 @@ Talon issues `#346` and `#350` are closed as completed. Current `main` now:
 - preserves authenticated tenant and agent identity in MCP evidence;
 - validates and propagates client-asserted session metadata and request correlation IDs with attribution provenance.
 
+Talon v1.9.3 additionally resolved three gaps this demo's review surfaced:
+
+- `#367`: `/mcp/proxy` (and `/mcp`) answer the mandatory MCP `initialize` handshake locally (tools capability only, never forwarded upstream) and accept `notifications/initialized`; spec-conformant MCP clients such as Copilot CLI can now connect through the proxy. The prior `-32601` on `initialize` would have broken the Copilot MCP scene.
+- `#369`: denials carry a stable machine code in JSON-RPC `error.data.talon_code` (`TALON_TOOL_FORBIDDEN` for the forbidden-tool case), so the denial gate below asserts on a code, not on prose.
+- `#368`: `talon serve --gateway-mode shadow|enforce|log_only` overrides `gateway.mode` at runtime; the demo no longer generates an edited shadow config file.
+
 The demo still uses explicit `proxy.mode: intercept`; it does not depend on the default.
 
 ## Remaining MCP end-to-end gate
@@ -24,7 +30,7 @@ The product defects are fixed, but the full scene must still be executed against
 - forbidden `release_publish` returns a Talon policy denial and is absent from upstream receipts;
 - evidence carries the authenticated `coding-assistant` identity;
 - evidence preserves the asserted Copilot session and request correlation identifier;
-- the emitted native explanation includes the current deterministic tool-denial code/reason;
+- the JSON-RPC denial carries `error.data.talon_code == "TALON_TOOL_FORBIDDEN"` (stable since v1.9.3, #369);
 - the signed session export verifies offline.
 
 Until those checks run, label the scene **implemented and current-Talon-compatible, externally unverified**—not product-blocked.

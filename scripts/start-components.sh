@@ -45,4 +45,43 @@ start zendesk-adapter "$ROOT/bin/zendesk-adapter" \
       ZENDESK_ADAPTER_BIND="${ZENDESK_ADAPTER_BIND:-127.0.0.1:8443}" \
       "$ROOT/bin/zendesk-adapter"
 
+# Readiness gate (review finding H4): a component that fails to bind used to
+# leave a dead pidfile behind while the script reported success. Fail loudly
+# and clean up everything this invocation started instead.
+wait_healthy() {
+  local name="$1" url="$2"
+  for _ in $(seq 1 100); do
+    if curl --fail --silent --max-time 1 "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.05
+  done
+  echo "$name did not become healthy at $url; log follows" >&2
+  cat "$ROOT/.state/logs/$name.log" >&2 || true
+  "$ROOT/scripts/stop-components.sh" || true
+  exit 1
+}
+# The shim has no local /health -- every path is proxied to Talon, which is
+# started separately. Its readiness check therefore only requires the shim
+# to answer HTTP at all (any status), not a healthy upstream.
+wait_listening() {
+  local name="$1" url="$2"
+  for _ in $(seq 1 100); do
+    local code
+    code="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 1 "$url" 2>/dev/null || true)"
+    if [[ "$code" != "000" && -n "$code" ]]; then
+      return 0
+    fi
+    sleep 0.05
+  done
+  echo "$name is not accepting HTTP connections at $url; log follows" >&2
+  cat "$ROOT/.state/logs/$name.log" >&2 || true
+  "$ROOT/scripts/stop-components.sh" || true
+  exit 1
+}
+
+wait_healthy release-mcp "http://${RELEASE_MCP_BIND:-127.0.0.1:8090}/health"
+wait_listening copilot-shim "http://${COPILOT_SHIM_BIND:-127.0.0.1:8079}/health"
+wait_healthy zendesk-adapter "http://${ZENDESK_ADAPTER_BIND:-127.0.0.1:8443}/health"
+
 echo 'Started local integration components; start Talon and n8n separately.'
