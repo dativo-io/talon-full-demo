@@ -114,6 +114,13 @@ talon serve --host 127.0.0.1 --port 8081 --proxy-config ../mcp-proxy.example.yam
 Both share `TALON_DATA_DIR` (set in `.env`), so LLM and MCP evidence land in the
 same signed store, joinable by session.
 
+The two processes share one SQLite `TALON_DATA_DIR`. Treat this as a
+**low-concurrency demo topology** — the demo issues requests sequentially, so
+write contention does not arise — not a claim of formally supported multi-process
+Talon operation. For higher concurrency or a production deployment, give each
+process its own data directory (evidence stays per-process) or run a single
+process, until Talon documents shared-store multi-process support.
+
 **Why two processes (identity + least privilege).** In v1.9.3 a single-process
 `--gateway` also serving `--proxy-config` puts `/mcp/proxy` behind admin-only
 middleware (fail-closed native-execution route, upstream #266): the agent bearer
