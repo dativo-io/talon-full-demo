@@ -15,6 +15,7 @@ root = Path(sys.argv[1])
 out = Path(sys.argv[2])
 values = {
     "TALON_GATEWAY": "http://127.0.0.1:8080",
+    "TALON_MCP_GATEWAY": "http://127.0.0.1:8081",
     "TALON_CONFIG": str(root / "config/generated/talon.config.yaml"),
     "TALON_DATA_DIR": str(root / ".state/talon"),
     "TALON_SECRETS_KEY": secrets.token_hex(32),

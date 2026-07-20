@@ -141,9 +141,20 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			tools = append(tools, map[string]any{
 				"name":        name,
 				"description": "Safe synthetic release operation for the Talon full demo; it cannot publish externally",
+				// run_nonce MUST be advertised and required: the demo correlates
+				// upstream receipts to the current run by this nonce
+				// (scripts/assert-release-blocked.sh), and a conforming MCP
+				// client sends only declared properties. Talon's proxy forwards
+				// each tool object verbatim (filtering by name only), so this is
+				// the schema the real client sees. additionalProperties:false is
+				// kept so the client sends exactly {version?, run_nonce}.
 				"inputSchema": map[string]any{
-					"type":                 "object",
-					"properties":           map[string]any{"version": map[string]string{"type": "string"}},
+					"type": "object",
+					"properties": map[string]any{
+						"version":   map[string]any{"type": "string"},
+						"run_nonce": map[string]any{"type": "string", "minLength": 1, "description": "Per-run correlation nonce from scripts/preflight.sh (.state/run-nonce)"},
+					},
+					"required":             []string{"run_nonce"},
 					"additionalProperties": false,
 				},
 			})
@@ -159,6 +170,14 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 		case "release_status", "release_prepare", "release_publish":
 		default:
 			rpcError(w, request.ID, -32602, "unknown tool")
+			return
+		}
+		// Enforce the advertised schema server-side: run_nonce is required and
+		// must be a non-empty string. Without this the receipt could carry no
+		// nonce (or a non-string one) and the run-correlation proof would be
+		// vacuous. Applies to all tools so the schema and validation match.
+		if nonce, ok := params.Arguments["run_nonce"].(string); !ok || nonce == "" {
+			rpcError(w, request.ID, -32602, "run_nonce is required and must be a non-empty string")
 			return
 		}
 		if err := s.writeReceipt(params.Name, params.Arguments); err != nil {

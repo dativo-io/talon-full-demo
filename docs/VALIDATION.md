@@ -31,7 +31,7 @@ Source-audited on 2026-07-20 against `dativo-io/talon/main` commit `24046ca690a6
 
 - gateway route `/v1/proxy/{provider}/v1/...`;
 - `talon serve --host ... --port ... --gateway --proxy-config ...`, run from the generated-config directory (`agents_dir` is working-directory-relative in v1.9.3; from the repository root the server fails at boot);
-- MCP endpoint `POST /mcp/proxy` (admin-gated when the same process serves the gateway — upstream #266 fail-closed);
+- MCP endpoint `POST /mcp/proxy`: admin-gated when one process serves `--gateway` (upstream #266 fail-closed); agent-key authenticated (attributing to the acting agent) when run as a proxy-only process — the demo uses the latter on `:8081`;
 - strict proxy YAML with object-form `allowed_tools` and top-level `pii_handling`;
 - issue #346 fail-closed/default-mode behavior;
 - issue #350 authenticated agent plus session/correlation evidence attribution;
@@ -42,23 +42,19 @@ Source-audited on 2026-07-20 against `dativo-io/talon/main` commit `24046ca690a6
 
 ## Executed live-server run (2026-07-20)
 
-The following was executed from scratch against a real server built from Talon `24046ca` (v1.9.3) — a mock-independent result, distinct from the source audit above:
+This is reproducible as a script — `make live-check` (`scripts/test-live-talon.sh`) — a rerunnable, mock-independent gate distinct from the source audit above, not a one-time transcript. It needs a `dativo-io/talon` checkout (`TALON_REPO`, default `../talon`; a mismatch with `TALON_PINNED_COMMIT` warns) and builds the Talon binary itself. Two hermetic phases run in a temp dir (the repo's `.env`/`.state`/`config/generated` are untouched):
 
-- `make env` → bootstrap from the canonical product-demo config → all six vault secrets seeded → `talon validate --dir` green → `talon doctor` 11 passed / 1 pre-existing warning;
-- server boot from `config/generated` with gateway + MCP proxy, 3 agents discovered; `talon agents --url` returned the live fleet table;
-- component startup behind the H4 readiness gates; `scripts/preflight.sh` green (run nonce issued, Ollama confirmed offline, billing fixture failing as required);
-- `/mcp/proxy` answered `initialize` locally as `talon-mcp-proxy v1.9.3` (#367), accepted `notifications/initialized` (202), and `tools/list` advertised only the two allowed tools;
-- nonce-tagged `release_status`/`release_prepare` succeeded; `release_publish` was denied with JSON-RPC `-32000` and `error.data.talon_code == "TALON_TOOL_FORBIDDEN"` (#369), with no publish receipt at the synthetic upstream; `scripts/assert-release-blocked.sh` passed against the live receipts;
-- `talon audit list` showed the session with 2 allowed / 1 denied requests attributed to the authenticated proxy agent and the client-asserted session; the signed export verified offline, 3/3 records valid.
+**Phase 1 — MCP release boundary and the identity story, in the demo's real two-process topology.** A gateway process (`:GW`) and a proxy-only process (`:MCP`) share one `TALON_DATA_DIR`. Then:
 
-Auth caveat: the MCP calls authenticated with `X-Talon-Admin-Key` — in single-process gateway mode `/mcp/proxy` rejects the agent bearer alone (401, upstream #266); see `docs/BLOCKERS.md`.
+- the fleet view (`talon agents --url`, #370/v1.9.0) lists 3 agents;
+- an LLM call through the gateway as the `coding-assistant` bearer succeeds (against a synthetic OpenAI-compatible provider, no real key);
+- the MCP scene runs through the proxy-only process with the **agent bearer only, no admin key** — proving agent-key auth on `/mcp/proxy`: `initialize` answered locally as `talon-mcp-proxy v1.9.3` (#367), `tools/list` advertises exactly the two allowed tools **each with `run_nonce` required**, nonce-tagged `release_status`/`release_prepare` succeed, and `release_publish` is denied with `error.data.talon_code == "TALON_TOOL_FORBIDDEN"` (#369) with no publish receipt;
+- `scripts/assert-release-blocked.sh` passes for the run nonce and rejects a stale nonce;
+- `scripts/assert-evidence.sh` verifies the signed export offline and asserts that **every record in the session — the LLM call and all MCP calls — carries `agent_id = coding-assistant`** (4/4 valid, 1 forbidden-tool denial). This is the identity proof: LLM and MCP actions share one operational identity, and the client holds no operator credential.
 
-This run is now reproducible as a script — `make live-check` (`scripts/test-live-talon.sh`) — so it is a rerunnable gate, not a one-time transcript. It needs a `dativo-io/talon` checkout (`TALON_REPO`, default `../talon`; a mismatch with `TALON_PINNED_COMMIT` warns) and builds the Talon binary itself. Two hermetic phases in a temp dir (the repo's `.env`/`.state`/`config/generated` are untouched):
+**Phase 2 — the session-budget engine itself** (#198/#283, not the mock's imitation): a synthetic OpenAI-compatible provider returns large usage so one request's real cost dwarfs the pre-request estimate; the cap is measured at runtime (1.5× one request's actual signed-evidence cost, robust to pricing-table changes) and Talon denies request 3 with a real `403 session_budget_exceeded` at zero cost. Executed 2026-07-20: measured cost 1.6, cap 2.4, allow/allow/deny, evidence 3/3 valid.
 
-1. the canonical MCP forbidden-tool scene above, asserted end to end (local `initialize`, allowed calls, `TALON_TOOL_FORBIDDEN` denial, nonce-correlated receipts with a stale-nonce negative, and `scripts/assert-evidence.sh` over the signed export);
-2. the **session-budget engine itself** (#198/#283, not the mock's imitation): a synthetic OpenAI-compatible provider returns large usage so one request's real cost dwarfs the pre-request estimate; the cap is measured at runtime (1.5× one request's actual signed-evidence cost, robust to pricing-table changes) and Talon denies request 3 with a real `403 session_budget_exceeded` at zero cost. Executed 2026-07-20: measured cost 1.6, cap 2.4, allow/allow/deny, evidence 3/3 valid.
-
-This closes the gap between "matches the 403 contract read in Talon's `session_budget_test.go`" and "Talon's real budget path produced the denial." Real-*provider* budget calibration (actual LLM spend and latency) remains external.
+This closes the gap between "matches the 403 contract read in Talon's `session_budget_test.go`" and "Talon's real budget path produced the denial." The remaining external gate is a **real Copilot CLI binary** driving Phase 1's scene (the live check drives `tools/call` over HTTP, but the tool schema now advertises `run_nonce` as required, so a conforming client is exercised through the same contract); real-*provider* budget calibration (actual LLM spend and latency) also remains external.
 
 Still external: driving the same scene from a real Copilot CLI binary, the Zendesk private-app installation, the n8n UI workflow export, and real-provider routes (LLM and budget calibration used no real provider keys in this run).
 

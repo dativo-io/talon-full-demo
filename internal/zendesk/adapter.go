@@ -220,16 +220,29 @@ Latest requester message:
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		log.Printf("Talon denied or failed Zendesk session=%s status=%d", sessionID, response.StatusCode)
-		// A gateway 4xx is a Talon policy/budget decision (e.g. 403 with a
-		// session_budget_exceeded machine code); anything else is an
-		// availability failure. Collapsing both into 502 hid the exact
-		// distinction the demo asks the operator to investigate. The upstream
-		// body is never forwarded to the browser -- only a sanitized marker.
-		if response.StatusCode >= 400 && response.StatusCode < 500 {
+		// Distinguish, without ever forwarding the upstream body, the causes an
+		// operator must act on differently. Only a genuine policy/budget denial
+		// (Talon's 403) may claim "policy"; a 401/429/other-4xx must not, or the
+		// adapter would report "policy worked" when the integration is actually
+		// misconfigured or throttled. Talon's contract (internal/gateway/gateway.go):
+		//   401 Invalid or missing agent key, 403 policy/budget/agent-disabled
+		//   deny, 429 Rate limit exceeded.
+		switch {
+		case response.StatusCode == http.StatusForbidden:
+			// The one status that is a Talon policy/budget decision.
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "request denied by Talon policy", "session_id": sessionID})
-			return
+		case response.StatusCode == http.StatusUnauthorized:
+			// The adapter's own Talon agent key is wrong or missing: an
+			// integration configuration failure, not a policy outcome.
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "governed draft unavailable: Talon rejected the adapter credential (integration misconfiguration, not a policy denial)", "session_id": sessionID})
+		case response.StatusCode == http.StatusTooManyRequests:
+			// Keep 429 distinguishable so throttling is not mistaken for a denial.
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limited by Talon", "session_id": sessionID})
+		default:
+			// Any other non-2xx (other 4xx, 5xx, malformed route): an
+			// availability/integration failure that makes no policy claim.
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "governed draft unavailable", "session_id": sessionID})
 		}
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "governed draft unavailable", "session_id": sessionID})
 		return
 	}
 

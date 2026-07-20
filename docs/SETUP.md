@@ -95,44 +95,59 @@ Provider keys remain in Talon's vault. The Zendesk browser and adapter never rec
 
 ## 5. Start Talon
 
-Current Talon CLI contract, audited against `main` commit `24046ca690a616c2710c3084d59857839364bcf3` and executed against a server built from that commit:
+Current Talon CLI contract, audited against `main` commit `24046ca690a616c2710c3084d59857839364bcf3` and executed against a server built from that commit.
+
+Run **two** Talon processes that share one data directory (`TALON_DATA_DIR`),
+both started from `config/generated`. The split exists for a governance reason,
+not convenience — see the note below.
 
 ```bash
 cd config/generated
-talon serve \
-  --host 127.0.0.1 \
-  --port 8080 \
-  --gateway \
-  --proxy-config ../mcp-proxy.example.yaml
+
+# 1) LLM gateway on :8080 — Copilot model traffic, Zendesk drafts, n8n.
+talon serve --host 127.0.0.1 --port 8080 --gateway &
+
+# 2) MCP proxy on :8081 — the release-tool boundary, agent-key authenticated.
+talon serve --host 127.0.0.1 --port 8081 --proxy-config ../mcp-proxy.example.yaml &
 ```
 
-Run the server from `config/generated`: the canonical config's `agents_dir: agents`
+Both share `TALON_DATA_DIR` (set in `.env`), so LLM and MCP evidence land in the
+same signed store, joinable by session.
+
+**Why two processes (identity + least privilege).** In v1.9.3 a single-process
+`--gateway` also serving `--proxy-config` puts `/mcp/proxy` behind admin-only
+middleware (fail-closed native-execution route, upstream #266): the agent bearer
+alone gets 401, so the client would have to carry the operator admin key, and
+Talon — seeing no authenticated agent — attributes MCP evidence to the proxy
+config's own name (`coding-assistant-release-tools`) rather than the acting
+agent. A **proxy-only** process (no `--gateway`) authenticates `/mcp/proxy` with
+**agent keys** (`TenantKeyMiddleware`), so the `coding-assistant` bearer both
+authenticates and owns the evidence: MCP records and the agent's LLM records
+share `agent_id = coding-assistant` and the same session, and the Copilot process
+never holds the admin key. This is executed and asserted by `make live-check`.
+
+Run each server from `config/generated`: the canonical config's `agents_dir: agents`
 resolves relative to the server's working directory in v1.9.3 (upstream's own
 `examples/product-demo/demo.sh` also starts the server from the directory holding
-`talon.config.yaml`). Started from the repository root, the same command fails at
-boot with "gateway mode requires at least one keyed agent" — `--gateway-config`
-does not change the `agents_dir` base, so it is omitted; the server discovers
-`./talon.config.yaml` in its working directory.
+`talon.config.yaml`). Started from the repository root it fails at boot with
+"gateway mode requires at least one keyed agent".
 
-Both the LLM gateway and `POST /mcp/proxy` use the same loopback Talon server on port 8080.
-
-Verify:
+Verify both:
 
 ```bash
-curl -fsS -D- "$TALON_GATEWAY/health"
+curl -fsS -D- "$TALON_GATEWAY/health"       # :8080 gateway
+curl -fsS -D- "$TALON_MCP_GATEWAY/health"   # :8081 MCP proxy
 talon agents --url "$TALON_GATEWAY"
 ```
 
 The runtime fleet check has shipped since Talon v1.9.0 (`internal/cmd/agents_queue.go`); an explicit `--url` is authoritative and errors rather than silently falling back to the offline config view.
 
-To run the same config in shadow mode for the policy-comparison beat, do
-not edit YAML; use the v1.9.3 runtime override (#368):
+To run the gateway in shadow mode for the policy-comparison beat, do not edit
+YAML; use the v1.9.3 runtime override (#368) on the gateway process:
 
 ```bash
 cd config/generated
-talon serve --host 127.0.0.1 --port 8080 --gateway \
-  --proxy-config ../mcp-proxy.example.yaml \
-  --gateway-mode shadow
+talon serve --host 127.0.0.1 --port 8080 --gateway --gateway-mode shadow &
 ```
 
 ## 6. Start local components
@@ -176,16 +191,13 @@ scripts/reset-billing-fixture.sh
 scripts/render-copilot-mcp-config.sh
 ```
 
-v1.9.3 auth gate (executed, not hypothetical): when the same `talon serve`
-process runs the gateway, `/mcp/proxy` is a fail-closed "native execution" route
-behind `RequireAdminKeyMiddleware` (upstream #266) — an agent bearer alone is
-rejected with 401. The rendered MCP config therefore carries
-`X-Talon-Admin-Key` alongside the agent bearer (operator-native execution;
-evidence attribution is unaffected — the executed run still recorded the
-authenticated proxy agent and the asserted session). Tradeoff, stated plainly:
-the Copilot process holds the loopback demo's admin key. If a stricter
-least-privilege story is wanted, run the MCP proxy from a second non-gateway
-`talon serve`, where agent keys authenticate on their own.
+The rendered config points at the **MCP-proxy process** (`$TALON_MCP_GATEWAY`,
+`:8081`) and authenticates with the `coding-assistant` agent bearer only — no
+admin key. Because that process is proxy-only (agent-key authenticated), the MCP
+release-tool actions carry `agent_id = coding-assistant`, the same identity as
+the Copilot model traffic through the gateway. `make live-check` executes and
+asserts this: the LLM call and the MCP calls in one session all attribute to
+`coding-assistant`. (See §5 for why the MCP proxy runs as its own process.)
 
 Configure Copilot's current BYOK variables:
 

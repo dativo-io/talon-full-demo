@@ -143,7 +143,7 @@ func TestDraftSurfacesTalonPolicyDenialAs403WithoutLeakingUpstreamBody(t *testin
 	upstream := `{"error":{"message":"denied: session_budget_exceeded: cap reached","type":"session_budget_exceeded","code":"session_budget_exceeded"}}`
 	resp, body := doDraft(t, denialTestHandler(t, http.StatusForbidden, upstream))
 	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("Talon 4xx must surface as 403, got %d", resp.StatusCode)
+		t.Fatalf("Talon 403 must surface as 403, got %d", resp.StatusCode)
 	}
 	if body["error"] != "request denied by Talon policy" || body["session_id"] != "zendesk-ticket-7" {
 		t.Fatalf("unexpected denial body: %v", body)
@@ -162,5 +162,45 @@ func TestDraftSurfacesTalonOutageAs502DistinctFromDenial(t *testing.T) {
 	}
 	if body["error"] != "governed draft unavailable" {
 		t.Fatalf("unexpected outage body: %v", body)
+	}
+}
+
+// A Talon 401 means the adapter's own agent key is wrong or missing: an
+// integration misconfiguration. It must NOT be reported as a policy denial,
+// or the operator would conclude "policy worked" when nothing was governed.
+func TestDraftTreatsTalon401AsIntegrationFailureNotPolicy(t *testing.T) {
+	resp, body := doDraft(t, denialTestHandler(t, http.StatusUnauthorized, `{"error":"Invalid or missing agent key"}`))
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("Talon 401 must surface as 502, got %d", resp.StatusCode)
+	}
+	if strings.Contains(body["error"], "policy") == false || strings.Contains(body["error"], "not a policy denial") == false {
+		t.Fatalf("401 must be marked as an integration failure, not a policy denial: %v", body)
+	}
+	if body["error"] == "request denied by Talon policy" {
+		t.Fatalf("401 must not claim a policy denial: %v", body)
+	}
+}
+
+// A Talon 429 must stay distinguishable so throttling is not mistaken for a
+// denial or an outage.
+func TestDraftKeepsTalon429Distinguishable(t *testing.T) {
+	resp, body := doDraft(t, denialTestHandler(t, http.StatusTooManyRequests, `{"error":"Rate limit exceeded"}`))
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("Talon 429 must surface as 429, got %d", resp.StatusCode)
+	}
+	if body["error"] != "rate limited by Talon" {
+		t.Fatalf("unexpected 429 body: %v", body)
+	}
+}
+
+// An unexpected 4xx (e.g. 404 wrong route) must fail generically and make no
+// policy claim.
+func TestDraftDoesNotClaimPolicyForUnexpected4xx(t *testing.T) {
+	resp, body := doDraft(t, denialTestHandler(t, http.StatusNotFound, `{"error":"no such route"}`))
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("unexpected 4xx must surface as 502, got %d", resp.StatusCode)
+	}
+	if body["error"] != "governed draft unavailable" {
+		t.Fatalf("unexpected 4xx must not claim a policy denial: %v", body)
 	}
 }

@@ -102,6 +102,41 @@ if [[ -f "$TALON_REPO/pricing/models.yaml" ]]; then
   cp "$TALON_REPO/pricing/models.yaml" "$CANON/pricing/models.yaml"
 fi
 
+# A synthetic OpenAI-compatible provider so the coding-assistant LLM call needs
+# no real key/network. Only the temp copy of the canonical config is repointed
+# at it; the repo's config is untouched.
+PROV_LLM_PORT="$(free_port)"
+cat > "$WORK/llm_provider.py" <<'PYLLM'
+import json, os
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+PORT = int(os.environ['LLM_PORT'])
+class H(BaseHTTPRequestHandler):
+    protocol_version = 'HTTP/1.1'
+    def log_message(self, *a): pass
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get('Content-Length', 0)))
+        body = json.dumps({'id': 'chatcmpl-id', 'object': 'chat.completion', 'model': 'gpt-4o-mini',
+            'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': 'ok'}, 'finish_reason': 'stop'}],
+            'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}}).encode()
+        self.send_response(200); self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
+    def do_GET(self):
+        self.send_response(200); self.send_header('Content-Length', '2'); self.end_headers(); self.wfile.write(b'ok')
+if __name__ == '__main__':
+    ThreadingHTTPServer(('127.0.0.1', PORT), H).serve_forever()
+PYLLM
+LLM_PORT="$PROV_LLM_PORT" python3 "$WORK/llm_provider.py" > "$WORK/llm-provider.log" 2>&1 &
+PIDS+=("$!")
+# Repoint the openai provider base_url at the synthetic provider (in the temp copy only).
+python3 - "$CANON/talon.config.yaml" "$PROV_LLM_PORT" <<'PYPATCH'
+import re, sys
+p, port = sys.argv[1], sys.argv[2]
+text = open(p).read()
+# Rewrite the openai provider's base_url to the local synthetic provider.
+text = re.sub(r'(openai:\n(?:\s+.*\n)*?\s+base_url:\s*)"[^"]*"', r'\g<1>"http://127.0.0.1:%s"' % port, text, count=1)
+open(p, 'w').write(text)
+PYPATCH
+
 export TALON_DATA_DIR="$WORK/data-canonical"
 (cd "$CANON" \
   && talon secrets set local-llama-demo-key not-a-real-key-local-demo --tenant acme --agent customer-support \
@@ -113,6 +148,7 @@ export TALON_DATA_DIR="$WORK/data-canonical"
 
 MCP_UP_PORT="$(free_port)"
 GW_PORT="$(free_port)"
+MCP_PROXY_PORT="$(free_port)"
 RECEIPTS="$WORK/receipts.jsonl"
 : > "$RECEIPTS"
 RELEASE_MCP_BIND="127.0.0.1:$MCP_UP_PORT" RELEASE_MCP_RECEIPTS="$RECEIPTS" \
@@ -125,23 +161,44 @@ sed "s|http://127.0.0.1:8090/mcp|http://127.0.0.1:$MCP_UP_PORT/mcp|" \
 grep -q "127.0.0.1:$MCP_UP_PORT/mcp" "$WORK/mcp-proxy.yaml" \
   || { echo 'failed to point mcp-proxy config at the synthetic upstream' >&2; exit 1; }
 
-# exec so $! is talon's real PID (not the subshell's), or cleanup/kill would
-# signal the subshell and leave talon holding the port.
+# The demo's real topology: TWO Talon processes sharing one TALON_DATA_DIR (so
+# LLM and MCP evidence land in the same signed store, joinable by session).
+#   :GW  gateway  — LLM traffic, admin-gated native routes off
+#   :MCP proxy-only (no --gateway) — /mcp/proxy authenticates with AGENT keys
+#        (TenantKeyMiddleware), so MCP evidence attributes to the authenticated
+#        agent (coding-assistant), NOT the proxy config's name, and needs no
+#        admin key. exec so $! is talon's real PID.
 ( cd "$CANON" && exec talon serve --host 127.0.0.1 --port "$GW_PORT" --gateway \
-  --proxy-config "$WORK/mcp-proxy.yaml" > "$WORK/talon-canonical.log" 2>&1 ) &
+  > "$WORK/talon-gateway.log" 2>&1 ) &
 PIDS+=("$!")
-wait_http talon-gateway "http://127.0.0.1:$GW_PORT/health" "$WORK/talon-canonical.log"
+wait_http talon-gateway "http://127.0.0.1:$GW_PORT/health" "$WORK/talon-gateway.log"
+( cd "$CANON" && exec talon serve --host 127.0.0.1 --port "$MCP_PROXY_PORT" \
+  --proxy-config "$WORK/mcp-proxy.yaml" > "$WORK/talon-mcp.log" 2>&1 ) &
+PIDS+=("$!")
+wait_http talon-mcp "http://127.0.0.1:$MCP_PROXY_PORT/health" "$WORK/talon-mcp.log"
 
 AGENT_COUNT="$(talon agents --url "http://127.0.0.1:$GW_PORT" --json | jq 'if type == "array" then length else (.agents // .rows // []) | length end')"
 [[ "$AGENT_COUNT" == "3" ]] || { echo "expected 3 agents in the live fleet view, got $AGENT_COUNT" >&2; exit 1; }
 echo "live fleet view: 3 agents"
 
-MCP_URL="http://127.0.0.1:$GW_PORT/mcp/proxy"
 SESSION_MCP="live-check-copilot"
 NONCE="$(openssl rand -hex 16)"
+
+# 1) An LLM call through the gateway as coding-assistant, same session as the
+#    MCP scene — establishes the coding-assistant identity on the LLM side.
+LLM_CODE="$(curl --silent --output "$WORK/llm.json" --write-out '%{http_code}' --max-time 15 \
+  "http://127.0.0.1:$GW_PORT/v1/proxy/openai/v1/chat/completions" \
+  -H "Authorization: Bearer $CA_KEY" -H "X-Talon-Session-ID: $SESSION_MCP" \
+  -H 'X-Talon-Client: live-check' -H 'Content-Type: application/json' \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"draft release note"}]}')"
+[[ "$LLM_CODE" == "200" ]] || { echo "coding-assistant LLM call failed: HTTP $LLM_CODE" >&2; cat "$WORK/llm.json" >&2; exit 1; }
+echo "LLM call: coding-assistant reached the gateway (session $SESSION_MCP)"
+
+# 2) The MCP scene through the PROXY-ONLY process — agent bearer only, NO admin
+#    key. If the admin key were still required this call would 401.
+MCP_URL="http://127.0.0.1:$MCP_PROXY_PORT/mcp/proxy"
 mcp() {
   curl --fail --silent --show-error --max-time 10 "$MCP_URL" \
-    -H "X-Talon-Admin-Key: $TALON_ADMIN_KEY" \
     -H "Authorization: Bearer $CA_KEY" \
     -H "X-Talon-Session-ID: $SESSION_MCP" \
     -H 'X-Talon-Client: live-check' \
@@ -153,9 +210,13 @@ mcp '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"
   | jq -e '.result.serverInfo.name == "talon-mcp-proxy"' >/dev/null \
   || { echo 'MCP initialize was not answered locally by the proxy (#367)' >&2; exit 1; }
 mcp '{"jsonrpc":"2.0","method":"notifications/initialized"}' >/dev/null
-mcp '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-  | jq -e '[.result.tools[].name] | sort == ["release_prepare","release_status"]' >/dev/null \
+# tools/list must advertise exactly the two allowed tools AND each must declare
+# run_nonce required (the schema the real client is driven by).
+LIST="$(mcp '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')"
+echo "$LIST" | jq -e '[.result.tools[].name] | sort == ["release_prepare","release_status"]' >/dev/null \
   || { echo 'tools/list must advertise exactly the two allowed tools' >&2; exit 1; }
+echo "$LIST" | jq -e 'all(.result.tools[]; (.inputSchema.required // []) | index("run_nonce"))' >/dev/null \
+  || { echo 'each advertised tool must mark run_nonce required (schema-driven client would else omit it)' >&2; exit 1; }
 for tool in release_status release_prepare; do
   mcp "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}" \
     | jq -e '.result.isError == false' >/dev/null \
@@ -164,7 +225,7 @@ done
 mcp "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"release_publish\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}" \
   | jq -e '.error.data.talon_code == "TALON_TOOL_FORBIDDEN"' >/dev/null \
   || { echo 'release_publish denial must carry talon_code TALON_TOOL_FORBIDDEN (#369)' >&2; exit 1; }
-echo "MCP scene: initialize local, allowed calls pass, forbidden call denied with TALON_TOOL_FORBIDDEN"
+echo "MCP scene (agent-key auth, no admin key): initialize local, allowed calls pass, forbidden call TALON_TOOL_FORBIDDEN"
 
 RELEASE_RUN_NONCE="$NONCE" RELEASE_MCP_RECEIPTS="$RECEIPTS" \
   "$ROOT/scripts/assert-release-blocked.sh" >/dev/null
@@ -175,8 +236,12 @@ if RELEASE_RUN_NONCE="stale-run" RELEASE_MCP_RECEIPTS="$RECEIPTS" \
 fi
 echo "receipts: nonce-correlated proof passes; stale nonce rejected"
 
-"$ROOT/scripts/assert-evidence.sh" --session "$SESSION_MCP" --agent coding-assistant-release-tools \
+# The identity story: EVERY record in the session — the LLM call and the MCP
+# calls — must carry agent_id=coding-assistant (assert-evidence enforces that
+# all records share the agent), and the forbidden-tool denial must be present.
+"$ROOT/scripts/assert-evidence.sh" --session "$SESSION_MCP" --agent coding-assistant \
   --min-denials 1 --deny-reason forbidden_tools
+echo "identity: LLM and MCP records share agent_id=coding-assistant"
 
 # ---------------------------------------------------------------------------
 # Phase 2 — session-budget engine: allow / allow / deny with a measured cap

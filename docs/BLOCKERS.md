@@ -33,9 +33,13 @@ The product defects are fixed, but the full scene must still be executed against
 - the JSON-RPC denial carries `error.data.talon_code == "TALON_TOOL_FORBIDDEN"` (stable since v1.9.3, #369);
 - the signed session export verifies offline.
 
-Everything above except the real-Copilot-CLI driver was executed on 2026-07-20 against a live server built from `24046ca` (see `docs/VALIDATION.md`, "Executed live-server run"). In single-process gateway mode, v1.9.3 admin-gates `/mcp/proxy` (fail-closed, upstream #266); the rendered Copilot MCP config therefore carries `X-Talon-Admin-Key` alongside the agent bearer — decided 2026-07-20, tradeoff documented in `docs/SETUP.md` section 8, with a second non-gateway proxy process as the stricter alternative.
+Everything above except the real-Copilot-CLI driver was executed on 2026-07-20 against a live server built from `24046ca` (see `docs/VALIDATION.md`, "Executed live-server run") and is now re-run by `make live-check`.
 
-Until those checks run, label the scene **implemented and current-Talon-compatible, externally unverified**—not product-blocked.
+Topology decision (identity + least privilege): the MCP proxy runs as its own **non-gateway** `talon serve` on `:8081`, sharing `TALON_DATA_DIR` with the gateway. A proxy-only process authenticates `/mcp/proxy` with **agent keys** (`TenantKeyMiddleware`), so the `coding-assistant` bearer both authenticates and owns the evidence — MCP records and the agent's LLM records share `agent_id = coding-assistant` — and the Copilot process holds no admin key. (The earlier single-process option required the operator admin key on the client and attributed MCP evidence to the proxy config's name `coding-assistant-release-tools`, breaking the "one identity" story; it was rejected.) `make live-check` asserts the shared-identity result.
+
+The synthetic release server advertises `run_nonce` as a **required** input-schema property and rejects a missing/malformed nonce server-side, so a schema-driven MCP client (Copilot) actually sends it — the `tools/call` curl in the live check is not a more permissive path than the real client.
+
+Until the real-Copilot-CLI driver runs, label the scene **implemented, executed against real Talon via `make live-check`, real-client driver externally unverified**—not product-blocked.
 
 ## External integration gates
 
