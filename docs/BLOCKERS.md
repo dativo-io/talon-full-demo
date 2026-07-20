@@ -33,7 +33,7 @@ The product defects are fixed, but the full scene must still be executed against
 - the JSON-RPC denial carries `error.data.talon_code == "TALON_TOOL_FORBIDDEN"` (stable since v1.9.3, #369);
 - the signed session export verifies offline.
 
-Everything above except the real-Copilot-CLI driver was executed on 2026-07-20 against a live server built from `24046ca` (see `docs/VALIDATION.md`, "Executed live-server run"). One open decision remains before the Copilot scene: in single-process gateway mode, v1.9.3 admin-gates `/mcp/proxy` (fail-closed, upstream #266), so the rendered `copilot-mcp.example.json` agent bearer alone gets 401 — the demo must either render `X-Talon-Admin-Key` into the Copilot MCP config or serve the MCP proxy from a second non-gateway `talon serve` process where agent keys authenticate.
+Everything above except the real-Copilot-CLI driver was executed on 2026-07-20 against a live server built from `24046ca` (see `docs/VALIDATION.md`, "Executed live-server run"). In single-process gateway mode, v1.9.3 admin-gates `/mcp/proxy` (fail-closed, upstream #266); the rendered Copilot MCP config therefore carries `X-Talon-Admin-Key` alongside the agent bearer — decided 2026-07-20, tradeoff documented in `docs/SETUP.md` section 8, with a second non-gateway proxy process as the stricter alternative.
 
 Until those checks run, label the scene **implemented and current-Talon-compatible, externally unverified**—not product-blocked.
 

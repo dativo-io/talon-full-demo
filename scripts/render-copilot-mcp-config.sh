@@ -17,7 +17,7 @@ import sys
 source = Path(sys.argv[1])
 out = Path(sys.argv[2])
 text = source.read_text()
-for key in ('TALON_CODING_ASSISTANT_KEY', 'TALON_COPILOT_SESSION_ID'):
+for key in ('TALON_CODING_ASSISTANT_KEY', 'TALON_ADMIN_KEY', 'TALON_COPILOT_SESSION_ID'):
     value = os.environ.get(key)
     if not value:
         raise SystemExit(f'{key} is required')

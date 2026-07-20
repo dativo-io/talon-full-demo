@@ -169,14 +169,16 @@ scripts/reset-billing-fixture.sh
 scripts/render-copilot-mcp-config.sh
 ```
 
-Known v1.9.3 auth gate (executed, not hypothetical): when the same `talon serve`
+v1.9.3 auth gate (executed, not hypothetical): when the same `talon serve`
 process runs the gateway, `/mcp/proxy` is a fail-closed "native execution" route
-behind `RequireAdminKeyMiddleware` (upstream #266) — the rendered config's agent
-bearer alone is rejected with 401, and the scene authenticates only with an
-`X-Talon-Admin-Key` header. Either add that header to the rendered MCP config
-(operator-native execution, evidence attribution is unaffected) or run the MCP
-proxy from a second non-gateway `talon serve`, where agent keys authenticate.
-This choice is tracked in `docs/BLOCKERS.md`.
+behind `RequireAdminKeyMiddleware` (upstream #266) — an agent bearer alone is
+rejected with 401. The rendered MCP config therefore carries
+`X-Talon-Admin-Key` alongside the agent bearer (operator-native execution;
+evidence attribution is unaffected — the executed run still recorded the
+authenticated proxy agent and the asserted session). Tradeoff, stated plainly:
+the Copilot process holds the loopback demo's admin key. If a stricter
+least-privilege story is wanted, run the MCP proxy from a second non-gateway
+`talon serve`, where agent keys authenticate on their own.
 
 Configure Copilot's current BYOK variables:
 
