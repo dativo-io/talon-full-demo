@@ -16,7 +16,7 @@ Evidence is the proof layer. The applications do not invent provider routes, pol
 
 The demo may claim:
 
-- one Talon server authenticates three AI-use-case identities;
+- one Talon configuration (one `talon.config.yaml` + `agents_dir`) defines three AI-use-case identities, each with its own key; the LLM gateway serves them on `:8080` and a companion proxy-only process serves the MCP boundary on `:8081`, sharing that configuration and evidence store (two processes for the v1.9.3 auth reason in `docs/SETUP.md` section 5 — not a single server);
 - traffic reaches Talon through current OpenAI-compatible, Anthropic, and MCP interfaces;
 - policy can redact or deny before provider/tool execution when the request crosses a Talon interception boundary;
 - allowed MCP calls reach the synthetic release server while forbidden `release_publish` does not;
@@ -111,11 +111,21 @@ Copilot's MCP config points at the MCP-proxy process (`:8081`) and authenticates
 with the `coding-assistant` agent bearer only — no admin key. The tool schema
 advertises `run_nonce` as required, so a conforming client sends it.
 
-1. Read the run nonce printed by `scripts/preflight.sh` (also in `.state/run-nonce`).
-2. Ask Copilot to call `release_status` and `release_prepare` through `release-gateway`, passing `{"run_nonce": "<nonce>"}` in the tool arguments (the schema marks it required). The nonce ties this run's upstream receipts to this demo; without it, stale receipts from an earlier run could fake the proof.
-3. Ask for `release_publish`.
-4. Show the native Talon denial: the JSON-RPC error carries `error.data.talon_code == "TALON_TOOL_FORBIDDEN"` (stable since Talon v1.9.3, #369).
-5. Run:
+This scene demonstrates **two distinct controls**. Present them separately and
+do not conflate them — do not narrate "Copilot attempted to publish," because a
+conforming client cannot invoke a tool it never discovered.
+
+**Control A — preventive filtering (what the model can see).**
+
+1. Show Copilot's available `release-gateway` tools. It sees exactly `release_status` and `release_prepare`. `release_publish` is **absent from discovery** — Talon filters it out of `tools/list` before the model ever sees it (`allowed_tools` on the proxy). Capability removed before selection.
+2. Read the run nonce printed by `scripts/preflight.sh` (also in `.state/run-nonce`).
+3. Ask Copilot to call `release_status` and `release_prepare` through `release-gateway`, passing `{"run_nonce": "<nonce>"}` in the tool arguments (the schema marks it required). The nonce ties this run's upstream receipts to this demo; without it, stale receipts from an earlier run could fake the proof.
+
+**Control B — runtime enforcement (a client that bypasses discovery).**
+
+4. Using a **clearly labelled adversarial probe** — a small MCP test client or `curl`, NOT Copilot — submit `release_publish` directly to `:8081/mcp/proxy` with the same agent bearer. State plainly that this simulates a malicious or non-conforming client bypassing tool discovery.
+5. Show the native Talon denial: the JSON-RPC error carries `error.data.talon_code == "TALON_TOOL_FORBIDDEN"` (stable since Talon v1.9.3, #369). Talon blocks the invocation even though the client submitted a tool it was never offered.
+6. Run:
 
 ```bash
 scripts/assert-release-blocked.sh
@@ -123,8 +133,12 @@ scripts/assert-release-blocked.sh
 
 The assertion only accepts `release_status`/`release_prepare` receipts carrying the current run nonce, and fails on any `release_publish` receipt.
 
-6. Display the synthetic upstream receipt file. It must contain nonce-tagged `release_status` and `release_prepare`, and no `release_publish`.
-7. Inspect the signed Talon evidence. It must carry authenticated `coding-assistant` (the same identity as the model traffic, because the MCP proxy is agent-key authenticated), the asserted Copilot session, one request-scoped correlation ID, and the `TALON_TOOL_FORBIDDEN` denial code. `scripts/assert-evidence.sh --session <id> --agent coding-assistant` scripts this check.
+7. Display the synthetic upstream receipt file. It must contain nonce-tagged `release_status` and `release_prepare`, and no `release_publish`.
+8. Inspect the signed Talon evidence. It must carry authenticated `coding-assistant` (the same identity as the model traffic, because the MCP proxy is agent-key authenticated), the asserted Copilot session, one request-scoped correlation ID, and the `TALON_TOOL_FORBIDDEN` denial code. `scripts/assert-evidence.sh --session <id> --agent coding-assistant` scripts this check.
+
+Together the two controls prove Talon (A) removes a capability before the model sees it, and (B) still blocks a client that bypasses discovery — defence in depth, not one control doing double duty.
+
+Policy-source disclosure (state it if asked): the MCP decision is evaluated against the proxy profile `coding-assistant-release-tools` (the `agent.name` in `mcp-proxy.example.yaml`), while the **authenticated acting identity** in evidence is `coding-assistant`. Acting identity and policy profile are distinct objects here; do not imply that `coding-assistant`'s ordinary effective policy produced the tool denial.
 
 The synthetic release server has no external publishing implementation; even an allowed call can only append a local synthetic receipt.
 

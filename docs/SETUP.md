@@ -7,7 +7,7 @@ This repository is intentionally separate from Talon. Keep the checkouts as sibl
 Repository-local validation requires:
 
 - Go 1.23 or newer;
-- Node.js 22 or newer;
+- Node.js 20 or newer (hosted CI pins 22);
 - Git;
 - Python 3;
 - `jq`;
@@ -236,10 +236,14 @@ Talon issues #346 and #350 are fixed on current `main`. Still run the complete p
 The Compose file is pinned to n8n `2.30.4` and exposes only loopback port 5678:
 
 ```bash
-install -d -m 0777 .state/n8n-output
+install -d -m 0777 .state/n8n-output   # demo-only: the container writes here as its own UID
 source .env
 docker compose -f integrations/n8n/compose.yaml up
 ```
+
+The `0777` is a throwaway demo scratch directory for the loopback container, not
+a deployment pattern — a real deployment matches the container UID or uses a
+named volume instead of world-writable permissions.
 
 Build the workflow from `integrations/n8n/workflow-spec.md` in that pinned UI. Export without credentials, clean-import into a fresh container running the same version, reconnect the Header Auth credential, and rerun before committing workflow JSON. No workflow export is currently claimed.
 

@@ -33,6 +33,12 @@ PIN="$(cat "$ROOT/TALON_PINNED_COMMIT")"
 }
 TALON_HEAD="$(git -C "$TALON_REPO" rev-parse HEAD 2>/dev/null || echo unknown)"
 if [[ "$TALON_HEAD" != "$PIN" ]]; then
+  # Hosted CI sets TALON_STRICT_PIN=1 so an unpinned checkout is a hard failure,
+  # not a warning: the executed contract must be against the audited commit.
+  if [[ "${TALON_STRICT_PIN:-0}" == "1" ]]; then
+    echo "ERROR: TALON_REPO is at $TALON_HEAD; TALON_STRICT_PIN requires $PIN (TALON_PINNED_COMMIT)" >&2
+    exit 1
+  fi
   echo "WARNING: TALON_REPO is at $TALON_HEAD; this demo is audited against $PIN (TALON_PINNED_COMMIT)" >&2
 fi
 
@@ -212,20 +218,30 @@ mcp '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"
 mcp '{"jsonrpc":"2.0","method":"notifications/initialized"}' >/dev/null
 # tools/list must advertise exactly the two allowed tools AND each must declare
 # run_nonce required (the schema the real client is driven by).
+# Control A — preventive filtering: the forbidden tool is ABSENT from discovery,
+# so a conforming client never sees it. Assert both the exact allowed set and
+# that release_publish specifically is not advertised, and that each advertised
+# tool marks run_nonce required (the schema a real client is driven by).
 LIST="$(mcp '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')"
 echo "$LIST" | jq -e '[.result.tools[].name] | sort == ["release_prepare","release_status"]' >/dev/null \
   || { echo 'tools/list must advertise exactly the two allowed tools' >&2; exit 1; }
+echo "$LIST" | jq -e '[.result.tools[].name] | index("release_publish") | not' >/dev/null \
+  || { echo 'preventive filtering failed: release_publish must be ABSENT from tools/list discovery' >&2; exit 1; }
 echo "$LIST" | jq -e 'all(.result.tools[]; (.inputSchema.required // []) | index("run_nonce"))' >/dev/null \
   || { echo 'each advertised tool must mark run_nonce required (schema-driven client would else omit it)' >&2; exit 1; }
+echo "control A (preventive filtering): release_publish absent from discovery; allowed tools require run_nonce"
 for tool in release_status release_prepare; do
   mcp "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}" \
     | jq -e '.result.isError == false' >/dev/null \
     || { echo "allowed tool $tool failed through the live proxy" >&2; exit 1; }
 done
+# Control B — runtime enforcement: an ADVERSARIAL probe (this curl, standing in
+# for a non-conforming client) submits the undiscovered release_publish anyway.
+# Talon must still block it. This is defence-in-depth, NOT "Copilot published".
 mcp "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"release_publish\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}" \
   | jq -e '.error.data.talon_code == "TALON_TOOL_FORBIDDEN"' >/dev/null \
   || { echo 'release_publish denial must carry talon_code TALON_TOOL_FORBIDDEN (#369)' >&2; exit 1; }
-echo "MCP scene (agent-key auth, no admin key): initialize local, allowed calls pass, forbidden call TALON_TOOL_FORBIDDEN"
+echo "control B (runtime enforcement): adversarial release_publish probe denied with TALON_TOOL_FORBIDDEN"
 
 RELEASE_RUN_NONCE="$NONCE" RELEASE_MCP_RECEIPTS="$RECEIPTS" \
   "$ROOT/scripts/assert-release-blocked.sh" >/dev/null

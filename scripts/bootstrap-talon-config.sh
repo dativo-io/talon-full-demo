@@ -44,5 +44,7 @@ mv "$STAGE" "$OUT"
 trap - EXIT
 
 echo "Copied canonical Talon product-demo config to $OUT from $(cat "$OUT/TALON_SOURCE_COMMIT")"
-echo "Serve (agents_dir is cwd-relative): (cd $OUT && talon serve --host 127.0.0.1 --port 8080 --gateway --proxy-config ../mcp-proxy.example.yaml)"
-echo "Shadow demo: same command plus --gateway-mode shadow"
+# Two processes sharing one TALON_DATA_DIR (agents_dir is cwd-relative); see docs/SETUP.md section 5.
+echo "Serve gateway: (cd $OUT && talon serve --host 127.0.0.1 --port 8080 --gateway)"
+echo "Serve MCP proxy: (cd $OUT && talon serve --host 127.0.0.1 --port 8081 --proxy-config ../mcp-proxy.example.yaml)"
+echo "Shadow demo: add --gateway-mode shadow to the gateway command"

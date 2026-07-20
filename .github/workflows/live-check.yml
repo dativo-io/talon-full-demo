@@ -1,0 +1,54 @@
+name: live-check
+
+# Executes the real-Talon contract (make live-check) against the EXACT commit in
+# TALON_PINNED_COMMIT — the most important contract, previously not in hosted CI.
+# It checks out dativo-io/talon at the pinned SHA, builds it, and runs the MCP
+# release boundary, the shared-identity proof, and the real session-budget engine.
+# TALON_STRICT_PIN=1 makes a commit mismatch a hard failure, not a warning.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  live-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out the demo
+        uses: actions/checkout@v4
+        with:
+          path: talon-full-demo
+
+      - name: Resolve the pinned Talon commit
+        id: pin
+        run: echo "sha=$(cat talon-full-demo/TALON_PINNED_COMMIT)" >> "$GITHUB_OUTPUT"
+
+      - name: Check out dativo-io/talon at the pinned commit
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: ${{ steps.pin.outputs.sha }}
+          path: talon
+
+      - name: Set up Go (matching Talon's toolchain)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache: true
+
+      - name: Install validation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Run make live-check against the pinned Talon
+        working-directory: talon-full-demo
+        env:
+          TALON_REPO: ${{ github.workspace }}/talon
+          TALON_STRICT_PIN: "1"
+        run: make live-check

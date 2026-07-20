@@ -2,6 +2,7 @@ package zendesk
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -119,7 +120,14 @@ func denialTestHandler(t *testing.T, talonStatus int, talonBody string) http.Han
 	return handler
 }
 
-func doDraft(t *testing.T, handler http.Handler) (*http.Response, map[string]string) {
+type draftErrorBody struct {
+	Code      string `json:"code"`
+	Error     string `json:"error"`
+	Retryable bool   `json:"retryable"`
+	SessionID string `json:"session_id"`
+}
+
+func doDraft(t *testing.T, handler http.Handler) (*http.Response, draftErrorBody, string) {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
@@ -132,36 +140,38 @@ func doDraft(t *testing.T, handler http.Handler) (*http.Response, map[string]str
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { resp.Body.Close() })
-	var body map[string]string
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return resp, body
+	var body draftErrorBody
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatal(err)
+	}
+	return resp, body, string(raw)
 }
 
 func TestDraftSurfacesTalonPolicyDenialAs403WithoutLeakingUpstreamBody(t *testing.T) {
 	upstream := `{"error":{"message":"denied: session_budget_exceeded: cap reached","type":"session_budget_exceeded","code":"session_budget_exceeded"}}`
-	resp, body := doDraft(t, denialTestHandler(t, http.StatusForbidden, upstream))
+	resp, body, raw := doDraft(t, denialTestHandler(t, http.StatusForbidden, upstream))
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("Talon 403 must surface as 403, got %d", resp.StatusCode)
 	}
-	if body["error"] != "request denied by Talon policy" || body["session_id"] != "zendesk-ticket-7" {
-		t.Fatalf("unexpected denial body: %v", body)
+	if body.Code != "policy_denied" || body.Error != "request denied by Talon policy" || body.SessionID != "zendesk-ticket-7" || body.Retryable {
+		t.Fatalf("unexpected denial body: %+v", body)
 	}
-	for _, v := range body {
-		if strings.Contains(v, "session_budget_exceeded") {
-			t.Fatalf("upstream error body leaked to the client: %v", body)
-		}
+	if strings.Contains(raw, "session_budget_exceeded") {
+		t.Fatalf("upstream error body leaked to the client: %s", raw)
 	}
 }
 
 func TestDraftSurfacesTalonOutageAs502DistinctFromDenial(t *testing.T) {
-	resp, body := doDraft(t, denialTestHandler(t, http.StatusBadGateway, `{"error":"upstream provider unreachable"}`))
+	resp, body, _ := doDraft(t, denialTestHandler(t, http.StatusBadGateway, `{"error":"upstream provider unreachable"}`))
 	if resp.StatusCode != http.StatusBadGateway {
 		t.Fatalf("Talon 5xx must surface as 502, got %d", resp.StatusCode)
 	}
-	if body["error"] != "governed draft unavailable" {
-		t.Fatalf("unexpected outage body: %v", body)
+	if body.Code != "service_unavailable" || body.Error != "governed draft unavailable" || !body.Retryable {
+		t.Fatalf("unexpected outage body: %+v", body)
 	}
 }
 
@@ -169,38 +179,41 @@ func TestDraftSurfacesTalonOutageAs502DistinctFromDenial(t *testing.T) {
 // integration misconfiguration. It must NOT be reported as a policy denial,
 // or the operator would conclude "policy worked" when nothing was governed.
 func TestDraftTreatsTalon401AsIntegrationFailureNotPolicy(t *testing.T) {
-	resp, body := doDraft(t, denialTestHandler(t, http.StatusUnauthorized, `{"error":"Invalid or missing agent key"}`))
+	resp, body, _ := doDraft(t, denialTestHandler(t, http.StatusUnauthorized, `{"error":"Invalid or missing agent key"}`))
 	if resp.StatusCode != http.StatusBadGateway {
 		t.Fatalf("Talon 401 must surface as 502, got %d", resp.StatusCode)
 	}
-	if strings.Contains(body["error"], "policy") == false || strings.Contains(body["error"], "not a policy denial") == false {
-		t.Fatalf("401 must be marked as an integration failure, not a policy denial: %v", body)
+	if body.Code != "integration_misconfigured" {
+		t.Fatalf("401 must carry code integration_misconfigured: %+v", body)
 	}
-	if body["error"] == "request denied by Talon policy" {
-		t.Fatalf("401 must not claim a policy denial: %v", body)
+	if body.Code == "policy_denied" || body.Error == "request denied by Talon policy" {
+		t.Fatalf("401 must not claim a policy denial: %+v", body)
 	}
 }
 
 // A Talon 429 must stay distinguishable so throttling is not mistaken for a
 // denial or an outage.
 func TestDraftKeepsTalon429Distinguishable(t *testing.T) {
-	resp, body := doDraft(t, denialTestHandler(t, http.StatusTooManyRequests, `{"error":"Rate limit exceeded"}`))
+	resp, body, _ := doDraft(t, denialTestHandler(t, http.StatusTooManyRequests, `{"error":"Rate limit exceeded"}`))
 	if resp.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("Talon 429 must surface as 429, got %d", resp.StatusCode)
 	}
-	if body["error"] != "rate limited by Talon" {
-		t.Fatalf("unexpected 429 body: %v", body)
+	if body.Code != "rate_limited" || body.Error != "rate limited by Talon" || !body.Retryable {
+		t.Fatalf("unexpected 429 body: %+v", body)
 	}
 }
 
 // An unexpected 4xx (e.g. 404 wrong route) must fail generically and make no
 // policy claim.
 func TestDraftDoesNotClaimPolicyForUnexpected4xx(t *testing.T) {
-	resp, body := doDraft(t, denialTestHandler(t, http.StatusNotFound, `{"error":"no such route"}`))
+	resp, body, _ := doDraft(t, denialTestHandler(t, http.StatusNotFound, `{"error":"no such route"}`))
 	if resp.StatusCode != http.StatusBadGateway {
 		t.Fatalf("unexpected 4xx must surface as 502, got %d", resp.StatusCode)
 	}
-	if body["error"] != "governed draft unavailable" {
-		t.Fatalf("unexpected 4xx must not claim a policy denial: %v", body)
+	if body.Code == "policy_denied" || body.Error == "request denied by Talon policy" {
+		t.Fatalf("unexpected 4xx must not claim a policy denial: %+v", body)
+	}
+	if body.Code != "service_unavailable" {
+		t.Fatalf("unexpected 4xx should carry code service_unavailable: %+v", body)
 	}
 }

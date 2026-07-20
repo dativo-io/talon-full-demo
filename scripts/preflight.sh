@@ -23,6 +23,10 @@ if curl --fail --silent --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 
 fi
 
 rm -rf "$ROOT/.state/n8n-output"
+# 0777 ONLY because the pinned n8n container writes to this loopback bind mount
+# as its own non-root UID. This is a throwaway demo scratch dir, NOT a deployment
+# pattern — a real deployment matches the container UID (or uses a named volume)
+# instead of world-writable perms. Everything else under .state stays 0700.
 install -d -m 0777 "$ROOT/.state/n8n-output"
 install -d -m 0700 "$ROOT/.state"
 : > "$ROOT/.state/release-mcp-receipts.jsonl"

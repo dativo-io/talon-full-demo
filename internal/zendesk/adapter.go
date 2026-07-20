@@ -125,6 +125,21 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
+// adapterError is the safe machine contract the browser receives on failure:
+// a stable code and a retryable hint, never the upstream body. The UI can use
+// `code` to decide retry vs escalate vs contact-the-integration-owner while
+// still showing the operator a safe generic message.
+type adapterError struct {
+	Code      string `json:"code"`
+	Error     string `json:"error"`
+	Retryable bool   `json:"retryable"`
+	SessionID string `json:"session_id,omitempty"`
+}
+
+func writeError(w http.ResponseWriter, status int, code, message string, retryable bool, sessionID string) {
+	writeJSON(w, status, adapterError{Code: code, Error: message, Retryable: retryable, SessionID: sessionID})
+}
+
 func (a *adapter) health(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -208,20 +223,21 @@ Latest requester message:
 
 	response, err := a.client.Do(request)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "Talon gateway unavailable"})
+		writeError(w, http.StatusBadGateway, "service_unavailable", "Talon gateway unavailable", true, sessionID)
 		return
 	}
 	defer response.Body.Close()
 	limited := io.LimitReader(response.Body, (2<<20)+1)
 	body, err := io.ReadAll(limited)
 	if err != nil || len(body) > 2<<20 {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "invalid Talon response"})
+		writeError(w, http.StatusBadGateway, "service_unavailable", "invalid Talon response", true, sessionID)
 		return
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		log.Printf("Talon denied or failed Zendesk session=%s status=%d", sessionID, response.StatusCode)
-		// Distinguish, without ever forwarding the upstream body, the causes an
-		// operator must act on differently. Only a genuine policy/budget denial
+		// Return a small safe machine contract (code + retryable) so the UI can
+		// decide retry vs escalate vs contact-the-integration-owner, WITHOUT ever
+		// forwarding the upstream body. Only a genuine policy/budget denial
 		// (Talon's 403) may claim "policy"; a 401/429/other-4xx must not, or the
 		// adapter would report "policy worked" when the integration is actually
 		// misconfigured or throttled. Talon's contract (internal/gateway/gateway.go):
@@ -230,25 +246,25 @@ Latest requester message:
 		switch {
 		case response.StatusCode == http.StatusForbidden:
 			// The one status that is a Talon policy/budget decision.
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": "request denied by Talon policy", "session_id": sessionID})
+			writeError(w, http.StatusForbidden, "policy_denied", "request denied by Talon policy", false, sessionID)
 		case response.StatusCode == http.StatusUnauthorized:
 			// The adapter's own Talon agent key is wrong or missing: an
 			// integration configuration failure, not a policy outcome.
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "governed draft unavailable: Talon rejected the adapter credential (integration misconfiguration, not a policy denial)", "session_id": sessionID})
+			writeError(w, http.StatusBadGateway, "integration_misconfigured", "governed draft unavailable", false, sessionID)
 		case response.StatusCode == http.StatusTooManyRequests:
 			// Keep 429 distinguishable so throttling is not mistaken for a denial.
-			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limited by Talon", "session_id": sessionID})
+			writeError(w, http.StatusTooManyRequests, "rate_limited", "rate limited by Talon", true, sessionID)
 		default:
 			// Any other non-2xx (other 4xx, 5xx, malformed route): an
 			// availability/integration failure that makes no policy claim.
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "governed draft unavailable", "session_id": sessionID})
+			writeError(w, http.StatusBadGateway, "service_unavailable", "governed draft unavailable", true, sessionID)
 		}
 		return
 	}
 
 	var output openAIResponse
 	if err := json.Unmarshal(body, &output); err != nil || len(output.Choices) == 0 || strings.TrimSpace(output.Choices[0].Message.Content) == "" {
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "Talon returned no draft"})
+		writeError(w, http.StatusBadGateway, "service_unavailable", "Talon returned no draft", true, sessionID)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{
