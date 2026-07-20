@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "release-gateway": {
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp/proxy",
+      "tools": ["release_status", "release_prepare", "release_publish"],
+      "headers": {
+        "Authorization": "Bearer ${TALON_CODING_ASSISTANT_KEY}",
+        "X-Talon-Session-ID": "${TALON_COPILOT_SESSION_ID}",
+        "X-Talon-Client": "github-copilot-cli-full-demo"
+      },
+      "timeout": 60000
+    }
+  }
+}

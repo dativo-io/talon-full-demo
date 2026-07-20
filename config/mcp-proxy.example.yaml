@@ -1,0 +1,27 @@
+# Source-audited against dativo-io/talon main at
+# 3f373e19f2a97722db7450e51461862911188ecb (2026-07-20).
+# Explicit intercept mode remains intentional even though current Talon now
+# defaults an omitted mode to intercept and rejects unknown values (#346).
+agent:
+  name: coding-assistant-release-tools
+  type: mcp_proxy
+  description: "Synthetic release boundary for the Talon full demo"
+  version: "0.1.0"
+
+proxy:
+  mode: intercept
+  upstream:
+    vendor: synthetic-release-mcp
+    url: http://127.0.0.1:8090/mcp
+    region: LOCAL
+  allowed_tools:
+    - name: release_status
+    - name: release_prepare
+    - name: release_publish
+  forbidden_tools:
+    - release_publish
+  rate_limits:
+    requests_per_minute: 60
+
+pii_handling:
+  redaction_rules: []
