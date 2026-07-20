@@ -70,6 +70,41 @@ func TestDraftUsesConfiguredTalonIdentityRouteModelAndStableSession(t *testing.T
 	}
 }
 
+// With a demo run id, the session must be suffixed so each run's evidence is
+// isolated from earlier runs; without one it stays the stable session.
+func TestDraftSuffixesSessionWithRunID(t *testing.T) {
+	var gotSession string
+	talon := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSession = r.Header.Get("X-Talon-Session-ID")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}]}`))
+	}))
+	defer talon.Close()
+	handler, err := New(Config{AdapterToken: "adapter-secret", Gateway: talon.URL, CustomerKey: "customer-key", Provider: "local-llama", Model: "llama3.2:1b", RunID: "20260721T001530Z-a81f42"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	payload := `{"ticket_id":"1042","subject":"s","requester":{"name":"n","email":"e@example.com"},"message":"m"}`
+	req, _ := http.NewRequest(http.MethodPost, server.URL+"/v1/zendesk/draft", strings.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer adapter-secret")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	want := "zendesk-ticket-1042-20260721T001530Z-a81f42"
+	if body["session_id"] != want || gotSession != want {
+		t.Fatalf("run id must suffix the session: body=%q upstream=%q want=%q", body["session_id"], gotSession, want)
+	}
+}
+
 func TestDraftRejectsBadAdapterToken(t *testing.T) {
 	handler, _ := New(Config{AdapterToken: "expected", Gateway: "http://127.0.0.1:1", CustomerKey: "key"})
 	request := httptest.NewRequest(http.MethodPost, "/v1/zendesk/draft", strings.NewReader(`{}`))

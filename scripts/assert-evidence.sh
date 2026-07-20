@@ -18,6 +18,7 @@ SESSION=""
 AGENT=""
 MIN_DENIALS=0
 DENY_REASON=""
+SINCE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -25,13 +26,18 @@ while [[ $# -gt 0 ]]; do
     --agent) AGENT="$2"; shift 2 ;;
     --min-denials) MIN_DENIALS="$2"; shift 2 ;;
     --deny-reason) DENY_REASON="$2"; shift 2 ;;
+    # --since <rfc3339>: only records at/after this instant count, so a stale
+    # record from an earlier run under the same session cannot satisfy the
+    # assertion. Defaults to $TALON_RUN_START_RFC3339 (set in demo-run.env).
+    --since) SINCE="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 [[ -n "$SESSION" && -n "$AGENT" ]] || {
-  echo 'usage: assert-evidence.sh --session ID --agent NAME [--min-denials N] [--deny-reason PREFIX]' >&2
+  echo 'usage: assert-evidence.sh --session ID --agent NAME [--min-denials N] [--deny-reason PREFIX] [--since RFC3339]' >&2
   exit 2
 }
+[[ -n "$SINCE" ]] || SINCE="${TALON_RUN_START_RFC3339:-}"
 
 EXPORT_FILE="$(mktemp)"
 VERIFY_OUT="$(mktemp)"
@@ -48,8 +54,19 @@ for line in 'Invalid records: 0' 'Missing signature: 0' 'Could not parse: 0'; do
   }
 done
 
+# When --since is set, restrict the working set to the current run's records.
+# RFC3339 UTC timestamps sort lexically, so a string compare is a valid ordering.
+if [[ -n "$SINCE" ]]; then
+  jq --arg t "$SINCE" '{records: [.records[] | select(.timestamp >= $t)]}' "$EXPORT_FILE" > "$EXPORT_FILE.win" \
+    && mv "$EXPORT_FILE.win" "$EXPORT_FILE"
+fi
+
 TOTAL="$(jq '.records | length' "$EXPORT_FILE")"
-[[ "$TOTAL" -ge 1 ]] || { echo "no evidence records for session $SESSION" >&2; exit 1; }
+if [[ -n "$SINCE" ]]; then
+  [[ "$TOTAL" -ge 1 ]] || { echo "no evidence records for session $SESSION since $SINCE (current run produced none — a stale record cannot satisfy this)" >&2; exit 1; }
+else
+  [[ "$TOTAL" -ge 1 ]] || { echo "no evidence records for session $SESSION" >&2; exit 1; }
+fi
 
 jq -e --arg s "$SESSION" 'all(.records[]; .session_id == $s)' "$EXPORT_FILE" >/dev/null \
   || { echo "export contains records outside session $SESSION" >&2; exit 1; }

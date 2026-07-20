@@ -42,7 +42,10 @@ type Config struct {
 	CustomerKey  string
 	Provider     string
 	Model        string
-	HTTPClient   *http.Client
+	// RunID, when set, is appended to the derived session ID so each demo run's
+	// evidence is isolated from earlier runs (empty = stable session).
+	RunID      string
+	HTTPClient *http.Client
 }
 
 type adapter struct {
@@ -51,6 +54,7 @@ type adapter struct {
 	customerKey string
 	provider    string
 	model       string
+	runID       string
 	client      *http.Client
 }
 
@@ -98,6 +102,7 @@ func New(cfg Config) (http.Handler, error) {
 		customerKey: cfg.CustomerKey,
 		provider:    cfg.Provider,
 		model:       cfg.Model,
+		runID:       cfg.RunID,
 		client:      cfg.HTTPClient,
 	}
 	mux := http.NewServeMux()
@@ -181,6 +186,11 @@ func (a *adapter) draft(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID := "zendesk-ticket-" + input.TicketID
+	if a.runID != "" {
+		// Per-run isolation: a fresh demo run gets a distinct session so its
+		// evidence cannot be satisfied by an earlier run's records.
+		sessionID += "-" + a.runID
+	}
 	prompt := fmt.Sprintf(
 		`Synthetic Zendesk ticket %s
 Subject: %s

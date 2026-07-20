@@ -46,6 +46,7 @@ func main() {
 		CustomerKey:  mustEnv("TALON_CUSTOMER_SUPPORT_KEY"),
 		Provider:     os.Getenv("TALON_CUSTOMER_SUPPORT_PROVIDER"),
 		Model:        os.Getenv("TALON_CUSTOMER_SUPPORT_MODEL"),
+		RunID:        os.Getenv("TALON_DEMO_RUN_ID"),
 		HTTPClient:   &http.Client{Timeout: 65 * time.Second},
 	})
 	if err != nil {

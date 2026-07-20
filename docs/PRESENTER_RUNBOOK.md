@@ -65,19 +65,29 @@ engine, all in a throwaway temp dir.
 ```bash
 make ci
 make live-check   # needs a dativo-io/talon checkout (TALON_REPO, default ../talon)
-make preflight
+
+# Start BOTH Talon processes first (gateway :8080, MCP proxy :8081 — see SETUP §5).
+make preflight                       # mints a fresh demo run id + verifies the Talon control plane
+scripts/stop-components.sh || true   # so components restart on the new run's sessions
+scripts/start-components.sh          # reads .state/demo-run.env → per-run sessions; gates shim/adapter/release
 scripts/reset-billing-fixture.sh
-scripts/render-copilot-mcp-config.sh
+scripts/render-copilot-mcp-config.sh # reads .state/demo-run.env → per-run Copilot session
 ```
 
-If `make live-check` cannot run (no Talon checkout on the presenting machine),
-run it beforehand on a machine that has one; a green result is the go/no-go
-signal for Scenes 2–3.
+`make preflight` writes `.state/demo-run.env` with one `TALON_DEMO_RUN_ID` and
+the per-run session ids (`copilot-<run-id>`, `n8n-<run-id>`), plus the run start
+time and release nonce. **Re-run `make preflight` for each rehearsal** and restart
+components so a fresh run cannot be satisfied by an earlier run's Talon evidence
+or budget state. If `make live-check` cannot run (no Talon checkout on the
+presenting machine), run it beforehand on a machine that has one; a green result
+is the go/no-go signal for Scenes 2–3.
 
 Confirm:
 
 - current Talon source commit is recorded in `config/generated/TALON_SOURCE_COMMIT`;
-- Talon, adapter, shim, release MCP, and optional n8n health checks pass;
+- `make preflight` passed: the gateway (`:8080`) **and** the MCP proxy (`:8081`) are up, and an authenticated MCP `initialize` was answered by `talon-mcp-proxy` (agent-key auth + routing work);
+- `scripts/start-components.sh` reported the adapter, Copilot shim, and release MCP ready (its readiness gates);
+- a fresh `TALON_DEMO_RUN_ID` is in `.state/demo-run.env` and this run's sessions embed it;
 - Ollama is stopped for any deliberate fallback scene;
 - `.state/release-mcp-receipts.jsonl` is empty;
 - the billing fixture fails and has no Git remote;
@@ -89,7 +99,7 @@ Confirm:
 1. Open a synthetic ticket with a requester public comment, an agent public comment, and a private comment.
 2. Click **Draft with Talon**.
 3. Point out that the app fetched the Ticket Comments API and selected the newest public requester-authored comment; it did not use `ticket.comment.text`.
-4. Show the inserted draft and its `zendesk-ticket-<numeric-id>` session identifier.
+4. Show the inserted draft and its `zendesk-ticket-<numeric-id>-<run-id>` session identifier (the run id isolates this rehearsal's evidence from earlier runs).
 5. Inspect Talon evidence for that session. Read provider, policy, PII action, and cost only from the record.
 
 Do not display the adapter token, Talon agent key, or provider key. The adapter response contains only `draft` and `session_id`.
@@ -134,7 +144,7 @@ scripts/assert-release-blocked.sh
 The assertion only accepts `release_status`/`release_prepare` receipts carrying the current run nonce, and fails on any `release_publish` receipt.
 
 7. Display the synthetic upstream receipt file. It must contain nonce-tagged `release_status` and `release_prepare`, and no `release_publish`.
-8. Inspect the signed Talon evidence. It must carry authenticated `coding-assistant` (the same identity as the model traffic, because the MCP proxy is agent-key authenticated), the asserted Copilot session, one request-scoped correlation ID, and the `TALON_TOOL_FORBIDDEN` denial code. `scripts/assert-evidence.sh --session <id> --agent coding-assistant` scripts this check.
+8. Inspect the signed Talon evidence. It must carry authenticated `coding-assistant` (the same identity as the model traffic, because the MCP proxy is agent-key authenticated), the asserted Copilot session, one request-scoped correlation ID, and the `TALON_TOOL_FORBIDDEN` denial code. With `.state/demo-run.env` sourced, `scripts/assert-evidence.sh --session "$TALON_COPILOT_SESSION_ID" --agent coding-assistant --min-denials 1 --deny-reason forbidden_tools` scripts this check and, via `--since $TALON_RUN_START_RFC3339` (its default from the run env), proves the records belong to **this** run — a stale record from an earlier rehearsal cannot satisfy it.
 
 Together the two controls prove Talon (A) removes a capability before the model sees it, and (B) still blocks a client that bypasses discovery — defence in depth, not one control doing double duty.
 

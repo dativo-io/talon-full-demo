@@ -157,11 +157,28 @@ cd config/generated
 talon serve --host 127.0.0.1 --port 8080 --gateway --gateway-mode shadow &
 ```
 
+## 5b. Mint the demo run and verify the control plane
+
+```bash
+make preflight
+```
+
+Run this **after** Talon and **before** local components. It mints a fresh
+`TALON_DEMO_RUN_ID` into `.state/demo-run.env` (per-run session ids, run start
+time, release nonce) so each run's evidence is isolated from earlier runs, and it
+hard-verifies that both the gateway (`:8080`) and the MCP proxy (`:8081`) are up —
+including a real authenticated MCP `initialize` against `/mcp/proxy`, which a
+generic `/health` cannot prove. Re-run it for every rehearsal.
+
 ## 6. Start local components
 
 ```bash
 scripts/start-components.sh
 ```
+
+`start-components.sh` sources `.state/demo-run.env`, so the Copilot shim and
+Zendesk adapter attribute traffic to this run's sessions; its readiness gates are
+the authoritative health check for the adapter, shim, and release MCP server.
 
 Defaults:
 

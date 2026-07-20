@@ -3,7 +3,17 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="$ROOT/.state/n8n-output"
-TARGET="$OUT/quarterly-summary.partial.md"
+# Per-run output filename so a rehearsal's report cannot be confused with an
+# earlier run's (run id from scripts/new-demo-run.sh via make preflight).
+if [[ -f "$ROOT/.state/demo-run.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$ROOT/.state/demo-run.env"
+fi
+if [[ -n "${TALON_DEMO_RUN_ID:-}" ]]; then
+  TARGET="$OUT/quarterly-summary.partial.${TALON_DEMO_RUN_ID}.md"
+else
+  TARGET="$OUT/quarterly-summary.partial.md"
+fi
 [[ -d "$OUT" ]] || { echo "missing n8n output directory: $OUT" >&2; exit 1; }
 
 mapfile -d '' files < <(find "$OUT" -maxdepth 1 -type f -name '*.summary.md' -print0 | sort -z)

@@ -99,6 +99,10 @@ PROBE_KEY="$(openssl rand -hex 24)"
 # Phase 1 — canonical config, MCP forbidden-tool scene, signed evidence
 # ---------------------------------------------------------------------------
 echo "== phase 1: canonical MCP scene against real Talon =="
+# Capture the run start so the evidence assertions can prove records belong to
+# THIS run (--since), exercising the same current-run constraint the presenter
+# flow uses via TALON_RUN_START_RFC3339.
+RUN_TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 CANON="$WORK/canonical"
 mkdir -p "$CANON"
 cp "$TALON_REPO/examples/product-demo/talon.config.yaml" "$CANON/talon.config.yaml"
@@ -256,7 +260,7 @@ echo "receipts: nonce-correlated proof passes; stale nonce rejected"
 # calls — must carry agent_id=coding-assistant (assert-evidence enforces that
 # all records share the agent), and the forbidden-tool denial must be present.
 "$ROOT/scripts/assert-evidence.sh" --session "$SESSION_MCP" --agent coding-assistant \
-  --min-denials 1 --deny-reason forbidden_tools
+  --min-denials 1 --deny-reason forbidden_tools --since "$RUN_TS"
 echo "identity: LLM and MCP records share agent_id=coding-assistant"
 
 # ---------------------------------------------------------------------------
@@ -402,6 +406,6 @@ jq -e '.error.code == "session_budget_exceeded"' "$WORK/b3.json" >/dev/null \
 echo "budget engine: request 1 allowed, request 2 allowed, request 3 denied 403 session_budget_exceeded"
 
 "$ROOT/scripts/assert-evidence.sh" --session "$SESSION_BUDGET" --agent budget-probe \
-  --min-denials 1 --deny-reason session_budget_exceeded
+  --min-denials 1 --deny-reason session_budget_exceeded --since "$RUN_TS"
 
 echo "LIVE CHECK PASSED against Talon $TALON_HEAD"

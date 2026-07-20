@@ -5,6 +5,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -f "$ROOT/.env" ]] || { echo "missing $ROOT/.env; run make env" >&2; exit 1; }
 # shellcheck disable=SC1091
 source "$ROOT/.env"
+# Per-run session id overrides the stable default so the rendered MCP config
+# targets this run's session (scripts/new-demo-run.sh via make preflight).
+if [[ -f "$ROOT/.state/demo-run.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$ROOT/.state/demo-run.env"
+fi
 OUT="${1:-$ROOT/.state/copilot-mcp.json}"
 mkdir -p "$(dirname "$OUT")"
 
