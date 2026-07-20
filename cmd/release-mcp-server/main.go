@@ -6,22 +6,13 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/dativo-io/talon-full-demo/internal/sessionproxy"
+	"github.com/dativo-io/talon-full-demo/internal/releasemcp"
 )
-
-func mustEnv(name string) string {
-	value := os.Getenv(name)
-	if value == "" {
-		log.Fatalf("%s is required", name)
-	}
-	return value
-}
 
 func requireLoopbackBind(bind string) {
 	host, _, err := net.SplitHostPort(bind)
@@ -35,32 +26,28 @@ func requireLoopbackBind(bind string) {
 }
 
 func main() {
-	target, err := url.Parse(mustEnv("TALON_GATEWAY"))
-	if err != nil || target.Scheme == "" || target.Host == "" {
-		log.Fatalf("invalid TALON_GATEWAY")
-	}
-
-	bind := os.Getenv("COPILOT_SHIM_BIND")
+	bind := os.Getenv("RELEASE_MCP_BIND")
 	if bind == "" {
-		bind = "127.0.0.1:8079"
+		bind = "127.0.0.1:8090"
 	}
 	requireLoopbackBind(bind)
+	receipts := os.Getenv("RELEASE_MCP_RECEIPTS")
+	if receipts == "" {
+		receipts = ".state/release-mcp-receipts.jsonl"
+	}
 
-	handler, err := sessionproxy.New(sessionproxy.Config{
-		Target:    target,
-		SessionID: mustEnv("TALON_COPILOT_SESSION_ID"),
-		ClientID:  "github-copilot-cli-full-demo",
-	})
+	handler, err := releasemcp.New(releasemcp.Config{ReceiptPath: receipts})
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	server := &http.Server{
 		Addr:              bind,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
-		IdleTimeout:       90 * time.Second,
-		MaxHeaderBytes:    32 << 10,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    16 << 10,
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -69,11 +56,11 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Copilot session shim shutdown: %v", err)
+			log.Printf("release MCP server shutdown: %v", err)
 		}
 	}()
 
-	log.Printf("Copilot session shim listening on http://%s", bind)
+	log.Printf("synthetic release MCP server listening on http://%s", bind)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
