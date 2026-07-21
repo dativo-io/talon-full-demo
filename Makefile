@@ -1,20 +1,29 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check
+.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check
 
 all: test
 
-build:
+check-go:
+	@go version >/dev/null || { \
+		echo >&2; \
+		echo "Go 1.23.0 or newer is required." >&2; \
+		echo "Inspect the locally installed launcher with: GOTOOLCHAIN=local go version" >&2; \
+		echo "Install a current Go release from https://go.dev/dl/ and retry." >&2; \
+		exit 1; \
+	}
+
+build: check-go
 	mkdir -p bin
 	go build -o bin/copilot-session-shim ./cmd/copilot-session-shim
 	go build -o bin/zendesk-adapter ./cmd/zendesk-adapter
 	go build -o bin/release-mcp-server ./cmd/release-mcp-server
 
-test:
+test: check-go
 	go test ./...
 	node --test integrations/zendesk-app/test/*.test.cjs
 
-vet:
+vet: check-go
 	go vet ./...
 
 fmt:
@@ -28,7 +37,7 @@ fmt-check:
 shell-check:
 	bash -n scripts/*.sh
 
-validate-local: fmt-check vet build test shell-check
+validate-local: check-go fmt-check vet build test shell-check
 	./scripts/validate-local.sh
 
 integration-local: build
