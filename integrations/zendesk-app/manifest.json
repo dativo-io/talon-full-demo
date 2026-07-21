@@ -1,0 +1,14 @@
+{
+  "name": "Talon Reply Assistant",
+  "author": {"name": "Dativo", "email": "hello@dativo.io"},
+  "defaultLocale": "en",
+  "private": true,
+  "version": "0.1.0",
+  "frameworkVersion": "2.0",
+  "location": {"support": {"ticket_editor": {"url": "assets/iframe.html", "flexible": true}}},
+  "parameters": [
+    {"name": "adapter_domain", "type": "text", "required": true, "secure": false},
+    {"name": "adapter_token", "type": "text", "required": true, "secure": true, "scopes": ["header"]}
+  ],
+  "domainWhitelist": ["{{setting.adapter_domain}}"]
+}

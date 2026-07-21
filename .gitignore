@@ -1,0 +1,10 @@
+.env
+.state/
+bin/
+coverage.out
+config/generated/
+integrations/zendesk-app/dist/
+integrations/zendesk-app/*.zip
+cases/billing-demo/.git/
+cases/billing-demo/out/
+.DS_Store
