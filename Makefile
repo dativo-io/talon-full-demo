@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check
+.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke real-copilot real-status real-stop
 
 all: test
 
@@ -49,6 +49,27 @@ integration-local: build
 # default ../talon). Run before presenting.
 live-check:
 	./scripts/test-live-talon.sh
+
+# Simplified real-case path. Only real-prepare needs a provider key:
+#   export OPENAI_API_KEY='sk-...'
+#   make real-prepare real-start real-smoke
+real-prepare:
+	bash ./scripts/real-demo.sh prepare
+
+real-start:
+	bash ./scripts/real-demo.sh start
+
+real-smoke:
+	bash ./scripts/real-demo.sh smoke
+
+real-copilot:
+	bash ./scripts/real-demo.sh copilot
+
+real-status:
+	bash ./scripts/real-demo.sh status
+
+real-stop:
+	bash ./scripts/real-demo.sh stop
 
 ci: validate-local
 	git diff --check
