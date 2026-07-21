@@ -32,11 +32,19 @@ The short Talon hero proves the product outcome. This repository is the adopter-
 
 No provider keys, Zendesk account, Copilot installation, Docker, or Talon binary are required.
 
-Local prerequisites: `go` (1.23+), `node` and `npm` (Node 20+), `python3`, `jq`, `curl`, `git`.
+Local prerequisites: `go` (1.23.0+), `node` and `npm` (Node 20+), `python3`, `jq`, `curl`, `git`.
 
 ```bash
 make validate-local
 ```
+
+If Go prints `download go1.23 ... toolchain not available`, pull the latest repository changes: older checkouts used the Go language version (`1.23`) where the launcher needed the released toolchain identifier (`1.23.0`). To inspect the Go binary installed on the host without triggering module toolchain selection, run:
+
+```bash
+GOTOOLCHAIN=local go version
+```
+
+Install a current Go release from [go.dev/dl](https://go.dev/dl/) when the local version is older than 1.23.0 or automatic toolchain downloads are blocked.
 
 This builds the Go services, runs unit tests, exercises the Zendesk adapter and Copilot shim against a mock Talon gateway, exercises the synthetic MCP server with a nonce-correlated forbidden-tool proof, asserts the session-budget scenario (request 1 allowed, request 2 allowed, request 3 denied with `session_budget_exceeded` at zero simulated cost), and verifies the billing fixture.
 
