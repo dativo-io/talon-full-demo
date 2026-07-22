@@ -89,15 +89,45 @@ for required in \
   "--allow-tool='release-gateway(release_prepare)'" \
   "--deny-tool='shell'" \
   "--deny-tool='write'" \
-  'COPILOT_DEMO_TIMEOUT_SECONDS:-90'; do
+  'COPILOT_DEMO_TIMEOUT_SECONDS:-90' \
+  'COPILOT_DEMO_OUTPUT:-full'; do
   grep -Fq -- "$required" "$copilot_driver" \
-    || { echo "real Copilot driver is missing permission contract: $required" >&2; exit 1; }
+    || { echo "real Copilot driver is missing permission/presentation contract: $required" >&2; exit 1; }
 done
 for forbidden in "shell(npm" "npm run fix-demo" "npm test" "git -C \"\$CASE\" diff"; do
   if grep -Fq -- "$forbidden" "$copilot_driver"; then
     echo "real Copilot driver reintroduced local coding path: $forbidden" >&2
     exit 1
   fi
+done
+
+# Regression: buyer and technical views must be generated from a fresh signed
+# Talon export of the same latest session. The presenter may simplify wording,
+# but it may not hard-code a pass, tool list, cost, identity, or signature count.
+presenter="$ROOT/scripts/present-copilot.sh"
+bash "$presenter" --help | grep -Fq 'same Talon evidence' \
+  || { echo 'Copilot presenter help does not state the shared-evidence contract' >&2; exit 1; }
+for required in \
+  'talon audit export' \
+  '--format signed-json' \
+  'talon audit verify --file' \
+  'assert-release-blocked.sh' \
+  'all(.records[]; .session_id == $s)' \
+  '["release_prepare", "release_status"]' \
+  'client_asserted' \
+  'Local shell commands, file edits, browser actions'; do
+  grep -Fq -- "$required" "$presenter" \
+    || { echo "Copilot presenter is missing evidence/truth contract: $required" >&2; exit 1; }
+done
+for forbidden in '5 valid / 0 invalid' 'Session cost      $0.002435' 'copilot-20260722T'; do
+  if grep -Fq -- "$forbidden" "$presenter"; then
+    echo "Copilot presenter contains run-specific hard-coded proof: $forbidden" >&2
+    exit 1
+  fi
+done
+for target in present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech; do
+  make -n -C "$ROOT" "$target" >/dev/null \
+    || { echo "Make target is not runnable: $target" >&2; exit 1; }
 done
 
 # Regression: status must enumerate the complete stack in a fresh shell where

@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke copilot-install real-copilot real-status real-stop
+.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke copilot-install real-copilot present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech real-status real-stop
 
 all: test
 
@@ -69,6 +69,27 @@ copilot-install:
 
 real-copilot:
 	bash ./scripts/real-copilot.sh
+
+# Present the latest successful real-Copilot session without rerunning it.
+# Both projections export and verify the same signed Talon evidence.
+present-copilot:
+	bash ./scripts/present-copilot.sh buyer
+
+present-copilot-tech:
+	bash ./scripts/present-copilot.sh technical
+
+present-copilot-all:
+	bash ./scripts/present-copilot.sh all
+
+# One-command audience flows. Buyer mode retains the full Copilot transcript
+# on disk while keeping the terminal concise; technical mode streams it.
+demo-copilot-buyer:
+	COPILOT_DEMO_OUTPUT=quiet bash ./scripts/real-copilot.sh
+	bash ./scripts/present-copilot.sh buyer
+
+demo-copilot-tech:
+	bash ./scripts/real-copilot.sh
+	bash ./scripts/present-copilot.sh technical
 
 real-status:
 	bash ./scripts/real-status.sh

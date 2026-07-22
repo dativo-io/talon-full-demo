@@ -98,42 +98,96 @@ Narrate only what the command proves:
 
 Do not treat the generated prose as the proof. The `REAL CASE PASSED` assertions and evidence file are the proof.
 
-## Scene 2 — bounded real Copilot + MCP path (1–2 minutes)
+## Scene 2 — real Copilot + MCP path (1–3 minutes)
 
-Run exactly:
+This scene has two audience projections over the same Talon evidence. Choose one before the meeting; do not improvise between them.
+
+### Buyer-oriented run
+
+Run:
 
 ```bash
-make real-copilot
+make demo-copilot-buyer
+```
+
+The real Copilot CLI still executes. Its full client transcript is retained under `.state/`, while the terminal stays focused on the decision receipt:
+
+```text
+TALON VERIFIED AI USE CASE
+Use case          GitHub Copilot CLI
+Operational ID    coding-assistant
+Business outcome  Release status checked; release prepared
+Action boundary   release_publish did not reach the upstream
+Data handling     <detected data>; input redaction recorded
+Model path        <model> through Talon
+Session cost      <actual cost>
+Evidence          <valid> valid / 0 invalid records
+Result            VERIFIED
+```
+
+Narrate:
+
+> This is one company AI use case with an operational identity. Its model traffic and two permitted release actions passed through Talon. Talon attributed the session cost and generated a record we can verify independently. The publish action did not reach the release service.
+
+Do not explain evidence IDs, JSON fields, cached-token accounting, or Copilot's local tool schemas unless asked.
+
+### Technical run
+
+Run:
+
+```bash
+make demo-copilot-tech
+```
+
+This streams the real Copilot interaction and then prints:
+
+- the native `talon audit list --session` summary;
+- the evidence timeline in chronological order;
+- the exact MCP operations that reached the upstream;
+- the absent `release_publish` boundary;
+- signed-file verification totals;
+- commands for inspecting each MCP evidence record;
+- the attribution and local-action scope boundaries.
+
+Use this version for platform, security, architecture, and engineering audiences.
+
+### Re-present the same completed run
+
+Neither command below reruns Copilot. They export and verify the latest session from `.state/demo-run.env`, so the buyer and technical projections cannot drift from one another:
+
+```bash
+make present-copilot       # concise buyer receipt
+make present-copilot-tech  # detailed technical proof
+make present-copilot-all   # both, buyer first
 ```
 
 Do not open Copilot separately, paste a task, resume an old session, or improvise additional prompts.
 
-The command automatically:
+The underlying real run automatically:
 
 1. creates a fresh Talon session and nonce;
 2. runs one non-interactive Copilot prompt with a 90-second hard limit;
 3. permits only `release_status` and `release_prepare` from the synthetic release MCP server;
-4. explicitly denies shell commands and file writes;
+4. explicitly denies shell commands and file writes in the Copilot client;
 5. verifies nonce-correlated `release_status` and `release_prepare` receipts;
 6. verifies no `release_publish` receipt reached the upstream;
 7. verifies current-run signed evidence is attributed to `coding-assistant`.
 
-A valid presentation ends with:
+A valid run must first end with:
 
 ```text
 REAL COPILOT CASE PASSED
 ```
 
-and prints the Talon session and transcript path.
-
 State explicitly:
 
 - Copilot's model API traffic and MCP calls passed through Talon;
 - the scene intentionally performs no local coding or shell action;
-- this proves the real client, model, MCP, acting-identity, receipt, and evidence path;
+- this proves the real client, model, MCP, acting-identity, receipt, cost, and evidence path;
+- client/session provenance is attribution, not independent process attestation;
 - the separate `make live-check` adversarial probe demonstrates runtime enforcement against a client that bypasses discovery.
 
-Do not narrate “Copilot tried to publish.” A conforming client cannot select a tool it never discovered.
+Do not narrate “Copilot tried to publish.” A conforming client cannot select a tool it never discovered. Say: “No publish call reached the upstream.”
 
 ## Scene 3 — optional Zendesk Support (2–3 minutes)
 
@@ -194,9 +248,11 @@ Show another state only after an actual configured condition produces it.
 Stop the live walkthrough when:
 
 - `make ci`, `make live-check`, `real-start`, or `real-status` fails;
-- `make real-copilot` exceeds its time limit or any automatic assertion fails;
+- either Copilot demo command exceeds its time limit or any automatic assertion fails;
+- the buyer and technical views do not resolve to the same `TALON_COPILOT_SESSION_ID`;
 - expected MCP receipts or current-run evidence are absent;
 - a `release_publish` receipt appears upstream;
+- evidence has any invalid, missing-signature, malformed, or unsupported record;
 - secure Zendesk setting substitution is unproven;
 - n8n was not clean-imported from the pinned version;
 - a route, cost, denial, or signature cannot be read from actual Talon output.
