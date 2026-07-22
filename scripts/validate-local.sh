@@ -130,6 +130,50 @@ for target in present-copilot present-copilot-tech present-copilot-all demo-copi
     || { echo "Make target is not runnable: $target" >&2; exit 1; }
 done
 
+# Regression: every additional application presenter must recreate a signed
+# session export and fail closed on the application-specific business claim.
+for script in present-support.sh present-zendesk.sh present-n8n.sh; do
+  path="$ROOT/scripts/$script"
+  [[ -f "$path" ]] || { echo "missing presenter: $script" >&2; exit 1; }
+  for required in 'talon audit export' '--format signed-json' 'talon audit verify --file' 'all(.records[]; .session_id == $s)'; do
+    grep -Fq -- "$required" "$path" \
+      || { echo "$script is missing shared evidence contract: $required" >&2; exit 1; }
+  done
+done
+
+support_presenter="$ROOT/scripts/present-support.sh"
+for required in 'input_pii_redacted' 'index("email")' 'index("iban")' 'failed_attempt' 'local-llama' 'openai-batch' 'fallback_decision' 'customer-support'; do
+  grep -Fq -- "$required" "$support_presenter" \
+    || { echo "support presenter is missing proof contract: $required" >&2; exit 1; }
+done
+
+zendesk_presenter="$ROOT/scripts/present-zendesk.sh"
+for required in 'zendesk-support-full-demo' 'customer-support' 'input_pii_redacted' 'openai-batch' 'private-app installation' 'secure-setting'; do
+  grep -Fq -- "$required" "$zendesk_presenter" \
+    || { echo "Zendesk presenter is missing proof or boundary contract: $required" >&2; exit 1; }
+done
+
+n8n_presenter="$ROOT/scripts/present-n8n.sh"
+for required in 'status.json' '*.summary.md' 'session_budget_exceeded' 'document-summary' 'all(. == 0)' 'soft cap' 'real imported n8n workflow'; do
+  grep -Fq -- "$required" "$n8n_presenter" \
+    || { echo "n8n presenter is missing proof or boundary contract: $required" >&2; exit 1; }
+done
+
+for forbidden in '5 valid / 0 invalid' 'Session cost      $0.00' 'real-support-20260722T' 'zendesk-ticket-20260722' 'n8n-20260722'; do
+  if grep -Fq -- "$forbidden" "$support_presenter" "$zendesk_presenter" "$n8n_presenter"; then
+    echo "application presenter contains run-specific hard-coded proof: $forbidden" >&2
+    exit 1
+  fi
+done
+
+for target in \
+  real-support present-support present-support-tech present-support-all demo-support-buyer demo-support-tech \
+  real-zendesk present-zendesk present-zendesk-tech present-zendesk-all demo-zendesk-buyer demo-zendesk-tech \
+  present-n8n present-n8n-tech present-n8n-all; do
+  make -n -C "$ROOT" "$target" >/dev/null \
+    || { echo "Make target is not runnable: $target" >&2; exit 1; }
+done
+
 # Regression: status must enumerate the complete stack in a fresh shell where
 # provider keys are not exported. Provider secrets are already in Talon's vault;
 # their absence from the operator shell must not abort status reporting.
