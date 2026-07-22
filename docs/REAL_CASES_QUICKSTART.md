@@ -39,7 +39,9 @@ make real-prepare
 1. generates repository-local Talon, agent, signing, adapter and n8n keys when `.env` is absent;
 2. copies the canonical three-agent configuration from the sibling Talon checkout;
 3. seeds Talon's local encrypted vault;
-4. validates the agent directory and runs `talon doctor`.
+4. validates the fleet agent directory and runs advisory `talon doctor` checks.
+
+`talon doctor` can print warnings about the single-agent `talon run` default policy or sovereignty defaults. Those warnings are advisory for this fleet gateway demo; `talon validate`, successful startup, the real request, and signed-evidence assertions are the authoritative gates. Any doctor **failure** still stops preparation.
 
 The OpenAI key is written to the Talon vault, not to `.env`. The command does currently pass demo secrets to `talon secrets set` as process arguments; use this only on a trusted single-user demo host.
 
@@ -67,6 +69,8 @@ This starts and checks:
 - Zendesk adapter on `127.0.0.1:8443`;
 - synthetic release MCP server on `127.0.0.1:8090`.
 
+Before starting either Talon process, the wrapper checks both `8080` and `8081`. It refuses to adopt an unknown listener and prints the command needed to inspect it. If a later startup stage fails, repository-owned services are stopped so the next attempt does not inherit a half-started stack.
+
 It also mints a fresh run identity, verifies authenticated MCP initialization, resets the synthetic fixtures, and refuses to continue when Ollama is running. Ollama must be down because the support case intentionally demonstrates a real connection failure followed by policy-valid fallback.
 
 Check the environment at any time:
@@ -82,6 +86,8 @@ Logs are written under `.state/logs/`.
 ```bash
 make real-smoke
 ```
+
+`real-smoke` refuses to run unless `real-start` completed successfully and all repository-managed services are still reachable. This prevents a gateway-only partial start from being mistaken for a completed full-stack setup.
 
 The command submits one synthetic support request containing an email address and IBAN. The expected path is:
 
@@ -165,9 +171,32 @@ Export it in the current shell before `make real-prepare`:
 export OPENAI_API_KEY='sk-...'
 ```
 
-### Port 8080 or 8081 already answers HTTP
+### Port 8080 or 8081 is already in use
 
-The helper refuses to adopt an unknown process. Stop the existing service and rerun `make real-start`.
+The helper refuses to adopt a process it did not start. First stop any repository-owned services, then inspect the conflicting listener:
+
+```bash
+make real-stop || true
+sudo ss -ltnp 'sport = :8081'
+```
+
+Read the command and PID printed by `ss`. Stop only the stale service you recognize, for example:
+
+```bash
+sudo kill <pid>
+make real-start
+```
+
+Do not kill an unrelated system service. The same procedure applies to port `8080`.
+
+### `the full stack was not started successfully`
+
+`real-start` failed or the services were stopped. Resolve the first startup error, then run:
+
+```bash
+make real-start
+make real-smoke
+```
 
 ### Ollama is running
 
