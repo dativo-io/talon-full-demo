@@ -58,13 +58,17 @@ curl --fail --silent --max-time 2 "$TALON_MCP_GATEWAY/health" >/dev/null \
   || die "Talon MCP proxy is not running; run make real-start"
 
 say "Using GitHub Copilot CLI: $version"
-say "Binary: $COPILOT"
+[[ "$OUTPUT_MODE" == "full" ]] && say "Binary: $COPILOT"
 
 # Every attempt gets a fresh session, nonce, empty receipts file, freshly
 # restarted shim, and empty Copilot state. Previous runs cannot satisfy the
 # current run's assertions.
 say "Minting a fresh bounded Copilot run..."
-"$ROOT/scripts/preflight.sh"
+if [[ "$OUTPUT_MODE" == "quiet" ]]; then
+  "$ROOT/scripts/preflight.sh" >/dev/null
+else
+  "$ROOT/scripts/preflight.sh"
+fi
 "$ROOT/scripts/stop-components.sh" >/dev/null 2>&1 || true
 "$ROOT/scripts/start-components.sh" >/dev/null
 # shellcheck disable=SC1090
@@ -114,9 +118,9 @@ run_copilot() {
 }
 
 say
-say "Running one bounded Copilot MCP prompt (hard limit: ${timeout_seconds}s)..."
-say "Session: $TALON_COPILOT_SESSION_ID"
-say "Transcript: $transcript"
+say "Running the real Copilot client through Talon (hard limit: ${timeout_seconds}s)..."
+[[ "$OUTPUT_MODE" == "full" ]] && say "Session: $TALON_COPILOT_SESSION_ID"
+[[ "$OUTPUT_MODE" == "full" ]] && say "Transcript: $transcript"
 say
 
 set +e
@@ -141,26 +145,40 @@ if [[ "$rc" -ne 0 ]]; then
   [[ "$OUTPUT_MODE" == "quiet" ]] && tail -n 80 "$transcript" >&2
   die "Copilot exited with status $rc; inspect $transcript"
 fi
-[[ "$OUTPUT_MODE" == "quiet" ]] && say "Copilot completed; full client transcript retained at $transcript"
+[[ "$OUTPUT_MODE" == "quiet" ]] && say "Copilot completed; verifying Talon receipts and signed evidence..."
 
-say
-say "Verifying the result independently..."
-"$ROOT/scripts/assert-release-blocked.sh"
-"$ROOT/scripts/assert-evidence.sh" \
-  --session "$TALON_COPILOT_SESSION_ID" \
-  --agent coding-assistant \
-  --since "$TALON_RUN_START_RFC3339"
+if [[ "$OUTPUT_MODE" == "quiet" ]]; then
+  "$ROOT/scripts/assert-release-blocked.sh" >/dev/null
+  "$ROOT/scripts/assert-evidence.sh" \
+    --session "$TALON_COPILOT_SESSION_ID" \
+    --agent coding-assistant \
+    --since "$TALON_RUN_START_RFC3339" >/dev/null
+else
+  say
+  say "Verifying the result independently..."
+  "$ROOT/scripts/assert-release-blocked.sh"
+  "$ROOT/scripts/assert-evidence.sh" \
+    --session "$TALON_COPILOT_SESSION_ID" \
+    --agent coding-assistant \
+    --since "$TALON_RUN_START_RFC3339"
+fi
 
 say
 say "REAL COPILOT CASE PASSED"
-say "  Client: real GitHub Copilot CLI used Talon's OpenAI-compatible gateway"
-say "  MCP: release_status + release_prepare reached the synthetic upstream"
-say "  Boundary: no release_publish receipt reached the upstream"
-say "  Evidence: current-run records are signed and attributed to coding-assistant"
-say "  Scope: proves the real client, model, MCP, identity, and evidence path"
-say "  Session: $TALON_COPILOT_SESSION_ID"
-say "  Transcript: $transcript"
-say
-say "Present this same verified session with:"
-say "  make present-copilot       # buyer view"
-say "  make present-copilot-tech  # technical view"
+if [[ "$OUTPUT_MODE" == "full" ]]; then
+  say "  Client: real GitHub Copilot CLI used Talon's OpenAI-compatible gateway"
+  say "  MCP: release_status + release_prepare reached the synthetic upstream"
+  say "  Boundary: no release_publish receipt reached the upstream"
+  say "  Evidence: current-run records are signed and attributed to coding-assistant"
+  say "  Scope: proves the real client, model, MCP, identity, and evidence path"
+  say "  Session: $TALON_COPILOT_SESSION_ID"
+  say "  Transcript: $transcript"
+  say
+  say "Present this same verified session with:"
+  say "  make present-copilot       # buyer view"
+  say "  make present-copilot-tech  # technical view"
+else
+  say "  Real client completed; Talon verification passed"
+  say "  Session: $TALON_COPILOT_SESSION_ID"
+  say "  Full transcript retained at: $transcript"
+fi
