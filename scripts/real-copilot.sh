@@ -5,9 +5,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE="$ROOT/.state"
 ENV_FILE="$ROOT/.env"
 RUN_ENV="$STATE/demo-run.env"
+OUTPUT_MODE="${COPILOT_DEMO_OUTPUT:-full}"
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+case "$OUTPUT_MODE" in
+  full|quiet) ;;
+  *) die "COPILOT_DEMO_OUTPUT must be full or quiet" ;;
+esac
 
 find_copilot() {
   if [[ -n "${COPILOT_BIN:-}" ]]; then
@@ -82,6 +88,31 @@ Do not run shell commands, read or modify files, call release_publish, retry, de
 EOF_PROMPT
 )"
 
+run_copilot() {
+  (
+    cd "$ROOT"
+    export PATH="$(dirname "$COPILOT"):$PATH"
+    export COPILOT_HOME="$STATE/copilot-home"
+    export COPILOT_PROVIDER_TYPE=openai
+    export COPILOT_PROVIDER_BASE_URL="http://127.0.0.1:8079/v1/proxy/openai/v1"
+    export COPILOT_PROVIDER_API_KEY="$TALON_CODING_ASSISTANT_KEY"
+    export COPILOT_MODEL="${COPILOT_MODEL:-gpt-4o-mini}"
+    export COPILOT_OFFLINE=true
+    export COPILOT_TASK_WAIT_TIMEOUT_SECONDS=30
+    python3 "$ROOT/scripts/run-with-timeout.py" "$timeout_seconds" \
+      "$COPILOT" \
+        --prompt "$prompt" \
+        --no-ask-user \
+        --no-custom-instructions \
+        --additional-mcp-config="@$STATE/copilot-mcp.json" \
+        --disable-builtin-mcps \
+        --allow-tool='release-gateway(release_status)' \
+        --allow-tool='release-gateway(release_prepare)' \
+        --deny-tool='shell' \
+        --deny-tool='write'
+  )
+}
+
 say
 say "Running one bounded Copilot MCP prompt (hard limit: ${timeout_seconds}s)..."
 say "Session: $TALON_COPILOT_SESSION_ID"
@@ -89,38 +120,28 @@ say "Transcript: $transcript"
 say
 
 set +e
-(
-  cd "$ROOT"
-  export PATH="$(dirname "$COPILOT"):$PATH"
-  export COPILOT_HOME="$STATE/copilot-home"
-  export COPILOT_PROVIDER_TYPE=openai
-  export COPILOT_PROVIDER_BASE_URL="http://127.0.0.1:8079/v1/proxy/openai/v1"
-  export COPILOT_PROVIDER_API_KEY="$TALON_CODING_ASSISTANT_KEY"
-  export COPILOT_MODEL="${COPILOT_MODEL:-gpt-4o-mini}"
-  export COPILOT_OFFLINE=true
-  export COPILOT_TASK_WAIT_TIMEOUT_SECONDS=30
-  python3 "$ROOT/scripts/run-with-timeout.py" "$timeout_seconds" \
-    "$COPILOT" \
-      --prompt "$prompt" \
-      --no-ask-user \
-      --no-custom-instructions \
-      --additional-mcp-config="@$STATE/copilot-mcp.json" \
-      --disable-builtin-mcps \
-      --allow-tool='release-gateway(release_status)' \
-      --allow-tool='release-gateway(release_prepare)' \
-      --deny-tool='shell' \
-      --deny-tool='write'
-) 2>&1 | tee "$transcript"
-rc="${PIPESTATUS[0]}"
+if [[ "$OUTPUT_MODE" == "quiet" ]]; then
+  run_copilot >"$transcript" 2>&1
+  rc=$?
+else
+  run_copilot 2>&1 | tee "$transcript"
+  rc="${PIPESTATUS[0]}"
+fi
 set -e
 
 if [[ "$rc" -eq 124 ]]; then
+  [[ "$OUTPUT_MODE" == "quiet" ]] && tail -n 80 "$transcript" >&2
   die "Copilot exceeded ${timeout_seconds}s. The run was terminated and does not count as a demo pass."
 fi
 if [[ "$rc" -eq 130 ]]; then
+  [[ "$OUTPUT_MODE" == "quiet" ]] && tail -n 80 "$transcript" >&2
   die "Copilot run was cancelled. Child processes were terminated; rerun make real-copilot for a fresh attempt."
 fi
-[[ "$rc" -eq 0 ]] || die "Copilot exited with status $rc; inspect $transcript"
+if [[ "$rc" -ne 0 ]]; then
+  [[ "$OUTPUT_MODE" == "quiet" ]] && tail -n 80 "$transcript" >&2
+  die "Copilot exited with status $rc; inspect $transcript"
+fi
+[[ "$OUTPUT_MODE" == "quiet" ]] && say "Copilot completed; full client transcript retained at $transcript"
 
 say
 say "Verifying the result independently..."
@@ -139,3 +160,7 @@ say "  Evidence: current-run records are signed and attributed to coding-assista
 say "  Scope: proves the real client, model, MCP, identity, and evidence path"
 say "  Session: $TALON_COPILOT_SESSION_ID"
 say "  Transcript: $transcript"
+say
+say "Present this same verified session with:"
+say "  make present-copilot       # buyer view"
+say "  make present-copilot-tech  # technical view"
