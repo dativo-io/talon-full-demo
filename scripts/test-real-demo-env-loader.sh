@@ -43,3 +43,4 @@ grep -Fq 'load_env() {' "$WORK/load-env-function.sh" \
 )
 
 echo 'real-demo environment loader handles optional provider keys in a fresh shell'
+bash "$ROOT/scripts/validate-completion-contracts.sh"
