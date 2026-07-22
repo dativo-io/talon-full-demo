@@ -50,13 +50,22 @@ synthetic ticket request
 
 The technical view verifies `zendesk-support-full-demo` client attribution and that the returned session ID matches Talon evidence.
 
-Package the actual private app with pinned ZCLI:
+Build and inspect the private-app ZIP without an account:
 
 ```bash
 make zendesk-package
 ```
 
-The resulting ZIP is content-checked, scanned for generated credentials, hashed, and uploaded as a hosted-CI artifact.
+This hosted-CI gate proves required files, manifest shape, ticket-editor icon, deterministic packaging, and absence of generated credential values. It does not claim Zendesk server-side validation.
+
+Authenticate ZCLI and run the official validation/package gate:
+
+```bash
+zcli login -i
+make zendesk-zcli-package
+```
+
+Current ZCLI requires Zendesk authentication for `apps:validate` and `apps:package`. The hosted workflow runs this step automatically only when Zendesk OAuth repository secrets are configured.
 
 Installation inside Zendesk remains an account/browser operation. After observing private-app installation, secure-setting substitution, newest public requester-comment selection, and returned-draft insertion, record the final gate with:
 
@@ -129,12 +138,13 @@ For a platform or security review:
 3. `make demo-n8n-tech`
 4. `make live-check` for the separate adversarial MCP denial and hermetic budget-engine proof.
 
-Use the Zendesk scene when the buyer owns customer-support operations. Pair the adapter proof with the packaged private app; make the installed-app claim only after the explicit account/browser gate is recorded.
+Use the Zendesk scene when the buyer owns customer-support operations. Pair the adapter proof with the offline-inspected package, but make the Zendesk-validated or installed-app claim only after the authenticated ZCLI and account/browser gates are complete.
 
 ## Truth boundaries
 
 - Talon claims only the traffic and actions routed through its interception boundaries.
 - Provider routes, redaction, cost, identity, denials, and signatures come from Talon evidence.
+- An offline Zendesk ZIP is not described as Zendesk server-validated.
 - Zendesk UI behavior is operator-confirmed; the backend session is machine-verified.
 - n8n results require real workflow artifacts and matching evidence, never the specification alone.
 - Session budgets are soft caps: completed requests may consume budget before the next request is denied.
