@@ -64,9 +64,9 @@ say "Binary: $COPILOT"
 say "Restoring a clean, known failing fixture..."
 "$ROOT/scripts/reset-billing-fixture.sh"
 
-# Every attempt gets a fresh session, nonce, empty receipts file, and freshly
-# restarted shim. This prevents a previous failed/long run from satisfying the
-# current run's assertions.
+# Every attempt gets a fresh session, nonce, empty receipts file, freshly
+# restarted shim, and empty Copilot state. This prevents a previous failed/long
+# run from satisfying or influencing the current run's assertions.
 say "Minting a fresh bounded Copilot run..."
 "$ROOT/scripts/preflight.sh"
 "$ROOT/scripts/stop-components.sh" >/dev/null 2>&1 || true
@@ -78,6 +78,7 @@ source "$RUN_ENV"
 nonce="$(cat "$STATE/run-nonce")"
 timeout_seconds="${COPILOT_DEMO_TIMEOUT_SECONDS:-180}"
 transcript="$STATE/copilot-$TALON_DEMO_RUN_ID.log"
+rm -rf "$STATE/copilot-home"
 mkdir -p "$STATE/copilot-home"
 
 prompt="$(cat <<EOF_PROMPT
@@ -129,6 +130,9 @@ set -e
 
 if [[ "$rc" -eq 124 ]]; then
   die "Copilot exceeded ${timeout_seconds}s. The run was terminated and does not count as a demo pass."
+fi
+if [[ "$rc" -eq 130 ]]; then
+  die "Copilot run was cancelled. Child processes were terminated; rerun make real-copilot for a fresh attempt."
 fi
 [[ "$rc" -eq 0 ]] || die "Copilot exited with status $rc; inspect $transcript"
 
