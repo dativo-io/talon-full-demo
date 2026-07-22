@@ -57,7 +57,8 @@ for required in \
   '.session_budget.spent' \
   '.session_budget.estimate' \
   'signed session_budget {limit, spent, estimate}' \
-  'The signed deny record'; do
+  'The signed deny' \
+  'record, not the presenter'; do
   grep -Fq -- "$required" "$PRESENTER" || { echo "n8n presenter missing signed budget proof: $required" >&2; exit 1; }
 done
 
