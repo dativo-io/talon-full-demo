@@ -220,10 +220,11 @@ EOF
   cat <<'EOF'
 
 Scope boundary
-  The session cap is a soft cap: completed requests may consume budget before
-  the next request is denied. The real demo stages a run-scoped cap and restores
-  the canonical product-demo policy after execution. The signed deny record,
-  not the presenter, supplies the limit, spent, and estimate values shown above.
+  This proof requires a real imported n8n workflow and matching application
+  artifacts. The session cap is a soft cap: completed requests may consume budget
+  before the next request is denied. The real demo stages a run-scoped cap and
+  restores the canonical product-demo policy after execution. The signed deny
+  record, not the presenter, supplies the limit, spent, and estimate values above.
 EOF
 }
 
