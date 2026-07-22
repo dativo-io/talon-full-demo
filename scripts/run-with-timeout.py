@@ -37,14 +37,14 @@ def main() -> int:
         except ProcessLookupError:
             pass
         try:
-            return process.wait(timeout=5) or 124
+            process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             try:
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
             process.wait()
-            return 124
+        return 124
 
 
 if __name__ == "__main__":
