@@ -57,10 +57,10 @@ real-prepare:
 	bash ./scripts/real-demo.sh prepare
 
 real-start:
-	bash ./scripts/real-demo.sh start
+	bash ./scripts/real-stack.sh start
 
 real-smoke:
-	bash ./scripts/real-demo.sh smoke
+	bash ./scripts/real-stack.sh smoke
 
 real-copilot:
 	bash ./scripts/real-demo.sh copilot
@@ -69,7 +69,7 @@ real-status:
 	bash ./scripts/real-demo.sh status
 
 real-stop:
-	bash ./scripts/real-demo.sh stop
+	bash ./scripts/real-stack.sh stop
 
 ci: validate-local
 	git diff --check
