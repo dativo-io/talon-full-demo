@@ -7,7 +7,7 @@ Use this only after the relevant executable and external gates pass. The short w
 Show recognizable application shapes using one Talon control plane:
 
 1. Zendesk Support requests a governed reply draft.
-2. GitHub Copilot CLI completes one bounded local code task and reaches a synthetic release service through Talon's MCP proxy.
+2. GitHub Copilot CLI completes one bounded, approved local command sequence and reaches a synthetic release service through Talon's MCP proxy.
 3. n8n preserves useful partial output before a later request crosses the configured soft session budget.
 
 Evidence is the proof layer. Never infer provider routes, policy decisions, costs, or signatures from application output alone.
@@ -26,6 +26,7 @@ The demo must not claim:
 
 - Talon controls Copilot's local shell, filesystem, browser, or direct network actions;
 - Copilot CLI permissions are Talon controls;
+- the bounded Copilot scene proves free-form code generation or patch-edit quality;
 - the real Copilot run attempted `release_publish` when that tool was removed from discovery;
 - session budgets are atomic hard reservations;
 - one denial automatically creates a fleet `needs-attention` state;
@@ -97,7 +98,7 @@ Narrate only what the command proves:
 
 Do not treat the generated prose as the proof. The `REAL CASE PASSED` assertions and evidence file are the proof.
 
-## Scene 2 — bounded real Copilot + MCP path (3 minutes)
+## Scene 2 — bounded real Copilot + MCP path (2 minutes)
 
 Run exactly:
 
@@ -109,14 +110,17 @@ Do not open Copilot separately, paste a task, resume an old session, or improvis
 
 The command automatically:
 
-1. restores the known failing billing fixture from the committed baseline;
+1. restores and verifies the known failing billing fixture;
 2. creates a fresh Talon session and nonce;
-3. runs one non-interactive Copilot prompt with a three-minute hard limit;
-4. permits only the intended source-file write, one `npm test`, and the two allowed MCP tools;
-5. verifies the exact one-file diff and passing test;
-6. verifies nonce-correlated `release_status` and `release_prepare` receipts;
-7. verifies no `release_publish` receipt reached the upstream;
-8. verifies current-run signed evidence is attributed to `coding-assistant`.
+3. runs one non-interactive Copilot prompt with a two-minute hard limit;
+4. gives Copilot no general file-write permission;
+5. permits only `npm run fix-demo`, `npm test`, `release_status`, and `release_prepare`;
+6. verifies the exact one-file diff and passing test;
+7. verifies nonce-correlated `release_status` and `release_prepare` receipts;
+8. verifies no `release_publish` receipt reached the upstream;
+9. verifies current-run signed evidence is attributed to `coding-assistant`.
+
+`npm run fix-demo` is a committed, fail-closed fixture command that performs exactly the known one-line correction. This keeps the scene deterministic and isolates what is being demonstrated: the real Copilot client, model routing, MCP policy, identity, receipts, and evidence.
 
 A valid presentation ends with:
 
@@ -129,7 +133,9 @@ and the exact one-line diff.
 State explicitly:
 
 - Copilot's model API traffic and MCP calls passed through Talon;
-- the local edit and `npm test` remained outside Talon's control;
+- Copilot invoked the approved local correction and test commands;
+- those local shell actions remained outside Talon's control;
+- this proves the client-integration path, not Copilot's autonomous patch quality;
 - the real Copilot run demonstrates the conforming-client path;
 - the separate `make live-check` adversarial probe demonstrates runtime enforcement against a client that bypasses discovery.
 
