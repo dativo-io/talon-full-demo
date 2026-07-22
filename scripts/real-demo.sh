@@ -28,6 +28,11 @@ load_env() {
   # operators keep real provider keys out of the repository-local file.
   [[ -n "$external_openai" ]] && export OPENAI_API_KEY="$external_openai"
   [[ -n "$external_anthropic" ]] && export ANTHROPIC_API_KEY="$external_anthropic"
+
+  # Optional provider variables are conditions, not the function result. Without
+  # this explicit success, a missing Anthropic export returns status 1 and `set -e`
+  # aborts OpenAI-only support/start/stop paths before they do any work.
+  return 0
 }
 
 require_common() {
