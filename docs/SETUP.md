@@ -1,26 +1,25 @@
 # Standalone setup
 
-This repository is intentionally separate from Talon. Keep the checkouts as siblings so the demo copies the current canonical product-demo configuration instead of maintaining a stale fork.
+This repository is intentionally separate from Talon. Keep the checkouts as siblings so the demo copies the canonical product-demo configuration instead of maintaining a stale fork.
+
+For the shortest real-provider path, start with [REAL_CASES_QUICKSTART.md](REAL_CASES_QUICKSTART.md). This document is the manual reference.
 
 ## Prerequisites
 
 Repository-local validation requires:
 
 - Go 1.23 or newer;
-- Node.js 20 or newer (hosted CI pins 22);
-- Git;
-- Python 3;
-- `jq`;
-- `curl`.
+- Node.js 20 or newer;
+- Git and Python 3;
+- `jq` and `curl`.
 
 The live walkthrough additionally requires:
 
-- a current `dativo-io/talon` checkout and binary;
-- provider keys for the routes you actually demonstrate;
-- GitHub Copilot CLI;
-- a Zendesk account with private-app permissions and ZCLI;
-- Docker Compose for n8n;
-- an authenticated HTTPS tunnel for the Zendesk adapter.
+- a current `dativo-io/talon` checkout and Talon binary;
+- provider keys for the routes being demonstrated;
+- GitHub Copilot CLI for the optional Copilot case;
+- a Zendesk account, ZCLI, and authenticated HTTPS tunnel for the optional Zendesk case;
+- Docker Compose for the optional n8n case.
 
 ## 1. Validate the repository
 
@@ -28,13 +27,15 @@ The live walkthrough additionally requires:
 make ci
 ```
 
-This is the same command GitHub Actions runs. Do not continue to external setup when it fails.
+This is the same contract GitHub Actions runs. Do not continue to external setup when it fails.
 
-With a `dativo-io/talon` checkout next to this repository you can also run the
-live end-to-end proof against a real Talon server (no mock): `make live-check`.
-It builds Talon, runs the MCP forbidden-tool scene and the real session-budget
-engine in a throwaway temp dir, and is the recommended go/no-go check before
-presenting (see `docs/VALIDATION.md`).
+With `dativo-io/talon` cloned next to this repository, also run:
+
+```bash
+make live-check
+```
+
+`live-check` builds and starts a real Talon server in a throwaway directory, proves MCP preventive filtering and runtime enforcement, verifies acting identity and signed evidence, and exercises the real session-budget engine.
 
 ## 2. Generate isolated local secrets
 
@@ -43,9 +44,11 @@ make env
 source .env
 ```
 
-The generated `.env` is mode `0600`, ignored by Git, and contains random Talon traffic keys, signing/secrets/admin keys, an adapter token, and an n8n encryption key. Add provider keys only to the local file. Never commit it.
+The generated `.env` is mode `0600`, ignored by Git, and contains random Talon traffic keys, signing/secrets/admin keys, an adapter token, and an n8n encryption key. It does not fetch any external credentials.
 
-## 3. Copy the current Talon demo baseline
+For the automated real path, keep provider keys in the current shell and run `make real-prepare`; the helper stores them in Talon's encrypted local vault rather than writing them to `.env`.
+
+## 3. Copy the canonical Talon demo baseline
 
 ```bash
 TALON_REPO=../talon make bootstrap-config
@@ -57,14 +60,14 @@ The command copies:
 ```text
 ../talon/examples/product-demo/talon.config.yaml
 ../talon/examples/product-demo/agents/**
-../talon/pricing/models.yaml            # so served costs use the real table
+../talon/pricing/models.yaml
 ```
 
-It records the source Talon commit in `TALON_SOURCE_COMMIT` and warns if the checkout does not match `TALON_PINNED_COMMIT` (the audited commit this demo tracks). No shadow config file is generated: shadow mode is the v1.9.3 `--gateway-mode shadow` runtime override (see section 5), gateway-wide and restart-bound.
+It records the source commit in `TALON_SOURCE_COMMIT` and warns when the checkout differs from `TALON_PINNED_COMMIT`.
 
-## 4. Seed Talon secrets
+## 4. Seed Talon secrets manually
 
-Build Talon from its own repository and expose the binary on `PATH`. Then use the generated `.env` values consistently:
+Build Talon from its own repository and put the binary on `PATH`. Then:
 
 ```bash
 export TALON_GATEWAY_CONFIG="$TALON_CONFIG"
@@ -91,104 +94,73 @@ talon validate --dir config/generated/agents
 talon doctor
 ```
 
-Provider keys remain in Talon's vault. The Zendesk browser and adapter never receive them.
+The automated equivalent is:
 
-## 5. Start Talon
+```bash
+export OPENAI_API_KEY='sk-...'
+export ANTHROPIC_API_KEY='sk-ant-...'   # optional until n8n
+make real-prepare
+```
 
-Current Talon CLI contract, audited against `main` commit `24046ca690a616c2710c3084d59857839364bcf3` and executed against a server built from that commit.
+## 5. Start Talon manually
 
-Run **two** Talon processes that share one data directory (`TALON_DATA_DIR`),
-both started from `config/generated`. The split exists for a governance reason,
-not convenience — see the note below.
+The audited v1.9.3 topology uses two Talon processes sharing the same low-concurrency demo data directory:
 
 ```bash
 cd config/generated
 
-# 1) LLM gateway on :8080 — Copilot model traffic, Zendesk drafts, n8n.
+# LLM gateway: Copilot model traffic, Zendesk drafts, n8n.
 talon serve --host 127.0.0.1 --port 8080 --gateway &
 
-# 2) MCP proxy on :8081 — the release-tool boundary, agent-key authenticated.
-talon serve --host 127.0.0.1 --port 8081 --proxy-config ../mcp-proxy.example.yaml &
+# MCP boundary: agent-key-authenticated release tools.
+talon serve --host 127.0.0.1 --port 8081 \
+  --proxy-config ../mcp-proxy.example.yaml &
 ```
 
-Both share `TALON_DATA_DIR` (set in `.env`), so LLM and MCP evidence land in the
-same signed store, joinable by session.
+Both processes share `TALON_DATA_DIR`, so LLM and MCP evidence are joinable by session. This is a sequential demo topology, not a general production recommendation for shared SQLite concurrency.
 
-The two processes share one SQLite `TALON_DATA_DIR`. Treat this as a
-**low-concurrency demo topology** — the demo issues requests sequentially, so
-write contention does not arise — not a claim of formally supported multi-process
-Talon operation. For higher concurrency or a production deployment, give each
-process its own data directory (evidence stays per-process) or run a single
-process, until Talon documents shared-store multi-process support.
+### Why the MCP proxy is separate
 
-**Why two processes (identity + least privilege).** In v1.9.3 a single-process
-`--gateway` also serving `--proxy-config` puts `/mcp/proxy` behind admin-only
-middleware (fail-closed native-execution route, upstream #266): the agent bearer
-alone gets 401, so the client would have to carry the operator admin key, and
-Talon — seeing no authenticated agent — attributes MCP evidence to the proxy
-config's own name (`coding-assistant-release-tools`) rather than the acting
-agent. A **proxy-only** process (no `--gateway`) authenticates `/mcp/proxy` with
-**agent keys** (`TenantKeyMiddleware`), so the `coding-assistant` bearer both
-authenticates and owns the evidence: MCP records and the agent's LLM records
-share `agent_id = coding-assistant` and the same session, and the Copilot process
-never holds the admin key. This is executed and asserted by `make live-check`.
+In v1.9.3, combining gateway and proxy configuration places `/mcp/proxy` behind the gateway's admin-only middleware. A proxy-only process instead authenticates with the coding-assistant agent key, so MCP records carry the acting `agent_id = coding-assistant` without giving the client the Talon admin key. `make live-check` executes and asserts this boundary.
 
-Run each server from `config/generated`: the canonical config's `agents_dir: agents`
-resolves relative to the server's working directory in v1.9.3 (upstream's own
-`examples/product-demo/demo.sh` also starts the server from the directory holding
-`talon.config.yaml`). Started from the repository root it fails at boot with
-"gateway mode requires at least one keyed agent".
+Start both processes from `config/generated`, because the canonical `agents_dir: agents` path is relative to the working directory.
 
-Verify both:
+Verify:
 
 ```bash
-curl -fsS -D- "$TALON_GATEWAY/health"       # :8080 gateway
-curl -fsS -D- "$TALON_MCP_GATEWAY/health"   # :8081 MCP proxy
+curl -fsS "$TALON_GATEWAY/health"
+curl -fsS "$TALON_MCP_GATEWAY/health"
 talon agents --url "$TALON_GATEWAY"
 ```
 
-The runtime fleet check has shipped since Talon v1.9.0 (`internal/cmd/agents_queue.go`); an explicit `--url` is authoritative and errors rather than silently falling back to the offline config view.
-
-To run the gateway in shadow mode for the policy-comparison beat, do not edit
-YAML; use the v1.9.3 runtime override (#368) on the gateway process:
+For the normal automated path, use:
 
 ```bash
-cd config/generated
-talon serve --host 127.0.0.1 --port 8080 --gateway --gateway-mode shadow &
+make real-start
+make real-status
 ```
 
-## 5b. Mint the demo run and verify the control plane
+## 6. Mint a run and start local components manually
+
+After both Talon processes are healthy:
 
 ```bash
 make preflight
-```
-
-Run this **after** Talon and **before** local components. It mints a fresh
-`TALON_DEMO_RUN_ID` into `.state/demo-run.env` (per-run session ids, run start
-time, release nonce) so each run's evidence is isolated from earlier runs, and it
-hard-verifies that both the gateway (`:8080`) and the MCP proxy (`:8081`) are up —
-including a real authenticated MCP `initialize` against `/mcp/proxy`, which a
-generic `/health` cannot prove. Re-run it for every rehearsal.
-
-## 6. Start local components
-
-```bash
+scripts/stop-components.sh || true
 scripts/start-components.sh
 ```
 
-`start-components.sh` sources `.state/demo-run.env`, so the Copilot shim and
-Zendesk adapter attribute traffic to this run's sessions; its readiness gates are
-the authoritative health check for the adapter, shim, and release MCP server.
+`preflight` creates a fresh run ID, Copilot/n8n session IDs, run start timestamp, and release nonce in `.state/demo-run.env`. It also performs an authenticated MCP initialization—not only a generic health check.
 
-Defaults:
+The local defaults are:
 
 ```text
 Copilot shim        127.0.0.1:8079
-Zendesk adapter     127.0.0.1:8443 (plain HTTP behind tunnel TLS)
+Zendesk adapter     127.0.0.1:8443
 Release MCP server  127.0.0.1:8090
 ```
 
-Stop only the PID-verified child processes recorded by the start script:
+Stop only PID-verified repository children:
 
 ```bash
 scripts/stop-components.sh
@@ -199,7 +171,7 @@ scripts/stop-components.sh
 1. Validate and package `integrations/zendesk-app` with ZCLI.
 2. Expose only the adapter through an authenticated HTTPS tunnel.
 3. Install the app privately.
-4. Configure `adapter_domain` as a hostname only; no scheme, path, localhost, or IP literal.
+4. Configure `adapter_domain` as a hostname only—no scheme, path, localhost, or IP literal.
 5. Configure `adapter_token` as the secure header-scoped setting.
 6. Use a synthetic ticket containing requester-authored public comments plus agent/private comments.
 7. Confirm the app selects the newest public requester comment and inserts only the returned draft.
@@ -208,61 +180,54 @@ Local ZCLI rendering does not prove secure-setting substitution. The installed p
 
 ## 8. GitHub Copilot CLI
 
-Reset the dependency-free fixture and render a session-only MCP config:
+Install the CLI explicitly once:
 
 ```bash
-scripts/reset-billing-fixture.sh
-scripts/render-copilot-mcp-config.sh
+make copilot-install
 ```
 
-The rendered config points at the **MCP-proxy process** (`$TALON_MCP_GATEWAY`,
-`:8081`) and authenticates with the `coding-assistant` agent bearer only — no
-admin key. Because that process is proxy-only (agent-key authenticated), the MCP
-release-tool actions carry `agent_id = coding-assistant`, the same identity as
-the Copilot model traffic through the gateway. `make live-check` executes and
-asserts this: the LLM call and the MCP calls in one session all attribute to
-`coding-assistant`. (See §5 for why the MCP proxy runs as its own process.)
-
-Configure Copilot's current BYOK variables:
+Run the supported case only through:
 
 ```bash
-export COPILOT_PROVIDER_TYPE=openai
-export COPILOT_PROVIDER_BASE_URL=http://127.0.0.1:8079/v1/proxy/openai/v1
-export COPILOT_PROVIDER_API_KEY="$TALON_CODING_ASSISTANT_KEY"
-export COPILOT_MODEL=gpt-4o
-export COPILOT_OFFLINE=true
+make real-copilot
 ```
 
-Then:
+Do not start a separate interactive session or paste a task manually. The wrapper:
+
+1. restores and verifies the committed failing billing fixture;
+2. creates a fresh Talon session and nonce;
+3. restarts the shim and synthetic release service under that run identity;
+4. runs Copilot programmatically in BYOK offline mode;
+5. points model traffic at the local Talon session shim;
+6. points MCP traffic at the agent-key-authenticated Talon MCP proxy;
+7. permits only `npm run fix-demo`, `npm test`, `release_status`, and `release_prepare`;
+8. gives Copilot no general file-write permission;
+9. enforces a 120-second wall-clock limit;
+10. independently verifies the exact source diff, passing test, nonce-correlated receipts, absent `release_publish` receipt, and signed current-run evidence.
+
+The committed `npm run fix-demo` command performs exactly the known one-line billing correction and fails unless the expected regression appears exactly once. This intentionally tests the real Copilot client and Talon integration path, not Copilot's free-form patch generation.
+
+The default model is `gpt-4o-mini`; override it only for diagnosis:
 
 ```bash
-cd cases/billing-demo
-copilot \
-  --additional-mcp-config=@../../.state/copilot-mcp.json \
-  --disable-builtin-mcps \
-  --allow-tool='release-gateway' \
-  --deny-tool='shell(git push)'
+COPILOT_MODEL=gpt-4o make real-copilot
 ```
 
-The fixture has no Git remote. The direct `git push` denial belongs to Copilot CLI, not Talon. The model must support streaming and tool calling.
-
-Talon issues #346 and #350 are fixed on current `main`. Still run the complete proof in `docs/BLOCKERS.md`: allowed tools must reach the synthetic upstream, `release_publish` must not, and the signed evidence must carry the authenticated agent plus session/correlation attribution.
+The fixture has no Git remote. Copilot CLI's local shell permissions are client controls, not Talon controls. Talon governs only model and MCP traffic routed through its boundaries.
 
 ## 9. n8n
 
 The Compose file is pinned to n8n `2.30.4` and exposes only loopback port 5678:
 
 ```bash
-install -d -m 0777 .state/n8n-output   # demo-only: the container writes here as its own UID
+install -d -m 0777 .state/n8n-output
 source .env
 docker compose -f integrations/n8n/compose.yaml up
 ```
 
-The `0777` is a throwaway demo scratch directory for the loopback container, not
-a deployment pattern — a real deployment matches the container UID or uses a
-named volume instead of world-writable permissions.
+The `0777` directory is throwaway demo scratch space for a container UID, not a deployment pattern.
 
-Build the workflow from `integrations/n8n/workflow-spec.md` in that pinned UI. Export without credentials, clean-import into a fresh container running the same version, reconnect the Header Auth credential, and rerun before committing workflow JSON. No workflow export is currently claimed.
+The workflow must still be built from `integrations/n8n/workflow-spec.md`, exported without credentials, and clean-imported into a fresh pinned container before the repository can claim a completed real n8n scene.
 
 ## 10. Evidence gates
 
@@ -277,13 +242,14 @@ talon audit export \
 talon audit verify --file .state/<session-id>.signed.json
 ```
 
-Provider routes, redaction, cost, policy decisions, identity, session attribution, and signatures must come from Talon output. Never replace native reason fields with presenter-authored success text.
+Provider routes, redaction, cost, policy decisions, identity, session attribution, and signatures must come from Talon output. Never replace native evidence with presenter-authored success text.
 
-## Security boundaries
+## Security and truth boundaries
 
 - All data and tool effects are synthetic.
 - Services bind to loopback by default.
-- Only the Zendesk adapter crosses the local boundary, through authenticated TLS termination.
+- Only the optional Zendesk adapter crosses the local boundary, through authenticated TLS termination.
 - Talon governs LLM traffic and MCP calls routed through it; local shell, filesystem, browser, and direct API actions remain outside its control.
-- HMAC evidence is tamper-evident and verifiable, not immutable.
+- The Copilot scene proves the real client-integration path, not autonomous code-edit quality.
+- HMAC evidence is tamper-evident and offline-verifiable, not immutable.
 - Session budgets are soft caps.
