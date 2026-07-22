@@ -7,8 +7,10 @@ RUNNER="$ROOT/scripts/n8n-workflow.sh"
 COMPOSE="$ROOT/integrations/n8n/compose.yaml"
 PACKAGE="$ROOT/scripts/package-zendesk-app.sh"
 INSTALLED="$ROOT/scripts/verify-zendesk-installed.sh"
+ZENDESK_MANIFEST="$ROOT/integrations/zendesk-app/manifest.json"
+ZENDESK_ICON="$ROOT/integrations/zendesk-app/assets/icon_ticket_editor.svg"
 
-for file in "$WORKFLOW" "$RUNNER" "$COMPOSE" "$PACKAGE" "$INSTALLED"; do
+for file in "$WORKFLOW" "$RUNNER" "$COMPOSE" "$PACKAGE" "$INSTALLED" "$ZENDESK_MANIFEST" "$ZENDESK_ICON"; do
   [[ -s "$file" ]] || { echo "missing completion artifact: $file" >&2; exit 1; }
 done
 
@@ -52,7 +54,25 @@ for required in \
   grep -Fq -- "$required" "$COMPOSE" || { echo "n8n compose missing: $required" >&2; exit 1; }
 done
 
-for required in '@zendesk/zcli@$ZCLI_VERSION' 'apps:validate' 'apps:package' 'sha256sum' 'talon-reply-assistant.zip'; do
+jq -e '
+  .author.name and .author.email and .author.url
+  and .location.support.ticket_editor.url == "assets/iframe.html"
+  and any(.parameters[]; .name == "adapter_token" and .secure == true and (.scopes | index("header")))
+' "$ZENDESK_MANIFEST" >/dev/null || {
+  echo 'Zendesk manifest is missing author, ticket-editor, or secure-header settings' >&2
+  exit 1
+}
+grep -Fq 'viewBox=' "$ZENDESK_ICON" || { echo 'Zendesk ticket-editor icon lacks a viewBox' >&2; exit 1; }
+
+for required in \
+  'offline-structure-and-secret-scan' \
+  'authenticated-zcli-validation-and-package' \
+  '@zendesk/zcli@$ZCLI_VERSION' \
+  'apps:validate' \
+  'apps:package' \
+  'sha256sum' \
+  'talon-reply-assistant.offline.zip' \
+  'talon-reply-assistant.zcli.zip'; do
   grep -Fq -- "$required" "$PACKAGE" || { echo "Zendesk package gate missing: $required" >&2; exit 1; }
 done
 for required in \
@@ -67,7 +87,7 @@ done
 
 for target in \
   n8n-validate real-n8n demo-n8n-buyer demo-n8n-tech \
-  zendesk-package verify-zendesk-installed; do
+  zendesk-package zendesk-zcli-package verify-zendesk-installed; do
   make -n -C "$ROOT" "$target" >/dev/null \
     || { echo "Make target is not runnable: $target" >&2; exit 1; }
 done
