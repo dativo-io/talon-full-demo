@@ -7,24 +7,43 @@ Configure:
 - `adapter_domain` — authenticated HTTPS tunnel hostname only, with no scheme or path;
 - `adapter_token` — secure, header-scoped setting.
 
-## Validate and package
+## Build and inspect the credential-free ZIP
 
 ```bash
 make zendesk-package
 ```
 
-The packaging command uses pinned `@zendesk/zcli` `1.1.4` to validate and package the app. It then checks the ZIP contents, scans for generated credential values, computes SHA-256, and writes:
+This account-independent command validates the repository contract, builds a deterministic ZIP, checks required Zendesk files including `icon_ticket_editor.svg`, scans for generated credential values, computes SHA-256, and writes:
 
 ```text
-.state/zendesk-app/talon-reply-assistant.zip
+.state/zendesk-app/talon-reply-assistant.offline.zip
 .state/zendesk-app/package.env
 ```
 
-Hosted CI runs the same package command and uploads the verified ZIP as a workflow artifact. Provider and adapter credentials are never part of the package.
+Hosted CI runs this command and uploads the inspected ZIP as a workflow artifact. This is a package-integrity gate, not Zendesk server-side validation.
+
+## Run official authenticated ZCLI validation
+
+Current ZCLI requires Zendesk authentication for both `apps:validate` and `apps:package`. Authenticate with a profile or OAuth environment variables, then run:
+
+```bash
+zcli login -i
+make zendesk-zcli-package
+```
+
+Or in a headless shell:
+
+```bash
+export ZENDESK_SUBDOMAIN='<subdomain>'
+export ZENDESK_OAUTH_TOKEN='<oauth-token>'
+make zendesk-zcli-package
+```
+
+The command uses pinned `@zendesk/zcli` `1.1.4`, retains diagnostics, inspects the resulting ZIP, and writes `.state/zendesk-app/talon-reply-assistant.zcli.zip`. The hosted workflow also runs this step automatically when repository secrets `ZENDESK_SUBDOMAIN` and `ZENDESK_OAUTH_TOKEN` are configured.
 
 ## Install in a real Zendesk account
 
-The local ZCLI server does not exercise secure settings. Install the package privately using ZCLI or Admin Center, then configure the two settings above.
+The local ZCLI server does not exercise secure settings. Install the authenticated ZCLI package privately using ZCLI or Admin Center, then configure the two settings above.
 
 Use a synthetic ticket containing, in descending comment history:
 
