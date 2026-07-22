@@ -1,162 +1,159 @@
 # Presenter runbook — 10–15 minutes
 
-Use this only after `make ci`, `make preflight`, and every relevant external gate in `docs/BLOCKERS.md` passes. The short website hero is a separate artifact and remains unchanged.
+Use this only after the relevant executable and external gates pass. The short website hero is a separate artifact.
 
 ## Demo promise
 
-Show three existing application shapes using one Talon control plane:
+Show recognizable application shapes using one Talon control plane:
 
 1. Zendesk Support requests a governed reply draft.
-2. GitHub Copilot CLI fixes a real failing local test and reaches a synthetic release service through Talon's MCP proxy.
-3. n8n writes useful partial report output before a later request is denied by the configured soft session budget.
+2. GitHub Copilot CLI completes one bounded local code task and reaches a synthetic release service through Talon's MCP proxy.
+3. n8n preserves useful partial output before a later request crosses the configured soft session budget.
 
-Evidence is the proof layer. The applications do not invent provider routes, policy decisions, costs, or signatures.
+Evidence is the proof layer. Never infer provider routes, policy decisions, costs, or signatures from application output alone.
 
 ## Truth boundaries
 
 The demo may claim:
 
-- one Talon configuration (one `talon.config.yaml` + `agents_dir`) defines three AI-use-case identities, each with its own key; the LLM gateway serves them on `:8080` and a companion proxy-only process serves the MCP boundary on `:8081`, sharing that configuration and evidence store (two processes for the v1.9.3 auth reason in `docs/SETUP.md` section 5 — not a single server);
-- traffic reaches Talon through current OpenAI-compatible, Anthropic, and MCP interfaces;
-- policy can redact or deny before provider/tool execution when the request crosses a Talon interception boundary;
-- allowed MCP calls reach the synthetic release server while forbidden `release_publish` does not;
+- one Talon fleet configuration defines three AI-use-case identities with separate keys;
+- the LLM gateway runs on `:8080` and the agent-key-authenticated MCP proxy runs on `:8081`, sharing configuration and evidence state;
+- policy can redact or deny before provider or tool execution at a Talon interception boundary;
+- allowed MCP calls reach the synthetic release server while no `release_publish` receipt reaches it;
 - session-scoped signed evidence can be exported and verified offline.
 
 The demo must not claim:
 
 - Talon controls Copilot's local shell, filesystem, browser, or direct network actions;
-- the Copilot `git push` restriction is a Talon feature;
+- Copilot CLI permissions are Talon controls;
+- the real Copilot run attempted `release_publish` when that tool was removed from discovery;
 - session budgets are atomic hard reservations;
-- one denial automatically creates `needs-attention` health;
-- HMAC evidence is immutable or proves that the configured policy was correct;
-- Zendesk secure settings, real Copilot BYOK, n8n import/export, or provider behavior were validated unless the presenter actually completed those gates.
+- one denial automatically creates a fleet `needs-attention` state;
+- HMAC evidence is immutable;
+- Zendesk, Copilot, n8n, or provider behavior was validated unless that gate actually passed.
 
 ## Topology
 
 ```text
 Zendesk ticket editor
-  -> Zendesk server-side request proxy
-  -> authenticated HTTPS tunnel
   -> adapter 127.0.0.1:8443
-  -> Talon 127.0.0.1:8080/v1/proxy/<provider>/v1/chat/completions
+  -> Talon LLM gateway 127.0.0.1:8080
 
 GitHub Copilot CLI
   -> session shim 127.0.0.1:8079
-  -> Talon 127.0.0.1:8080/v1/proxy/openai/v1/...
+  -> Talon LLM gateway 127.0.0.1:8080
 
 Copilot remote HTTP MCP
-  -> Talon 127.0.0.1:8081/mcp/proxy   (proxy-only process, agent-key auth)
-  -> synthetic release MCP 127.0.0.1:8090/mcp
+  -> Talon MCP proxy 127.0.0.1:8081
+  -> synthetic release MCP 127.0.0.1:8090
 
 n8n 127.0.0.1:5678
-  -> host.docker.internal:8080/v1/proxy/anthropic/v1/messages
+  -> Talon LLM gateway 127.0.0.1:8080
 ```
 
-Only the Zendesk adapter is exposed outside loopback, through an authenticated HTTPS tunnel.
+Only the optional Zendesk adapter may be exposed outside loopback, through an authenticated HTTPS tunnel.
 
-## Scene 0 — pre-flight (before the audience joins)
+## Scene 0 — preflight before the audience joins
 
-Run the offline contract and, if a `dativo-io/talon` checkout is available, the
-live end-to-end proof against a real server. `make live-check` is the fastest
-way to discover a broken environment now instead of mid-demo — it boots real
-Talon, runs the MCP forbidden-tool scene, and exercises the real session-budget
-engine, all in a throwaway temp dir.
+Run:
 
 ```bash
 make ci
-make live-check   # needs a dativo-io/talon checkout (TALON_REPO, default ../talon)
-
-# Start BOTH Talon processes first (gateway :8080, MCP proxy :8081 — see SETUP §5).
-make preflight                       # mints a fresh demo run id + verifies the Talon control plane
-scripts/stop-components.sh || true   # so components restart on the new run's sessions
-scripts/start-components.sh          # reads .state/demo-run.env → per-run sessions; gates shim/adapter/release
-scripts/reset-billing-fixture.sh
-scripts/render-copilot-mcp-config.sh # reads .state/demo-run.env → per-run Copilot session
+make live-check
+make real-start
+make real-status
 ```
 
-`make preflight` writes `.state/demo-run.env` with one `TALON_DEMO_RUN_ID` and
-the per-run session ids (`copilot-<run-id>`, `n8n-<run-id>`), plus the run start
-time and release nonce. **Re-run `make preflight` for each rehearsal** and restart
-components so a fresh run cannot be satisfied by an earlier run's Talon evidence
-or budget state. If `make live-check` cannot run (no Talon checkout on the
-presenting machine), run it beforehand on a machine that has one; a green result
-is the go/no-go signal for Scenes 2–3.
+`make live-check` is the go/no-go proof for the real Talon MCP and session-budget behavior. It uses a throwaway environment and separately proves:
+
+- preventive filtering: `release_publish` is absent from `tools/list`;
+- runtime enforcement: a clearly labelled adversarial client that bypasses discovery receives `TALON_TOOL_FORBIDDEN`;
+- current-session signed evidence carries the authenticated `coding-assistant` identity.
 
 Confirm:
 
-- current Talon source commit is recorded in `config/generated/TALON_SOURCE_COMMIT`;
-- `make preflight` passed: the gateway (`:8080`) **and** the MCP proxy (`:8081`) are up, and an authenticated MCP `initialize` was answered by `talon-mcp-proxy` (agent-key auth + routing work);
-- `scripts/start-components.sh` reported the adapter, Copilot shim, and release MCP ready (its readiness gates);
-- a fresh `TALON_DEMO_RUN_ID` is in `.state/demo-run.env` and this run's sessions embed it;
-- Ollama is stopped for any deliberate fallback scene;
-- `.state/release-mcp-receipts.jsonl` is empty;
-- the billing fixture fails and has no Git remote;
-- provider keys and customer content are not visible on screen;
-- the evidence signing key is available to Talon but never printed.
+- all real-stack services are healthy;
+- Ollama is stopped for the support fallback scene;
+- provider keys and customer content are not visible;
+- `make copilot-install` has been completed when presenting Copilot;
+- n8n and Zendesk external gates are either proven or omitted.
 
-## Scene 1 — Zendesk Support (3 minutes)
+## Scene 1 — real support request (2 minutes)
 
-1. Open a synthetic ticket with a requester public comment, an agent public comment, and a private comment.
-2. Click **Draft with Talon**.
-3. Point out that the app fetched the Ticket Comments API and selected the newest public requester-authored comment; it did not use `ticket.comment.text`.
-4. Show the inserted draft and its `zendesk-ticket-<numeric-id>-<run-id>` session identifier (the run id isolates this rehearsal's evidence from earlier runs).
-5. Inspect Talon evidence for that session. Read provider, policy, PII action, and cost only from the record.
-
-Do not display the adapter token, Talon agent key, or provider key. The adapter response contains only `draft` and `session_id`.
-
-## Scene 2 — Copilot model path and local fixture (3 minutes)
-
-1. Start Copilot inside `cases/billing-demo` with the exact command in `docs/SETUP.md`.
-2. Show that `npm test` fails before the fix.
-3. Ask Copilot to implement the minimal correction and rerun the test.
-4. Show the passing test and local diff.
-5. State explicitly: the shim governs only Copilot's model API traffic by adding session attribution; file edits and shell commands stay local and outside Talon.
-6. Show that the repository has no Git remote and that direct push is denied by Copilot CLI permissions.
-
-## Scene 3 — MCP release boundary (3 minutes)
-
-This scene is permitted only after the current-Talon end-to-end gate passes.
-
-Copilot's MCP config points at the MCP-proxy process (`:8081`) and authenticates
-with the `coding-assistant` agent bearer only — no admin key. The tool schema
-advertises `run_nonce` as required, so a conforming client sends it.
-
-This scene demonstrates **two distinct controls**. Present them separately and
-do not conflate them — do not narrate "Copilot attempted to publish," because a
-conforming client cannot invoke a tool it never discovered.
-
-**Control A — preventive filtering (what the model can see).**
-
-1. Show Copilot's available `release-gateway` tools. It sees exactly `release_status` and `release_prepare`. `release_publish` is **absent from discovery** — Talon filters it out of `tools/list` before the model ever sees it (`allowed_tools` on the proxy). Capability removed before selection.
-2. Read the run nonce printed by `scripts/preflight.sh` (also in `.state/run-nonce`).
-3. Ask Copilot to call `release_status` and `release_prepare` through `release-gateway`, passing `{"run_nonce": "<nonce>"}` in the tool arguments (the schema marks it required). The nonce ties this run's upstream receipts to this demo; without it, stale receipts from an earlier run could fake the proof.
-
-**Control B — runtime enforcement (a client that bypasses discovery).**
-
-4. Using a **clearly labelled adversarial probe** — a small MCP test client or `curl`, NOT Copilot — submit `release_publish` directly to `:8081/mcp/proxy` with the same agent bearer. State plainly that this simulates a malicious or non-conforming client bypassing tool discovery.
-5. Show the native Talon denial: the JSON-RPC error carries `error.data.talon_code == "TALON_TOOL_FORBIDDEN"` (stable since Talon v1.9.3, #369). Talon blocks the invocation even though the client submitted a tool it was never offered.
-6. Run:
+Run:
 
 ```bash
-scripts/assert-release-blocked.sh
+make real-smoke
 ```
 
-The assertion only accepts `release_status`/`release_prepare` receipts carrying the current run nonce, and fails on any `release_publish` receipt.
+Narrate only what the command proves:
 
-7. Display the synthetic upstream receipt file. It must contain nonce-tagged `release_status` and `release_prepare`, and no `release_publish`.
-8. Inspect the signed Talon evidence. It must carry authenticated `coding-assistant` (the same identity as the model traffic, because the MCP proxy is agent-key authenticated), the asserted Copilot session, one request-scoped correlation ID, and the `TALON_TOOL_FORBIDDEN` denial code. With `.state/demo-run.env` sourced, `scripts/assert-evidence.sh --session "$TALON_COPILOT_SESSION_ID" --agent coding-assistant --min-denials 1 --deny-reason forbidden_tools` scripts this check and, via `--since $TALON_RUN_START_RFC3339` (its default from the run env), proves the records belong to **this** run — a stale record from an earlier rehearsal cannot satisfy it.
+1. synthetic input contains an email and IBAN;
+2. Talon redacts both before provider access;
+3. the preferred local model fails to connect;
+4. a disallowed fallback candidate is skipped;
+5. OpenAI is selected;
+6. signed evidence verifies offline.
 
-Together the two controls prove Talon (A) removes a capability before the model sees it, and (B) still blocks a client that bypasses discovery — defence in depth, not one control doing double duty.
+Do not treat the generated prose as the proof. The `REAL CASE PASSED` assertions and evidence file are the proof.
 
-Policy-source disclosure (state it if asked): the MCP decision is evaluated against the proxy profile `coding-assistant-release-tools` (the `agent.name` in `mcp-proxy.example.yaml`), while the **authenticated acting identity** in evidence is `coding-assistant`. Acting identity and policy profile are distinct objects here; do not imply that `coding-assistant`'s ordinary effective policy produced the tool denial.
+## Scene 2 — bounded real Copilot + MCP path (3 minutes)
 
-The synthetic release server has no external publishing implementation; even an allowed call can only append a local synthetic receipt.
+Run exactly:
 
-## Scene 4 — n8n partial business output (2–3 minutes)
+```bash
+make real-copilot
+```
 
-1. Run the workflow built and clean-imported from the pinned n8n `2.30.4` UI.
-2. Let successful sections write individual `*.summary.md` files.
-3. Show the later Talon denial caused by projected session spend plus the next estimate exceeding the soft cap.
+Do not open Copilot separately, paste a task, resume an old session, or improvise additional prompts.
+
+The command automatically:
+
+1. restores the known failing billing fixture from the committed baseline;
+2. creates a fresh Talon session and nonce;
+3. runs one non-interactive Copilot prompt with a three-minute hard limit;
+4. permits only the intended source-file write, one `npm test`, and the two allowed MCP tools;
+5. verifies the exact one-file diff and passing test;
+6. verifies nonce-correlated `release_status` and `release_prepare` receipts;
+7. verifies no `release_publish` receipt reached the upstream;
+8. verifies current-run signed evidence is attributed to `coding-assistant`.
+
+A valid presentation ends with:
+
+```text
+REAL COPILOT CASE PASSED
+```
+
+and the exact one-line diff.
+
+State explicitly:
+
+- Copilot's model API traffic and MCP calls passed through Talon;
+- the local edit and `npm test` remained outside Talon's control;
+- the real Copilot run demonstrates the conforming-client path;
+- the separate `make live-check` adversarial probe demonstrates runtime enforcement against a client that bypasses discovery.
+
+Do not narrate “Copilot tried to publish.” A conforming client cannot select a tool it never discovered.
+
+## Scene 3 — optional Zendesk Support (2–3 minutes)
+
+Present only after the private app and secure-setting substitution are proven.
+
+1. Open a synthetic ticket with requester public, agent public, and private comments.
+2. Click **Draft with Talon**.
+3. Show that the app selects the newest public requester-authored comment.
+4. Show the inserted draft and run-scoped session identifier.
+5. Inspect Talon evidence for provider, policy, PII action, and cost.
+
+Do not display the adapter token, Talon key, or provider key.
+
+## Scene 4 — optional n8n partial output (2–3 minutes)
+
+Present only after the workflow has been exported without credentials and clean-imported into the pinned n8n version.
+
+1. Run the workflow.
+2. Let successful sections write their partial summaries.
+3. Show the later Talon denial caused by projected session spend plus the next estimate crossing the soft cap.
 4. Run:
 
 ```bash
@@ -164,13 +161,13 @@ scripts/assemble-n8n-report.sh
 ```
 
 5. Open the partial report and `status.json`.
-6. Show evidence that the denied request did not reach the provider. Do not claim a hard no-overshoot reservation.
+6. Show evidence that the denied request did not reach the provider.
 
-If the workflow has not been exported and clean-imported from the pinned version, describe this as an implementation specification, not a completed scene.
+Do not claim a hard no-overshoot reservation.
 
-## Closing proof (1–2 minutes)
+## Closing proof
 
-For each demonstrated session:
+For any demonstrated session:
 
 ```bash
 talon audit export \
@@ -181,7 +178,7 @@ talon audit export \
 talon audit verify --file .state/<session-id>.signed.json
 ```
 
-Tamper only with a disposable copy, rerun verification, and show failure. Say **tamper-evident and offline-verifiable**, never immutable.
+Say **tamper-evident and offline-verifiable**, never immutable.
 
 The truthful normal fleet conclusion is:
 
@@ -190,16 +187,17 @@ customer-support   healthy
 coding-assistant   healthy
 ```
 
-Show `document-summary blocked` only after a real configured period/session condition actually blocks new work. One MCP denial alone does not justify `needs-attention`.
+Show another state only after an actual configured condition produces it.
 
 ## Abort conditions
 
-Stop the live walkthrough and fall back to local artifacts when:
+Stop the live walkthrough when:
 
-- `make ci` or preflight fails;
+- `make ci`, `make live-check`, `real-start`, or `real-status` fails;
+- `make real-copilot` exceeds its time limit or any automatic assertion fails;
+- Copilot changes more than `src/invoice.mjs`;
+- expected MCP receipts or current-run evidence are absent;
+- a `release_publish` receipt appears upstream;
 - secure Zendesk setting substitution is unproven;
-- Copilot does not use the configured provider or MCP server;
-- a forbidden MCP call appears in upstream receipts;
-- Talon evidence lacks authenticated agent/session attribution;
 - n8n was not clean-imported from the pinned version;
-- a provider route, cost, denial, or signature cannot be read from actual Talon output.
+- a route, cost, denial, or signature cannot be read from actual Talon output.

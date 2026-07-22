@@ -36,7 +36,7 @@ make copilot-install   # one-time; explicit opt-in installation
 make real-copilot
 ```
 
-The demo uses GitHub Copilot CLI in BYOK offline mode, pointed at Talon's local session shim. GitHub authentication is not required for this model/MCP path. `make real-copilot` verifies that the installed CLI supports the exact provider, MCP, and permission flags used by the demo before launching it.
+The demo uses GitHub Copilot CLI in BYOK offline mode, pointed at Talon's local session shim. GitHub authentication is not required for this model/MCP path. `make real-copilot` is non-interactive and bounded: it restores the fixture from the committed baseline, mints a fresh Talon session, runs one exact prompt with a three-minute wall-clock limit, and independently verifies the one-file diff, passing test, allowed MCP receipts, absent publish receipt, and signed evidence. Do not paste a prompt into an open-ended Copilot session.
 
 See [Real cases: the short path](docs/REAL_CASES_QUICKSTART.md) for the complete staged flow. Use [SETUP.md](docs/SETUP.md) as the manual reference and [PRESENTER_RUNBOOK.md](docs/PRESENTER_RUNBOOK.md) only after every relevant gate passes.
 
@@ -55,11 +55,11 @@ This repository deliberately separates what is implemented and locally testable 
 | Local repository validation | Implemented and tested |
 | Real Talon MCP + session-budget check | Implemented; `make live-check` |
 | Real OpenAI support smoke test | Implemented; `make real-prepare real-start real-smoke` |
-| Copilot model session shim | Implemented and tested; real Copilot CLI driver requires the CLI binary (`make copilot-install`) |
+| Bounded real Copilot driver | Implemented; requires the CLI binary (`make copilot-install`) and a real OpenAI key seeded by `real-prepare` |
 | Zendesk adapter | Implemented and tested against a mock Talon endpoint |
 | Zendesk ticket-editor app | Implemented; requires private-app installation and secure-setting verification |
 | Synthetic release MCP server | Implemented and tested |
-| Billing repository fixture | Implemented; fails before the expected patch |
+| Billing repository fixture | Implemented; deterministically restored from the committed failing baseline before every Copilot run |
 | n8n Compose and workflow specification | Compose implemented; workflow export and clean-import from pinned n8n UI remain external |
 | Talon configuration | Bootstrapped from canonical `talon/examples/product-demo` source |
 
@@ -94,7 +94,7 @@ Install a current Go release from [go.dev/dl](https://go.dev/dl/) when the local
 | `make validate-local` | No | Repository and local mock paths work. |
 | `make live-check` | No provider account | A real Talon binary enforces MCP and session-budget behavior. |
 | `make real-smoke` | OpenAI | One real provider-backed support path and signed evidence work end to end. |
-| `make real-copilot` | OpenAI + Copilot CLI | The real Copilot client uses Talon for model and MCP traffic. |
+| `make real-copilot` | OpenAI + Copilot CLI | One bounded real Copilot run changes exactly one file, passes its test, calls the two allowed MCP tools, and produces current-run Talon evidence. |
 | Zendesk private app | Zendesk + tunnel | Installed app secure settings and ticket-editor flow work. |
 | n8n scene | Anthropic + Docker | Pinned imported workflow and budget scene work. |
 

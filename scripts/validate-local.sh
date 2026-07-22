@@ -8,7 +8,13 @@ done
 
 "$ROOT/scripts/test-integration-local.sh"
 
+# Regression: a previous Copilot run may leave the working fixture in any state.
+# Poison it deliberately and prove reset reconstructs the committed baseline.
+printf 'poisoned by prior run\n' > "$ROOT/cases/billing-demo/src/invoice.mjs"
 "$ROOT/scripts/reset-billing-fixture.sh"
+grep -Fq 'return sum + Math.round(taxed * 100) / 100;' \
+  "$ROOT/cases/billing-demo/src/invoice.mjs" \
+  || { echo 'billing fixture was not restored from committed baseline' >&2; exit 1; }
 (
   cd "$ROOT/cases/billing-demo"
   if npm test >/dev/null 2>&1; then
@@ -22,6 +28,17 @@ done
   [[ -z "$(git status --porcelain)" ]] || { echo 'billing fixture reset left changes' >&2; exit 1; }
 )
 rm -rf "$ROOT/cases/billing-demo/.git"
+
+# Regression: the bounded real-Copilot driver must terminate a runaway process
+# and report the stable timeout status expected by the shell wrapper.
+python3 "$ROOT/scripts/run-with-timeout.py" 2 true
+set +e
+python3 "$ROOT/scripts/run-with-timeout.py" 1 \
+  python3 -c 'import time; time.sleep(30)' >/dev/null 2>&1
+timeout_rc=$?
+set -e
+[[ "$timeout_rc" -eq 124 ]] \
+  || { echo "timeout runner returned $timeout_rc, expected 124" >&2; exit 1; }
 
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   N8N_ENCRYPTION_KEY=local-validation TALON_N8N_SESSION_ID=n8n-quarterly-demo \
