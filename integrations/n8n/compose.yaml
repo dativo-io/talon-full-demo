@@ -4,6 +4,7 @@ services:
     container_name: talon-full-demo-n8n
     # Talon binds only to host loopback. Linux host networking lets the workflow
     # reach it without exposing Talon; n8n also remains bound to loopback.
+    # This replaces the bridge-only mapping "127.0.0.1:5678:5678".
     network_mode: host
     environment:
       TZ: Europe/Warsaw
