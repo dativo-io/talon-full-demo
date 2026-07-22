@@ -4,9 +4,9 @@ A standalone, early-adopter-oriented demonstration of recognizable applications 
 
 - **Customer support / Zendesk** — a support workflow requests a governed reply draft.
 - **GitHub Copilot CLI** — a real Copilot client sends model traffic through Talon and reaches a synthetic release boundary through Talon's MCP proxy.
-- **n8n** — a document workflow preserves partial business output when Talon prevents the next request on projected session cost.
+- **n8n** — an imported document workflow preserves partial business output when Talon prevents the next request on projected session cost.
 
-The intended experience is a **10–15 minute narrated walkthrough**, not a long terminal GIF. Every completed application case has two projections of the same Talon evidence:
+The intended experience is a **10–15 minute narrated walkthrough**. Every completed application case has two projections of the same Talon evidence:
 
 - a concise buyer/product view;
 - a technical/security view.
@@ -21,38 +21,36 @@ See [Audience-specific demo views](docs/AUDIENCE_DEMOS.md) for the full command 
 make validate-local
 ```
 
+With Docker available, validate the real pinned n8n artifact separately:
+
+```bash
+make n8n-validate
+```
+
+This imports, executes, exports, clean-imports, and executes the credential-free workflow again in n8n `2.30.4` against the mock allow-then-budget-deny contract.
+
 ### 2. Prepare and start the real stack
 
 Clone `dativo-io/talon` next to this repository, put Talon v1.9.3+ on `PATH`, then:
 
 ```bash
 export OPENAI_API_KEY='sk-...'
+export ANTHROPIC_API_KEY='sk-ant-...'
 make real-prepare
 make real-start
 make real-status
 ```
 
-Add `ANTHROPIC_API_KEY` and rerun `make real-prepare` only when preparing the n8n/document-summary case.
+Anthropic is required only for the n8n/document-summary scene.
 
 ## Choose a case and audience
 
 ### Customer-support gateway
 
-Buyer/product/executive:
-
 ```bash
 make demo-support-buyer
-```
-
-Platform/security/engineering:
-
-```bash
 make demo-support-tech
-```
 
-Re-present the completed session without a provider call:
-
-```bash
 make present-support
 make present-support-tech
 make present-support-all
@@ -62,82 +60,93 @@ The real support case proves email and IBAN redaction, a failed local provider, 
 
 ### Zendesk adapter
 
-Buyer/product/executive:
-
 ```bash
 make demo-zendesk-buyer
-```
-
-Platform/security/engineering:
-
-```bash
 make demo-zendesk-tech
-```
 
-Re-present the completed session:
-
-```bash
 make present-zendesk
 make present-zendesk-tech
 make present-zendesk-all
 ```
 
-This sends a synthetic Zendesk-shaped ticket through the real local adapter and Talon. It proves the adapter-to-Talon path, client attribution, PII handling, policy-valid failover, cost, and signed evidence. It does **not** prove private-app installation, secure-setting substitution, or comment selection inside a real Zendesk account; those remain separate external gates.
+This proves the real local adapter-to-Talon path, client attribution, PII handling, policy-valid failover, cost, and signed evidence.
+
+Package the private app with pinned ZCLI and verify the ZIP:
+
+```bash
+make zendesk-package
+```
+
+After installing the package in a real Zendesk account and observing the UI flow, machine-verify the matching Talon session and record the UI observations:
+
+```bash
+export ZENDESK_INSTALLED_TICKET_ID='<ticket-id>'
+export ZENDESK_INSTALLED_SESSION_ID='<session-id-shown-by-the-app>'
+export ZENDESK_PRIVATE_APP_INSTALLED=yes
+export ZENDESK_SECURE_SETTING_CONFIRMED=yes
+export ZENDESK_NEWEST_REQUESTER_COMMENT_CONFIRMED=yes
+export ZENDESK_DRAFT_INSERTED_CONFIRMED=yes
+make verify-zendesk-installed
+```
+
+UI observations remain explicitly operator-confirmed; Talon identity, routing, redaction, cost, and signatures are machine-verified.
 
 ### GitHub Copilot CLI
 
-Install the CLI once:
+Install once:
 
 ```bash
 make copilot-install
 ```
 
-Buyer/product/executive:
+Run and present:
 
 ```bash
 make demo-copilot-buyer
-```
-
-Platform/security/engineering:
-
-```bash
 make demo-copilot-tech
-```
 
-Re-present the same completed session:
-
-```bash
 make present-copilot
 make present-copilot-tech
 make present-copilot-all
 ```
 
-The demo uses GitHub Copilot CLI in BYOK offline mode, pointed at Talon's local session shim. The bounded run permits only `release_status` and `release_prepare`, independently verifies upstream receipts and signed evidence, and explicitly stays within Talon's real boundary: model traffic and MCP calls routed through Talon. It is not a benchmark of Copilot code editing.
+The bounded run permits only `release_status` and `release_prepare`, independently verifies upstream receipts and signed evidence, and stays within Talon's real boundary: model traffic and MCP calls routed through Talon. It is not a benchmark of Copilot code editing.
 
 ### n8n workflow
 
-The repository intentionally does not claim a completed n8n workflow until a workflow built in the pinned UI has been exported without credentials and clean-imported into a fresh n8n `2.30.4` container.
+The repository contains a real, credential-free workflow export and a pinned clean-import gate.
 
-After that real workflow run, present the resulting session with:
+Buyer/product/executive:
 
 ```bash
-TALON_PRESENT_N8N_SESSION_ID=<session-id> make present-n8n
-TALON_PRESENT_N8N_SESSION_ID=<session-id> make present-n8n-tech
-TALON_PRESENT_N8N_SESSION_ID=<session-id> make present-n8n-all
+make demo-n8n-buyer
 ```
 
-These commands fail closed unless partial section files, `status.json`, a `session_budget_exceeded` denial, zero denied-request cost, matching `document-summary` evidence, and valid signatures all exist.
+Platform/security/engineering:
+
+```bash
+make demo-n8n-tech
+```
+
+Re-present the same completed session:
+
+```bash
+make present-n8n
+make present-n8n-tech
+make present-n8n-all
+```
+
+The workflow reads synthetic compliance sections sequentially, writes each completed summary, then preserves partial output and writes `status.json` when Talon denies the next request with `session_budget_exceeded`. The presenter fails closed unless output artifacts, `document-summary` identity, allowed work followed by a zero-cost denial, and valid signatures all agree.
 
 ## Existing low-level commands
-
-The original commands remain available for troubleshooting and manual validation:
 
 ```bash
 make real-smoke       # direct support smoke path
 make real-support     # fresh support run, full output
 make real-zendesk     # fresh local Zendesk-adapter run, full output
 make real-copilot     # fresh bounded Copilot run, full output
-make live-check       # separate real-Talon MCP denial + session-budget engine proof
+make real-n8n         # fresh imported n8n workflow, full output
+make live-check       # separate real-Talon MCP denial + budget-engine proof
 ```
 
 Stop repository-managed services with:
@@ -148,52 +157,32 @@ make real-stop
 
 ## Status
 
-This repository deliberately separates what is executable from what remains gated on external accounts or UI setup.
-
 | Area | Status |
 |---|---|
 | Local repository validation | Implemented and tested |
 | Real Talon MCP + session-budget check | Implemented; `make live-check` |
 | Real support gateway path | Implemented; buyer + technical views |
 | Real local Zendesk adapter path | Implemented; buyer + technical views |
-| Zendesk installed private app | External gate: installation + secure-setting verification |
+| Zendesk private-app package | Implemented; pinned ZCLI validation + CI artifact |
+| Zendesk installed private app | Account/browser gate; `make verify-zendesk-installed` records completion |
 | Real GitHub Copilot CLI path | Implemented; buyer + technical views |
-| Synthetic release MCP server | Implemented and tested |
-| Billing repository fixture | Implemented and tested locally; separate from the Copilot integration proof |
-| n8n Compose + workflow specification | Implemented |
-| n8n imported workflow execution | External gate; presenters fail closed until real artifacts/evidence exist |
+| n8n workflow artifact | Implemented; pinned import/execute/export/clean-import CI gate |
+| Real n8n + Anthropic path | Implemented command; host execution remains the provider credential gate |
 | Talon configuration | Bootstrapped from canonical `talon/examples/product-demo` source |
-
-## Why this repository exists
-
-The short Talon hero proves the product outcome. This repository is the adopter-facing artifact: copyable applications, integration seams, test fixtures, and evidence-gated presenter flows.
-
-## Quick local validation
-
-No provider keys, Zendesk account, Copilot installation, Docker, or Talon binary are required.
-
-Local prerequisites: `go` (1.23.0+), `node` and `npm` (Node 20+), `python3`, `jq`, `curl`, `git`.
-
-```bash
-make validate-local
-```
-
-`make validate-local` builds the Go services, runs unit tests, exercises the Zendesk adapter and Copilot shim against a mock Talon gateway, exercises the synthetic MCP server, asserts the session-budget contract, verifies the deterministic billing fixture, and checks that every buyer/technical presenter remains evidence-backed and free of hard-coded run results.
 
 ## Validation levels
 
 | Command | External account needed? | Meaning |
 |---|---:|---|
 | `make validate-local` | No | Repository code, adapters, mock integration, presenter contracts, MCP contract, and billing fixture work locally. |
-| `make live-check` | No provider account | A real Talon binary enforces MCP policy, attributes identity, signs evidence, and applies the real session-budget engine. |
-| `make demo-support-buyer` | OpenAI | Run the real support path and finish with a concise evidence-derived receipt. |
-| `make demo-support-tech` | OpenAI | Run the same path and expand PII, fallback, cost, and signatures. |
-| `make demo-zendesk-buyer` | OpenAI | Run the real local Zendesk adapter path and finish with a buyer receipt. |
-| `make demo-zendesk-tech` | OpenAI | Expand the adapter session, attribution, fallback, and evidence. |
-| `make demo-copilot-buyer` | OpenAI + Copilot CLI | Run real Copilot and finish with a buyer receipt. |
-| `make demo-copilot-tech` | OpenAI + Copilot CLI | Expand model/MCP traffic, boundary, cost, attribution, and signatures. |
-| `make present-n8n` | Anthropic + imported n8n workflow | Project a completed real workflow into a buyer view. |
-| `make present-n8n-tech` | Anthropic + imported n8n workflow | Expand the same workflow session and partial-output artifacts. |
+| `make n8n-validate` | No provider account; Docker | The committed workflow imports, executes, exports without credentials, clean-imports, and executes again. |
+| `make live-check` | No provider account | A real Talon binary enforces MCP policy, signs evidence, and applies the real session-budget engine. |
+| `make demo-support-buyer` / `-tech` | OpenAI | Real support, PII, fallback, cost, and evidence. |
+| `make demo-zendesk-buyer` / `-tech` | OpenAI | Real local adapter path and evidence. |
+| `make zendesk-package` | No Zendesk account | Pinned ZCLI validation and credential-free ZIP package. |
+| `make verify-zendesk-installed` | Zendesk account | Machine-verified Talon session plus explicit operator-confirmed UI observations. |
+| `make demo-copilot-buyer` / `-tech` | OpenAI + Copilot CLI | Real Copilot model/MCP path and evidence. |
+| `make demo-n8n-buyer` / `-tech` | Anthropic + Docker | Real imported n8n workflow, partial output, budget stop, and evidence. |
 
 ## Core truth rules
 
@@ -201,8 +190,7 @@ make validate-local
 - Buyer and technical summaries are computed from newly exported and verified signed Talon sessions, never hard-coded.
 - Provider routes, redaction, costs, policy decisions, and signatures are displayed only after Talon evidence confirms them.
 - Talon is credited only for model traffic and tool calls routed through Talon.
-- The local Zendesk adapter proof is not a claim that the private Zendesk app has been installed or validated.
-- The n8n workflow specification cannot satisfy the n8n presenter without real output artifacts and evidence.
+- Zendesk browser-only observations are operator-confirmed, not misrepresented as Talon evidence.
 - Talon does not govern Copilot's local shell commands, filesystem changes, browser actions, or direct API calls.
 - Session limits are soft caps.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.
@@ -223,4 +211,4 @@ docs/                  quickstarts, architecture, setup, presenter, and blockers
 
 ## Security
 
-Never commit provider keys, Talon keys, Zendesk settings, generated evidence, n8n credentials, or real customer content. Real provider keys should be exported in the current shell for `make real-prepare`; the helper stores them in Talon's local encrypted vault and does not write them into `.env`.
+Never commit provider keys, Talon keys, Zendesk settings, generated evidence, n8n credentials, or real customer content. Real provider keys should be exported only for `make real-prepare`; the helper stores them in Talon's encrypted local vault and does not write them into `.env`.
