@@ -4,13 +4,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/integrations/n8n/quarterly-compliance-workflow.json"
 RUNNER="$ROOT/scripts/n8n-workflow.sh"
+PRESENTER="$ROOT/scripts/present-n8n.sh"
 COMPOSE="$ROOT/integrations/n8n/compose.yaml"
 PACKAGE="$ROOT/scripts/package-zendesk-app.sh"
 INSTALLED="$ROOT/scripts/verify-zendesk-installed.sh"
 ZENDESK_MANIFEST="$ROOT/integrations/zendesk-app/manifest.json"
 ZENDESK_ICON="$ROOT/integrations/zendesk-app/assets/icon_ticket_editor.svg"
 
-for file in "$WORKFLOW" "$RUNNER" "$COMPOSE" "$PACKAGE" "$INSTALLED" "$ZENDESK_MANIFEST" "$ZENDESK_ICON"; do
+for file in "$WORKFLOW" "$RUNNER" "$PRESENTER" "$COMPOSE" "$PACKAGE" "$INSTALLED" "$ZENDESK_MANIFEST" "$ZENDESK_ICON"; do
   [[ -s "$file" ]] || { echo "missing completion artifact: $file" >&2; exit 1; }
 done
 
@@ -42,8 +43,22 @@ for required in \
   'execute --id=' \
   'N8N_RESTRICT_FILE_ACCESS_TO=/demo' \
   'assert_clean_export' \
-  'assert_mock_receipts'; do
+  'assert_mock_receipts' \
+  'N8N_STAGED_BUDGET="0.00301"' \
+  'TALON_SOURCE_COMMIT' \
+  'stage_real_n8n_budget' \
+  'restore_real_n8n_budget' \
+  'canonical session max_cost is not 0.01'; do
   grep -Fq -- "$required" "$RUNNER" || { echo "n8n runner missing: $required" >&2; exit 1; }
+done
+
+for required in \
+  '.session_budget.limit' \
+  '.session_budget.spent' \
+  '.session_budget.estimate' \
+  'signed session_budget {limit, spent, estimate}' \
+  'The signed deny record'; do
+  grep -Fq -- "$required" "$PRESENTER" || { echo "n8n presenter missing signed budget proof: $required" >&2; exit 1; }
 done
 
 for required in \
