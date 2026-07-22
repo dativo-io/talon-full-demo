@@ -92,4 +92,4 @@ wait_healthy release-mcp "http://${RELEASE_MCP_BIND:-127.0.0.1:8090}/health"
 wait_listening copilot-shim "http://${COPILOT_SHIM_BIND:-127.0.0.1:8079}/health"
 wait_healthy zendesk-adapter "http://${ZENDESK_ADAPTER_BIND:-127.0.0.1:8443}/health"
 
-echo 'Started local integration components; start Talon and n8n separately.'
+echo 'Started local integration components.'
