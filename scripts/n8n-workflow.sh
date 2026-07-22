@@ -6,7 +6,7 @@ STATE="$ROOT/.state"
 IMAGE="${N8N_IMAGE:-docker.n8n.io/n8nio/n8n:2.30.4}"
 WORKFLOW="$ROOT/integrations/n8n/quarterly-compliance-workflow.json"
 MODE="${1:-help}"
-VOLUMES=()
+DEMO_OUTPUT="${N8N_DEMO_OUTPUT:-full}"
 PIDS=()
 
 say() { printf '%s\n' "$*"; }
@@ -14,24 +14,20 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
 
 cleanup() {
-  local pid volume
+  local pid
   for pid in "${PIDS[@]:-}"; do
     [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
   done
-  if [[ "${N8N_KEEP_VOLUMES:-0}" != 1 ]]; then
-    for volume in "${VOLUMES[@]:-}"; do
-      [[ -n "$volume" ]] && docker volume rm -f "$volume" >/dev/null 2>&1 || true
-    done
-  fi
 }
 trap cleanup EXIT
 
 require_common() {
-  for cmd in docker jq curl python3 openssl; do need "$cmd"; done
+  for cmd in docker jq curl python3 openssl id; do need "$cmd"; done
   docker info >/dev/null 2>&1 || die 'Docker daemon is not available'
   [[ -s "$WORKFLOW" ]] || die "missing workflow artifact: $WORKFLOW"
   jq -e '.id and .name and (.nodes | length > 0)' "$WORKFLOW" >/dev/null \
     || die 'committed n8n workflow is not valid import JSON'
+  case "$DEMO_OUTPUT" in full|quiet) ;; *) die 'N8N_DEMO_OUTPUT must be full or quiet' ;; esac
 }
 
 free_port() {
@@ -43,20 +39,15 @@ with socket.socket() as sock:
 PY
 }
 
-new_volume() {
-  local suffix volume
-  suffix="$(openssl rand -hex 4)"
-  volume="talon-full-demo-n8n-${suffix}"
-  docker volume create "$volume" >/dev/null
-  VOLUMES+=("$volume")
-  printf '%s\n' "$volume"
-}
-
 run_n8n() {
-  local volume="$1" output="$2" config="$3" session="$4" gateway="$5"
+  local runtime="$1" output="$2" config="$3" session="$4" gateway="$5"
   shift 5
+  install -d -m 0700 "$runtime" "$output" "$config"
   docker run --rm \
     --network host \
+    --user "$(id -u):$(id -g)" \
+    -e HOME=/home/node \
+    -e N8N_USER_FOLDER=/home/node/.n8n \
     -e N8N_ENCRYPTION_KEY="$N8N_ENCRYPTION_KEY" \
     -e N8N_DIAGNOSTICS_ENABLED=false \
     -e N8N_VERSION_NOTIFICATIONS_ENABLED=false \
@@ -67,7 +58,7 @@ run_n8n() {
     -e N8N_RESTRICT_FILE_ACCESS_TO=/demo \
     -e TALON_N8N_SESSION_ID="$session" \
     -e TALON_N8N_GATEWAY_URL="$gateway" \
-    -v "$volume:/home/node/.n8n" \
+    -v "$runtime:/home/node/.n8n" \
     -v "$ROOT/cases/quarterly-report:/demo/input:ro" \
     -v "$output:/demo/output" \
     -v "$config:/demo/config" \
@@ -76,7 +67,7 @@ run_n8n() {
 
 prepare_config() {
   local config="$1" workflow_source="$2" key="$3"
-  install -d -m 0777 "$config"
+  install -d -m 0700 "$config"
   cp "$workflow_source" "$config/workflow.json"
   TALON_DOCUMENT_SUMMARY_KEY="$key" \
     "$ROOT/scripts/render-n8n-credential.sh" "$config/credential.json" >/dev/null
@@ -84,22 +75,22 @@ prepare_config() {
 }
 
 import_and_execute() {
-  local volume="$1" output="$2" config="$3" session="$4" gateway="$5"
-  install -d -m 0777 "$output"
+  local runtime="$1" output="$2" config="$3" session="$4" gateway="$5"
+  install -d -m 0700 "$runtime" "$output" "$config"
   rm -f "$output"/*.summary.md "$output/status.json" 2>/dev/null || true
 
-  run_n8n "$volume" "$output" "$config" "$session" "$gateway" \
+  run_n8n "$runtime" "$output" "$config" "$session" "$gateway" \
     import:credentials --input=/demo/config/credential.json >/dev/null
-  run_n8n "$volume" "$output" "$config" "$session" "$gateway" \
+  run_n8n "$runtime" "$output" "$config" "$session" "$gateway" \
     import:workflow --input=/demo/config/workflow.json >/dev/null
-  run_n8n "$volume" "$output" "$config" "$session" "$gateway" \
+  run_n8n "$runtime" "$output" "$config" "$session" "$gateway" \
     export:workflow --all --output=/demo/config/imported-workflows.json >/dev/null
 
   local workflow_id
   workflow_id="$(jq -r 'if type == "array" then .[0].id else .id end' "$config/imported-workflows.json")"
   [[ -n "$workflow_id" && "$workflow_id" != null ]] || die 'could not resolve imported n8n workflow id'
 
-  run_n8n "$volume" "$output" "$config" "$session" "$gateway" \
+  run_n8n "$runtime" "$output" "$config" "$session" "$gateway" \
     execute --id="$workflow_id"
 }
 
@@ -115,9 +106,10 @@ assert_output_contract() {
     and .provider_cost_usd == 0
   ' "$output/status.json" >/dev/null \
     || die 'n8n status.json does not match the budget-stop contract'
-  grep -Fq 'Synthetic compliance summary.' "${summaries[0]}" \
-    || [[ "$MODE" == real ]] \
-    || die 'mock n8n summary did not contain provider output'
+  if [[ "$MODE" == validate ]]; then
+    grep -Fq 'Synthetic compliance summary.' "${summaries[0]}" \
+      || die 'mock n8n summary did not contain provider output'
+  fi
 }
 
 assert_clean_export() {
@@ -138,8 +130,8 @@ assert_clean_export() {
 
 assert_mock_receipts() {
   local log="$1" session="$2" key="$3"
-  jq -e --arg session "$session" --arg auth "Bearer $key" '
-    [select(.headers["x-talon-session-id"] == $session)] as $r
+  jq -s -e --arg session "$session" --arg auth "Bearer $key" '
+    [ .[] | select(.headers["x-talon-session-id"] == $session) ] as $r
     | ($r | length) == 2
     and $r[0].denied == false
     and $r[1].denied == true
@@ -152,7 +144,7 @@ assert_mock_receipts() {
 
 validate_mode() {
   require_common
-  local work port log key gateway volume1 volume2 session1 session2
+  local work port log key gateway session1 session2
   work="$(mktemp -d "${TMPDIR:-/tmp}/talon-n8n-validation.XXXXXX")"
   port="$(free_port)"
   log="$work/mock-talon.jsonl"
@@ -171,17 +163,15 @@ validate_mode() {
   curl -fsS "$gateway/health" >/dev/null || die 'mock Talon did not become ready'
 
   session1="n8n-clean-import-one-$(openssl rand -hex 3)"
-  volume1="$(new_volume)"
   prepare_config "$work/config-one" "$WORKFLOW" "$key"
-  import_and_execute "$volume1" "$work/output-one" "$work/config-one" "$session1" "$gateway" >/dev/null
+  import_and_execute "$work/runtime-one" "$work/output-one" "$work/config-one" "$session1" "$gateway" >/dev/null
   assert_output_contract "$work/output-one" "$session1"
   assert_clean_export "$work/config-one/imported-workflows.json" "$key"
   assert_mock_receipts "$log" "$session1" "$key"
 
   session2="n8n-clean-import-two-$(openssl rand -hex 3)"
-  volume2="$(new_volume)"
   prepare_config "$work/config-two" "$work/config-one/imported-workflows.json" "$key"
-  import_and_execute "$volume2" "$work/output-two" "$work/config-two" "$session2" "$gateway" >/dev/null
+  import_and_execute "$work/runtime-two" "$work/output-two" "$work/config-two" "$session2" "$gateway" >/dev/null
   assert_output_contract "$work/output-two" "$session2"
   assert_clean_export "$work/config-two/imported-workflows.json" "$key"
   assert_mock_receipts "$log" "$session2" "$key"
@@ -189,7 +179,7 @@ validate_mode() {
   rm -rf "$work"
   say 'N8N WORKFLOW VALIDATION PASSED'
   say '  committed workflow imported and executed against the budget contract'
-  say '  credential-free export imported into a second clean n8n 2.30.4 volume'
+  say '  credential-free export imported into a second clean n8n 2.30.4 runtime'
   say '  both runs preserved one completed section and stopped the next request at zero provider cost'
 }
 
@@ -211,16 +201,26 @@ real_mode() {
   "$ROOT/scripts/preflight.sh"
   # shellcheck disable=SC1091
   source "$STATE/demo-run.env"
-  local config output volume gateway
+  local config output runtime gateway transcript
   config="$STATE/n8n-config"
   output="$STATE/n8n-output"
+  runtime="$STATE/n8n-runtime"
   gateway="http://127.0.0.1:8080"
-  rm -rf "$config" "$output"
+  transcript="$STATE/n8n-$(date -u +%Y%m%dT%H%M%SZ).log"
+  rm -rf "$config" "$output" "$runtime"
   prepare_config "$config" "$WORKFLOW" "$TALON_DOCUMENT_SUMMARY_KEY"
-  volume="$(new_volume)"
 
-  say 'Running the committed n8n workflow through Talon...'
-  import_and_execute "$volume" "$output" "$config" "$TALON_N8N_SESSION_ID" "$gateway"
+  if [[ "$DEMO_OUTPUT" == quiet ]]; then
+    say 'Running the committed n8n workflow through Talon...'
+    import_and_execute "$runtime" "$output" "$config" "$TALON_N8N_SESSION_ID" "$gateway" \
+      >"$transcript" 2>&1 || {
+        cat "$transcript" >&2
+        die "real n8n case failed; full output is in $transcript"
+      }
+  else
+    import_and_execute "$runtime" "$output" "$config" "$TALON_N8N_SESSION_ID" "$gateway" \
+      2>&1 | tee "$transcript"
+  fi
   assert_output_contract "$output" "$TALON_N8N_SESSION_ID"
   assert_clean_export "$config/imported-workflows.json" "$TALON_DOCUMENT_SUMMARY_KEY"
 
@@ -228,6 +228,7 @@ real_mode() {
   say 'REAL N8N CASE COMPLETED'
   say "  Session: $TALON_N8N_SESSION_ID"
   say "  Output:  $output"
+  say "  Transcript: $transcript"
   say '  Next: make present-n8n-all'
 }
 
