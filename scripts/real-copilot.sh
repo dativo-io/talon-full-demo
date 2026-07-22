@@ -3,7 +3,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE="$ROOT/.state"
-CASE="$ROOT/cases/billing-demo"
 ENV_FILE="$ROOT/.env"
 RUN_ENV="$STATE/demo-run.env"
 
@@ -54,12 +53,10 @@ curl --fail --silent --max-time 2 "$TALON_MCP_GATEWAY/health" >/dev/null \
 
 say "Using GitHub Copilot CLI: $version"
 say "Binary: $COPILOT"
-say "Restoring a clean, known failing fixture..."
-"$ROOT/scripts/reset-billing-fixture.sh"
 
 # Every attempt gets a fresh session, nonce, empty receipts file, freshly
-# restarted shim, and empty Copilot state. This prevents a previous failed/long
-# run from satisfying or influencing the current run's assertions.
+# restarted shim, and empty Copilot state. Previous runs cannot satisfy the
+# current run's assertions.
 say "Minting a fresh bounded Copilot run..."
 "$ROOT/scripts/preflight.sh"
 "$ROOT/scripts/stop-components.sh" >/dev/null 2>&1 || true
@@ -69,32 +66,31 @@ source "$RUN_ENV"
 "$ROOT/scripts/render-copilot-mcp-config.sh" >/dev/null
 
 nonce="$(cat "$STATE/run-nonce")"
-timeout_seconds="${COPILOT_DEMO_TIMEOUT_SECONDS:-120}"
+timeout_seconds="${COPILOT_DEMO_TIMEOUT_SECONDS:-90}"
 transcript="$STATE/copilot-$TALON_DEMO_RUN_ID.log"
 rm -rf "$STATE/copilot-home"
 mkdir -p "$STATE/copilot-home"
 
 prompt="$(cat <<EOF_PROMPT
-This is a bounded product integration demo. Complete exactly these steps and do nothing else:
+This is a bounded product integration proof. Do exactly this and nothing else:
 
-1. Do not use Edit, Write, apply_patch, sed, or any other direct file-editing method. The runner has already verified that the billing test fails.
-2. Run exactly: npm run fix-demo
-3. Run exactly: npm test
-4. If either command fails, stop and report the failure. Do not retry or invent another fix.
-5. If the test passes, call release_status and release_prepare from the release-gateway MCP server. Pass this exact run_nonce to both calls: $nonce
-6. Stop immediately after those two MCP calls. Do not call release_publish. Do not delegate, use subagents, inspect unrelated files, or explore alternative implementations.
+1. Call release_status from the release-gateway MCP server with this exact run_nonce: $nonce
+2. Call release_prepare from the release-gateway MCP server with the same exact run_nonce: $nonce
+3. Stop immediately after those two calls and briefly report their outcomes.
+
+Do not run shell commands, read or modify files, call release_publish, retry, delegate, use subagents, or inspect anything else.
 EOF_PROMPT
 )"
 
 say
-say "Running one bounded Copilot integration prompt (hard limit: ${timeout_seconds}s)..."
+say "Running one bounded Copilot MCP prompt (hard limit: ${timeout_seconds}s)..."
 say "Session: $TALON_COPILOT_SESSION_ID"
 say "Transcript: $transcript"
 say
 
 set +e
 (
-  cd "$CASE"
+  cd "$ROOT"
   export PATH="$(dirname "$COPILOT"):$PATH"
   export COPILOT_HOME="$STATE/copilot-home"
   export COPILOT_PROVIDER_TYPE=openai
@@ -110,8 +106,10 @@ set +e
       --no-custom-instructions \
       --additional-mcp-config="@$STATE/copilot-mcp.json" \
       --disable-builtin-mcps \
-      --allow-tool='shell(npm run fix-demo),shell(npm test),release-gateway(release_status),release-gateway(release_prepare)' \
-      --deny-tool='shell(git push)'
+      --allow-tool='release-gateway(release_status)' \
+      --allow-tool='release-gateway(release_prepare)' \
+      --deny-tool='shell' \
+      --deny-tool='write'
 ) 2>&1 | tee "$transcript"
 rc="${PIPESTATUS[0]}"
 set -e
@@ -126,19 +124,6 @@ fi
 
 say
 say "Verifying the result independently..."
-(cd "$CASE" && npm test >/dev/null)
-
-changed="$(git -C "$CASE" diff --name-only)"
-[[ "$changed" == "src/invoice.mjs" ]] \
-  || die "Copilot changed unexpected files: ${changed:-none}"
-git -C "$CASE" diff --check
-
-grep -Fqx '    return sum + taxed;' "$CASE/src/invoice.mjs" \
-  || die "expected one-line invoice fix is absent"
-if grep -Fq 'return sum + Math.round(taxed * 100) / 100;' "$CASE/src/invoice.mjs"; then
-  die "per-line rounding bug is still present"
-fi
-
 "$ROOT/scripts/assert-release-blocked.sh"
 "$ROOT/scripts/assert-evidence.sh" \
   --session "$TALON_COPILOT_SESSION_ID" \
@@ -147,14 +132,10 @@ fi
 
 say
 say "REAL COPILOT CASE PASSED"
-say "  Client: Copilot ran the repository-owned one-line correction command"
-say "  Code: exactly one source file changed; tests pass"
+say "  Client: real GitHub Copilot CLI used Talon's OpenAI-compatible gateway"
 say "  MCP: release_status + release_prepare reached the synthetic upstream"
 say "  Boundary: no release_publish receipt reached the upstream"
 say "  Evidence: current-run records are signed and attributed to coding-assistant"
-say "  Scope: proves the integration path, not Copilot's free-form patch quality"
+say "  Scope: proves the real client, model, MCP, identity, and evidence path"
 say "  Session: $TALON_COPILOT_SESSION_ID"
 say "  Transcript: $transcript"
-say
-say "Diff:"
-git -C "$CASE" --no-pager diff -- src/invoice.mjs
