@@ -12,9 +12,9 @@ say() { printf '%s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 if command -v copilot >/dev/null 2>&1; then
-  say "GitHub Copilot CLI is already installed: $(command -v copilot)"
-  copilot --version
-  exit 0
+  say "Existing GitHub Copilot CLI: $(command -v copilot)"
+  copilot --version || true
+  say "Installing or updating the repository-preferred copy under $PREFIX/bin..."
 fi
 
 command -v curl >/dev/null 2>&1 || die "curl is required"
@@ -37,13 +37,7 @@ say "Installing GitHub Copilot CLI under $PREFIX/bin..."
 PREFIX="$PREFIX" bash "$installer"
 
 binary="$PREFIX/bin/copilot"
-if [[ ! -x "$binary" ]]; then
-  if command -v copilot >/dev/null 2>&1; then
-    binary="$(command -v copilot)"
-  else
-    die "installer completed but no copilot executable was found"
-  fi
-fi
+[[ -x "$binary" ]] || die "installer completed but $binary was not created"
 
 say
 say "Installed: $binary"
