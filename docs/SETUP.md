@@ -194,18 +194,17 @@ make real-copilot
 
 Do not start a separate interactive session or paste a task manually. The wrapper:
 
-1. restores and verifies the committed failing billing fixture;
-2. creates a fresh Talon session and nonce;
-3. restarts the shim and synthetic release service under that run identity;
-4. runs Copilot programmatically in BYOK offline mode;
-5. points model traffic at the local Talon session shim;
-6. points MCP traffic at the agent-key-authenticated Talon MCP proxy;
-7. permits only `npm run fix-demo`, `npm test`, `release_status`, and `release_prepare`;
-8. gives Copilot no general file-write permission;
-9. enforces a 120-second wall-clock limit;
-10. independently verifies the exact source diff, passing test, nonce-correlated receipts, absent `release_publish` receipt, and signed current-run evidence.
+1. creates a fresh Talon session and nonce;
+2. restarts the shim and synthetic release service under that run identity;
+3. runs Copilot programmatically in BYOK offline mode;
+4. points model traffic at the local Talon session shim;
+5. points MCP traffic at the agent-key-authenticated Talon MCP proxy;
+6. allows only `release_status` and `release_prepare` from the `release-gateway` MCP server;
+7. explicitly denies shell commands and file writes;
+8. enforces a 90-second wall-clock limit;
+9. independently verifies nonce-correlated receipts, the absence of a `release_publish` receipt, and signed current-run evidence.
 
-The committed `npm run fix-demo` command performs exactly the known one-line billing correction and fails unless the expected regression appears exactly once. This intentionally tests the real Copilot client and Talon integration path, not Copilot's free-form patch generation.
+The billing fixture is still validated by `make validate-local`, but it is intentionally not part of the real Copilot scene. The live case tests the boundary Talon owns: the real client, model routing, MCP routing, acting identity, receipts, and evidence.
 
 The default model is `gpt-4o-mini`; override it only for diagnosis:
 
@@ -213,7 +212,7 @@ The default model is `gpt-4o-mini`; override it only for diagnosis:
 COPILOT_MODEL=gpt-4o make real-copilot
 ```
 
-The fixture has no Git remote. Copilot CLI's local shell permissions are client controls, not Talon controls. Talon governs only model and MCP traffic routed through its boundaries.
+Talon governs only model and MCP traffic routed through its boundaries. The current real Copilot scene performs no local shell or filesystem action.
 
 ## 9. n8n
 
@@ -250,6 +249,6 @@ Provider routes, redaction, cost, policy decisions, identity, session attributio
 - Services bind to loopback by default.
 - Only the optional Zendesk adapter crosses the local boundary, through authenticated TLS termination.
 - Talon governs LLM traffic and MCP calls routed through it; local shell, filesystem, browser, and direct API actions remain outside its control.
-- The Copilot scene proves the real client-integration path, not autonomous code-edit quality.
+- The Copilot scene proves the real client-integration path, not code-edit quality.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.
 - Session budgets are soft caps.
