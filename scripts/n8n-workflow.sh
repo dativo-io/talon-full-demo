@@ -18,27 +18,35 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
 
 restore_real_n8n_budget() {
-  [[ "$BUDGET_STAGED" == 1 || -f "$N8N_AGENT_BACKUP" ]] || return 0
-  if [[ -f "$N8N_AGENT_BACKUP" ]]; then
-    cp "$N8N_AGENT_BACKUP" "$N8N_AGENT_CONFIG"
-    rm -f "$N8N_AGENT_BACKUP"
-    talon validate --dir "$ROOT/config/generated/agents" >/dev/null 2>&1 || true
-    # The canonical product-demo registry reload interval is two seconds.
-    sleep 3
+  [[ "$BUDGET_STAGED" == 1 ]] || return 0
+  [[ -f "$N8N_AGENT_BACKUP" ]] || {
+    echo "ERROR: staged n8n policy backup is missing: $N8N_AGENT_BACKUP" >&2
+    return 1
+  }
+  if ! cp "$N8N_AGENT_BACKUP" "$N8N_AGENT_CONFIG"; then
+    echo "ERROR: could not restore canonical document-summary policy; backup retained at $N8N_AGENT_BACKUP" >&2
+    return 1
   fi
+  rm -f "$N8N_AGENT_BACKUP"
+  if command -v talon >/dev/null 2>&1; then
+    talon validate --dir "$ROOT/config/generated/agents" >/dev/null \
+      || { echo 'ERROR: restored document-summary policy failed Talon validation' >&2; return 1; }
+  fi
+  # The canonical product-demo registry reload interval is two seconds.
+  sleep 3
   BUDGET_STAGED=0
 }
 
 cleanup() {
-  local pid
+  local pid cleanup_rc=0
   set +e
-  restore_real_n8n_budget
+  restore_real_n8n_budget || cleanup_rc=$?
   for pid in "${PIDS[@]:-}"; do
     [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
   done
-  return 0
+  return "$cleanup_rc"
 }
-trap 'rc=$?; trap - EXIT; cleanup; exit "$rc"' EXIT
+trap 'rc=$?; trap - EXIT; cleanup_rc=0; cleanup || cleanup_rc=$?; if [[ "$rc" -eq 0 && "$cleanup_rc" -ne 0 ]]; then rc=$cleanup_rc; fi; exit "$rc"' EXIT
 
 require_common() {
   for cmd in docker jq curl python3 openssl id; do need "$cmd"; done
