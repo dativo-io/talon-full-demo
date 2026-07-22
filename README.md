@@ -32,8 +32,11 @@ A successful smoke test proves a real support request was PII-redacted, the unav
 Optional real Copilot case:
 
 ```bash
+make copilot-install   # one-time; explicit opt-in installation
 make real-copilot
 ```
+
+The demo uses GitHub Copilot CLI in BYOK offline mode, pointed at Talon's local session shim. GitHub authentication is not required for this model/MCP path. `make real-copilot` verifies that the installed CLI supports the exact provider, MCP, and permission flags used by the demo before launching it.
 
 See [Real cases: the short path](docs/REAL_CASES_QUICKSTART.md) for the complete staged flow. Use [SETUP.md](docs/SETUP.md) as the manual reference and [PRESENTER_RUNBOOK.md](docs/PRESENTER_RUNBOOK.md) only after every relevant gate passes.
 
@@ -52,7 +55,7 @@ This repository deliberately separates what is implemented and locally testable 
 | Local repository validation | Implemented and tested |
 | Real Talon MCP + session-budget check | Implemented; `make live-check` |
 | Real OpenAI support smoke test | Implemented; `make real-prepare real-start real-smoke` |
-| Copilot model session shim | Implemented and tested; real Copilot CLI driver still requires the user's authenticated CLI |
+| Copilot model session shim | Implemented and tested; real Copilot CLI driver requires the CLI binary (`make copilot-install`) |
 | Zendesk adapter | Implemented and tested against a mock Talon endpoint |
 | Zendesk ticket-editor app | Implemented; requires private-app installation and secure-setting verification |
 | Synthetic release MCP server | Implemented and tested |

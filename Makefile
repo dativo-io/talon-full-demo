@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke real-copilot real-status real-stop
+.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke copilot-install real-copilot real-status real-stop
 
 all: test
 
@@ -62,11 +62,16 @@ real-start:
 real-smoke:
 	bash ./scripts/real-stack.sh smoke
 
+# Explicit opt-in installation of GitHub's official Copilot CLI. The real
+# client path otherwise never downloads or installs third-party software.
+copilot-install:
+	bash ./scripts/install-copilot-cli.sh
+
 real-copilot:
-	bash ./scripts/real-demo.sh copilot
+	bash ./scripts/real-copilot.sh
 
 real-status:
-	bash ./scripts/real-demo.sh status
+	bash ./scripts/real-status.sh
 
 real-stop:
 	bash ./scripts/real-stack.sh stop
