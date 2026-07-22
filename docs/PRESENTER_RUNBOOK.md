@@ -7,7 +7,7 @@ Use this only after the relevant executable and external gates pass. The short w
 Show recognizable application shapes using one Talon control plane:
 
 1. Zendesk Support requests a governed reply draft.
-2. GitHub Copilot CLI completes one bounded, approved local command sequence and reaches a synthetic release service through Talon's MCP proxy.
+2. GitHub Copilot CLI uses Talon for model traffic and reaches a synthetic release service through Talon's MCP proxy.
 3. n8n preserves useful partial output before a later request crosses the configured soft session budget.
 
 Evidence is the proof layer. Never infer provider routes, policy decisions, costs, or signatures from application output alone.
@@ -26,7 +26,7 @@ The demo must not claim:
 
 - Talon controls Copilot's local shell, filesystem, browser, or direct network actions;
 - Copilot CLI permissions are Talon controls;
-- the bounded Copilot scene proves free-form code generation or patch-edit quality;
+- the bounded Copilot scene proves code generation or patch-edit quality;
 - the real Copilot run attempted `release_publish` when that tool was removed from discovery;
 - session budgets are atomic hard reservations;
 - one denial automatically creates a fleet `needs-attention` state;
@@ -98,7 +98,7 @@ Narrate only what the command proves:
 
 Do not treat the generated prose as the proof. The `REAL CASE PASSED` assertions and evidence file are the proof.
 
-## Scene 2 — bounded real Copilot + MCP path (2 minutes)
+## Scene 2 — bounded real Copilot + MCP path (1–2 minutes)
 
 Run exactly:
 
@@ -110,17 +110,13 @@ Do not open Copilot separately, paste a task, resume an old session, or improvis
 
 The command automatically:
 
-1. restores and verifies the known failing billing fixture;
-2. creates a fresh Talon session and nonce;
-3. runs one non-interactive Copilot prompt with a two-minute hard limit;
-4. gives Copilot no general file-write permission;
-5. permits only `npm run fix-demo`, `npm test`, `release_status`, and `release_prepare`;
-6. verifies the exact one-file diff and passing test;
-7. verifies nonce-correlated `release_status` and `release_prepare` receipts;
-8. verifies no `release_publish` receipt reached the upstream;
-9. verifies current-run signed evidence is attributed to `coding-assistant`.
-
-`npm run fix-demo` is a committed, fail-closed fixture command that performs exactly the known one-line correction. This keeps the scene deterministic and isolates what is being demonstrated: the real Copilot client, model routing, MCP policy, identity, receipts, and evidence.
+1. creates a fresh Talon session and nonce;
+2. runs one non-interactive Copilot prompt with a 90-second hard limit;
+3. permits only `release_status` and `release_prepare` from the synthetic release MCP server;
+4. explicitly denies shell commands and file writes;
+5. verifies nonce-correlated `release_status` and `release_prepare` receipts;
+6. verifies no `release_publish` receipt reached the upstream;
+7. verifies current-run signed evidence is attributed to `coding-assistant`.
 
 A valid presentation ends with:
 
@@ -128,15 +124,13 @@ A valid presentation ends with:
 REAL COPILOT CASE PASSED
 ```
 
-and the exact one-line diff.
+and prints the Talon session and transcript path.
 
 State explicitly:
 
 - Copilot's model API traffic and MCP calls passed through Talon;
-- Copilot invoked the approved local correction and test commands;
-- those local shell actions remained outside Talon's control;
-- this proves the client-integration path, not Copilot's autonomous patch quality;
-- the real Copilot run demonstrates the conforming-client path;
+- the scene intentionally performs no local coding or shell action;
+- this proves the real client, model, MCP, acting-identity, receipt, and evidence path;
 - the separate `make live-check` adversarial probe demonstrates runtime enforcement against a client that bypasses discovery.
 
 Do not narrate “Copilot tried to publish.” A conforming client cannot select a tool it never discovered.
@@ -201,7 +195,6 @@ Stop the live walkthrough when:
 
 - `make ci`, `make live-check`, `real-start`, or `real-status` fails;
 - `make real-copilot` exceeds its time limit or any automatic assertion fails;
-- Copilot changes more than `src/invoice.mjs`;
 - expected MCP receipts or current-run evidence are absent;
 - a `release_publish` receipt appears upstream;
 - secure Zendesk setting substitution is unproven;
