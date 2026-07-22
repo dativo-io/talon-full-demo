@@ -14,7 +14,7 @@ usage() {
 Usage: TALON_PRESENT_N8N_SESSION_ID=<session> bash scripts/present-n8n.sh [buyer|technical|all]
 
 buyer      Show a concise workflow outcome derived from output artifacts and Talon evidence.
-technical  Show the session timeline, budget denial, partial files, and signatures.
+technical  Show the session timeline, signed budget arithmetic, partial files, and signatures.
 all        Show buyer view followed by technical proof.
 
 This command does not run n8n. It fails closed unless a real imported workflow already
@@ -82,17 +82,28 @@ COST="$(jq -r '[.records[].execution.cost // 0] | add // 0' "$EVIDENCE_FILE")"
 COST_FMT="$(printf '%.6f' "$COST")"
 DENIED_COST="$(jq -r '[.records[] | select(.policy_decision.allowed == false) | (.execution.cost // 0)] | add // 0' "$EVIDENCE_FILE")"
 DENIED_COST_FMT="$(printf '%.6f' "$DENIED_COST")"
+BUDGET_LIMIT="$(jq -r '[.records[] | select(.session_budget != null) | .session_budget.limit] | first // empty' "$EVIDENCE_FILE")"
+BUDGET_SPENT="$(jq -r '[.records[] | select(.session_budget != null) | .session_budget.spent] | first // empty' "$EVIDENCE_FILE")"
+BUDGET_ESTIMATE="$(jq -r '[.records[] | select(.session_budget != null) | .session_budget.estimate] | first // empty' "$EVIDENCE_FILE")"
+BUDGET_LIMIT_FMT="$(printf '%.6f' "${BUDGET_LIMIT:-0}")"
+BUDGET_SPENT_FMT="$(printf '%.6f' "${BUDGET_SPENT:-0}")"
+BUDGET_ESTIMATE_FMT="$(printf '%.6f' "${BUDGET_ESTIMATE:-0}")"
 SECTIONS="${#SUMMARY_FILES[@]}"
 
 [[ "$TOTAL" -ge 2 ]] || { echo "ERROR: expected multiple n8n records for $SESSION" >&2; exit 1; }
 [[ "$VALID" == "$TOTAL" && "$INVALID" == "0" ]] || { echo 'ERROR: not every n8n record verified' >&2; exit 1; }
 [[ "$AGENT" == "document-summary" ]] || { echo "ERROR: expected document-summary evidence, found $AGENT" >&2; exit 1; }
 [[ "$ALLOWED" -ge 1 && "$DENIED" -ge 1 ]] || { echo "ERROR: expected allowed work followed by a denial; found $ALLOWED allowed / $DENIED denied" >&2; exit 1; }
+[[ -n "$BUDGET_LIMIT" && -n "$BUDGET_SPENT" && -n "$BUDGET_ESTIMATE" ]] \
+  || { echo 'ERROR: denial evidence lacks signed session_budget {limit, spent, estimate}' >&2; exit 1; }
 jq -e --arg s "$SESSION" 'all(.records[]; .session_id == $s)' "$EVIDENCE_FILE" >/dev/null \
   || { echo 'ERROR: exported records do not all belong to the n8n session' >&2; exit 1; }
 jq -e 'any(.records[]; .policy_decision.allowed == false
-    and any(.policy_decision.reasons[]?; startswith("session_budget_exceeded")))' "$EVIDENCE_FILE" >/dev/null \
-  || { echo 'ERROR: Talon evidence does not contain a session_budget_exceeded denial' >&2; exit 1; }
+    and any(.policy_decision.reasons[]?; startswith("session_budget_exceeded"))
+    and .session_budget.limit > 0
+    and .session_budget.spent >= 0
+    and .session_budget.estimate > 0)' "$EVIDENCE_FILE" >/dev/null \
+  || { echo 'ERROR: Talon evidence does not contain a structured session_budget_exceeded denial' >&2; exit 1; }
 jq -e '[.records[] | select(.policy_decision.allowed == false) | (.execution.cost // 0)] | all(. == 0)' "$EVIDENCE_FILE" >/dev/null \
   || { echo 'ERROR: a denied n8n request carries non-zero cost' >&2; exit 1; }
 
@@ -123,7 +134,7 @@ TALON VERIFIED AI USE CASE
 Use case          n8n quarterly report workflow
 Operational ID    $AGENT
 Business outcome  $SECTIONS section(s) completed; partial report preserved
-Cost boundary     Next request stopped on the session budget
+Cost boundary     Next request stopped at \$$BUDGET_LIMIT_FMT session budget
 Denied request    \$$DENIED_COST_FMT provider cost
 Model path        ${MODELS:-not recorded} through Talon
 Session spend     \$$COST_FMT
@@ -140,17 +151,20 @@ show_technical() {
 
 TALON TECHNICAL PROOF — N8N WORKFLOW
 ────────────────────────────────────────────────────────────
-Session:       $SESSION
-Agent:         $AGENT
-Providers:     ${PROVIDERS:-not recorded}
-Models:        ${MODELS:-not recorded}
-Decisions:     $ALLOWED allowed / $DENIED denied
-Sections:      $SECTIONS completed
-Session cost:  \$$COST_FMT
-Denied cost:   \$$DENIED_COST_FMT
-Evidence:      $EVIDENCE_FILE
-Status:        $STATUS_FILE
-Partial report:$REPORT_FILE
+Session:        $SESSION
+Agent:          $AGENT
+Providers:      ${PROVIDERS:-not recorded}
+Models:         ${MODELS:-not recorded}
+Decisions:      $ALLOWED allowed / $DENIED denied
+Sections:       $SECTIONS completed
+Session cost:   \$$COST_FMT
+Denied cost:    \$$DENIED_COST_FMT
+Budget limit:   \$$BUDGET_LIMIT_FMT
+Spent at deny:  \$$BUDGET_SPENT_FMT
+Next estimate:  \$$BUDGET_ESTIMATE_FMT
+Evidence:       $EVIDENCE_FILE
+Status:         $STATUS_FILE
+Partial report: $REPORT_FILE
 EOF
 
   echo
@@ -177,6 +191,12 @@ EOF
 
   cat <<EOF
 
+Signed budget decision
+  limit:         \$$BUDGET_LIMIT_FMT
+  spent:         \$$BUDGET_SPENT_FMT
+  next estimate: \$$BUDGET_ESTIMATE_FMT
+  comparison:    spent + estimate exceeded the limit
+
 Workflow artifacts
 EOF
   for file in "${SUMMARY_FILES[@]}"; do
@@ -201,8 +221,9 @@ EOF
 
 Scope boundary
   The session cap is a soft cap: completed requests may consume budget before
-  the next request is denied. This proof requires a real imported n8n workflow;
-  the repository's workflow specification alone cannot satisfy it.
+  the next request is denied. The real demo stages a run-scoped cap and restores
+  the canonical product-demo policy after execution. The signed deny record,
+  not the presenter, supplies the limit, spent, and estimate values shown above.
 EOF
 }
 
