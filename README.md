@@ -71,13 +71,22 @@ make present-zendesk-all
 
 This proves the real local adapter-to-Talon path, client attribution, PII handling, policy-valid failover, cost, and signed evidence.
 
-Package the private app with pinned ZCLI and verify the ZIP:
+Build and inspect a credential-free private-app ZIP without an account:
 
 ```bash
 make zendesk-package
 ```
 
-After installing the package in a real Zendesk account and observing the UI flow, machine-verify the matching Talon session and record the UI observations:
+Run official Zendesk server-side validation and packaging after authenticating ZCLI:
+
+```bash
+zcli login -i
+make zendesk-zcli-package
+```
+
+The hosted workflow always builds and scans the offline ZIP. It also runs authenticated ZCLI automatically when repository secrets `ZENDESK_SUBDOMAIN` and `ZENDESK_OAUTH_TOKEN` exist.
+
+After installing the authenticated package in a real Zendesk account and observing the UI flow, machine-verify the matching Talon session and record the UI observations:
 
 ```bash
 export ZENDESK_INSTALLED_TICKET_ID='<ticket-id>'
@@ -163,7 +172,8 @@ make real-stop
 | Real Talon MCP + session-budget check | Implemented; `make live-check` |
 | Real support gateway path | Implemented; buyer + technical views |
 | Real local Zendesk adapter path | Implemented; buyer + technical views |
-| Zendesk private-app package | Implemented; pinned ZCLI validation + CI artifact |
+| Zendesk offline private-app ZIP | Implemented; deterministic package + secret scan + CI artifact |
+| Zendesk server-side ZCLI validation/package | Implemented command; Zendesk authentication required |
 | Zendesk installed private app | Account/browser gate; `make verify-zendesk-installed` records completion |
 | Real GitHub Copilot CLI path | Implemented; buyer + technical views |
 | n8n workflow artifact | Implemented; pinned import/execute/export/clean-import CI gate |
@@ -179,7 +189,8 @@ make real-stop
 | `make live-check` | No provider account | A real Talon binary enforces MCP policy, signs evidence, and applies the real session-budget engine. |
 | `make demo-support-buyer` / `-tech` | OpenAI | Real support, PII, fallback, cost, and evidence. |
 | `make demo-zendesk-buyer` / `-tech` | OpenAI | Real local adapter path and evidence. |
-| `make zendesk-package` | No Zendesk account | Pinned ZCLI validation and credential-free ZIP package. |
+| `make zendesk-package` | No Zendesk account | Build and inspect a credential-free ZIP; no Zendesk server validation claim. |
+| `make zendesk-zcli-package` | Authenticated Zendesk account | Official ZCLI validation and package, then local ZIP inspection. |
 | `make verify-zendesk-installed` | Zendesk account | Machine-verified Talon session plus explicit operator-confirmed UI observations. |
 | `make demo-copilot-buyer` / `-tech` | OpenAI + Copilot CLI | Real Copilot model/MCP path and evidence. |
 | `make demo-n8n-buyer` / `-tech` | Anthropic + Docker | Real imported n8n workflow, partial output, budget stop, and evidence. |
@@ -190,6 +201,7 @@ make real-stop
 - Buyer and technical summaries are computed from newly exported and verified signed Talon sessions, never hard-coded.
 - Provider routes, redaction, costs, policy decisions, and signatures are displayed only after Talon evidence confirms them.
 - Talon is credited only for model traffic and tool calls routed through Talon.
+- An offline Zendesk ZIP is not described as Zendesk server-validated.
 - Zendesk browser-only observations are operator-confirmed, not misrepresented as Talon evidence.
 - Talon does not govern Copilot's local shell commands, filesystem changes, browser actions, or direct API calls.
 - Session limits are soft caps.
