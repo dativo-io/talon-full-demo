@@ -41,21 +41,7 @@ MESSAGE
   exit 1
 fi
 
-version="$($COPILOT --version 2>&1 || true)"
-[[ -n "$version" ]] || die "could not read Copilot CLI version from $COPILOT"
-
-# `copilot help` is GitHub's documented complete command reference. Some current
-# releases expose only a subset through `copilot --help`, so do not reject a
-# compatible binary based on the abbreviated form. Gate only behavior required
-# for correctness; cosmetic output flags are deliberately optional.
-help="$($COPILOT help 2>&1 || true)"
-if [[ -z "$help" ]]; then
-  help="$($COPILOT --help 2>&1 || true)"
-fi
-for flag in --prompt --no-ask-user --additional-mcp-config --disable-builtin-mcps --allow-tool --deny-tool --no-custom-instructions; do
-  grep -q -- "$flag" <<<"$help" \
-    || die "Copilot CLI at $COPILOT does not report required functional flag $flag. Inspect with: $COPILOT help"
-done
+version="$(bash "$ROOT/scripts/check-copilot-cli.sh" "$COPILOT")"
 
 [[ -f "$ENV_FILE" ]] || die "missing .env; run make real-prepare"
 # shellcheck disable=SC1090
