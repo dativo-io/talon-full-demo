@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE="$ROOT/.state"
 MARKER="$STATE/real-demo-started.env"
 IMPL="$ROOT/scripts/real-demo.sh"
+STARTING=0
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -69,12 +70,22 @@ check_tcp() {
 }
 
 cleanup_failed_start() {
+  STARTING=0
   say "Start failed; stopping services started by this repository..." >&2
   bash "$IMPL" stop >/dev/null 2>&1 || true
   rm -f "$MARKER"
 }
 
+cleanup_on_exit() {
+  local rc=$?
+  if [[ "$rc" -ne 0 && "$STARTING" -eq 1 ]]; then
+    cleanup_failed_start
+  fi
+}
+trap cleanup_on_exit EXIT
+
 start_stack() {
+  STARTING=1
   rm -f "$MARKER"
 
   # Check both Talon ports before starting either process. This prevents a
@@ -82,19 +93,9 @@ start_stack() {
   require_free_or_owned talon-gateway 8080
   require_free_or_owned talon-mcp-proxy 8081
 
-  set +e
   bash "$IMPL" start
-  local rc=$?
-  set -e
-  if [[ "$rc" -ne 0 ]]; then
-    cleanup_failed_start
-    exit "$rc"
-  fi
 
-  [[ -f "$STATE/demo-run.env" ]] || {
-    cleanup_failed_start
-    die "start did not create .state/demo-run.env"
-  }
+  [[ -f "$STATE/demo-run.env" ]] || die "start did not create .state/demo-run.env"
 
   check_http "Talon gateway" "http://127.0.0.1:8080/health"
   check_http "Talon MCP proxy" "http://127.0.0.1:8081/health"
@@ -106,6 +107,7 @@ start_stack() {
     printf 'REAL_DEMO_STARTED_AT=%q\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   } >"$MARKER"
   chmod 0600 "$MARKER"
+  STARTING=0
 
   say "Full real-demo stack is ready. Next: make real-smoke"
 }
