@@ -45,7 +45,7 @@ version="$($COPILOT --version 2>&1 || true)"
 [[ -n "$version" ]] || die "could not read Copilot CLI version from $COPILOT"
 
 help="$($COPILOT --help 2>&1 || true)"
-for flag in --prompt --no-ask-user --additional-mcp-config --disable-builtin-mcps --allow-tool --deny-tool --no-custom-instructions; do
+for flag in --prompt --no-ask-user --additional-mcp-config --disable-builtin-mcps --allow-tool --deny-tool --no-custom-instructions --no-banner --no-color; do
   grep -q -- "$flag" <<<"$help" \
     || die "Copilot CLI at $COPILOT does not support $flag. Update it with: make copilot-install"
 done
@@ -121,7 +121,7 @@ set +e
       --no-color \
       --additional-mcp-config="@$STATE/copilot-mcp.json" \
       --disable-builtin-mcps \
-      --allow-tool='write,shell(npm test),release-gateway(release_status),release-gateway(release_prepare)' \
+      --allow-tool='write(src/invoice.mjs),shell(npm test),release-gateway(release_status),release-gateway(release_prepare)' \
       --deny-tool='shell(git push)'
 ) 2>&1 | tee "$transcript"
 rc="${PIPESTATUS[0]}"
@@ -134,7 +134,7 @@ fi
 
 say
 say "Verifying the result independently..."
-npm test --prefix "$CASE" >/dev/null
+(cd "$CASE" && npm test >/dev/null)
 
 changed="$(git -C "$CASE" diff --name-only)"
 [[ "$changed" == "src/invoice.mjs" ]] \
@@ -155,9 +155,9 @@ fi
 
 say
 say "REAL COPILOT CASE PASSED"
-say "  Code: one source file changed; tests pass"
+say "  Code: exactly one source file changed; tests pass"
 say "  MCP: release_status + release_prepare reached the synthetic upstream"
-say "  Policy: release_publish was not exposed or called"
+say "  Boundary: no release_publish receipt reached the upstream"
 say "  Evidence: current-run records are signed and attributed to coding-assistant"
 say "  Session: $TALON_COPILOT_SESSION_ID"
 say "  Transcript: $transcript"
