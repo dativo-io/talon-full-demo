@@ -79,6 +79,8 @@ Check the environment at any time:
 make real-status
 ```
 
+The status command shows the Talon gateway, MCP proxy, Zendesk adapter, release MCP server, Copilot session shim, and whether the GitHub Copilot CLI binary is installed. Missing Copilot CLI is reported as optional until you start the Copilot case.
+
 Logs are written under `.state/logs/`.
 
 ## 3. Run the first real case
@@ -105,11 +107,30 @@ A successful run ends with `REAL CASE PASSED` and prints the session ID and sign
 
 ## 4. Run the real Copilot case
 
-Install and authenticate GitHub Copilot CLI first, then run:
+Install GitHub Copilot CLI once using the explicit repository target:
+
+```bash
+make copilot-install
+```
+
+This downloads GitHub's official macOS/Linux installer and installs the CLI under `~/.local/bin` by default. Installation is never performed implicitly by `real-start` or `real-copilot`.
+
+Then launch the case:
 
 ```bash
 make real-copilot
 ```
+
+The demo configures Copilot CLI in BYOK offline mode:
+
+- `COPILOT_PROVIDER_BASE_URL` points to the local Talon session shim;
+- the generated Talon coding-assistant key is used as the provider credential;
+- `COPILOT_OFFLINE=true` prevents GitHub authentication and telemetry for this session;
+- the OpenAI model call still reaches the internet through Talon because Talon is the configured provider path.
+
+A GitHub login is therefore not required for this model/MCP demo path. GitHub-hosted Copilot features such as GitHub's built-in MCP and cloud delegation are deliberately unavailable and unnecessary here.
+
+Before launch, `make real-copilot` verifies that the installed CLI supports the exact flags used by the demo: `--additional-mcp-config`, `--disable-builtin-mcps`, `--allow-tool`, and `--deny-tool`.
 
 The command resets the failing billing fixture, renders a fresh per-run MCP configuration, prints the exact task and nonce, then launches Copilot with:
 
@@ -170,6 +191,27 @@ Export it in the current shell before `make real-prepare`:
 ```bash
 export OPENAI_API_KEY='sk-...'
 ```
+
+### `GitHub Copilot CLI is not installed or is not on PATH`
+
+Run the explicit installer, then retry:
+
+```bash
+make copilot-install
+make real-copilot
+```
+
+The wrapper also discovers the default non-root installation at `~/.local/bin/copilot`, even when that directory has not yet been added to the interactive shell's `PATH`. Set `COPILOT_BIN=/absolute/path/to/copilot` to use another installation.
+
+### Copilot CLI does not support a required flag
+
+The installed version is too old for this demo. Update it with:
+
+```bash
+make copilot-install
+```
+
+The official installer updates the existing installation. Then rerun `make real-copilot`.
 
 ### Port 8080 or 8081 is already in use
 
