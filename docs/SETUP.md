@@ -18,8 +18,8 @@ The live walkthrough additionally requires:
 - a current `dativo-io/talon` checkout and Talon binary;
 - provider keys for the routes being demonstrated;
 - GitHub Copilot CLI for the optional Copilot case;
-- a Zendesk account, ZCLI, and authenticated HTTPS tunnel for the optional Zendesk case;
-- Docker Compose for the optional n8n case.
+- a Zendesk account, authenticated ZCLI, and authenticated HTTPS tunnel for the installed Zendesk case;
+- Docker for the n8n case.
 
 ## 1. Validate the repository
 
@@ -28,6 +28,12 @@ make ci
 ```
 
 This is the same contract GitHub Actions runs. Do not continue to external setup when it fails.
+
+Validate the committed n8n workflow in two clean pinned runtimes:
+
+```bash
+make n8n-validate
+```
 
 With `dativo-io/talon` cloned next to this repository, also run:
 
@@ -98,7 +104,7 @@ The automated equivalent is:
 
 ```bash
 export OPENAI_API_KEY='sk-...'
-export ANTHROPIC_API_KEY='sk-ant-...'   # optional until n8n
+export ANTHROPIC_API_KEY='sk-ant-...'   # required for n8n
 make real-prepare
 ```
 
@@ -168,15 +174,29 @@ scripts/stop-components.sh
 
 ## 7. Zendesk private app
 
-1. Validate and package `integrations/zendesk-app` with ZCLI.
-2. Expose only the adapter through an authenticated HTTPS tunnel.
-3. Install the app privately.
-4. Configure `adapter_domain` as a hostname only—no scheme, path, localhost, or IP literal.
-5. Configure `adapter_token` as the secure header-scoped setting.
-6. Use a synthetic ticket containing requester-authored public comments plus agent/private comments.
-7. Confirm the app selects the newest public requester comment and inserts only the returned draft.
+Build and inspect a credential-free ZIP without an account:
 
-Local ZCLI rendering does not prove secure-setting substitution. The installed private app is the required test.
+```bash
+make zendesk-package
+```
+
+This proves package structure and absence of generated credentials. It does not claim Zendesk server-side validation.
+
+Authenticate ZCLI and run the official validation/package command:
+
+```bash
+zcli login -i
+make zendesk-zcli-package
+```
+
+Expose only the adapter through an authenticated HTTPS tunnel, install `.state/zendesk-app/talon-reply-assistant.zcli.zip` privately, and configure:
+
+- `adapter_domain` as a hostname only—no scheme, path, localhost, or IP literal;
+- `adapter_token` as the secure header-scoped setting.
+
+Use a synthetic ticket containing requester-authored public comments plus agent/private comments. Confirm the app selects the newest public requester comment and inserts only the returned draft. Then run the explicit installed-app verifier described in `integrations/zendesk-app/README.md`.
+
+Local ZCLI rendering does not prove secure-setting substitution. The installed private app remains the required browser/account test.
 
 ## 8. GitHub Copilot CLI
 
@@ -216,17 +236,25 @@ Talon governs only model and MCP traffic routed through its boundaries. The curr
 
 ## 9. n8n
 
-The Compose file is pinned to n8n `2.30.4` and exposes only loopback port 5678:
+The committed source of truth is `integrations/n8n/quarterly-compliance-workflow.json`. Validate it without provider credentials:
 
 ```bash
-install -d -m 0777 .state/n8n-output
-source .env
-docker compose -f integrations/n8n/compose.yaml up
+make n8n-validate
 ```
 
-The `0777` directory is throwaway demo scratch space for a container UID, not a deployment pattern.
+The command imports and executes the workflow in pinned n8n `2.30.4`, exports it without credentials, imports that export into a second clean runtime, and executes it again.
 
-The workflow must still be built from `integrations/n8n/workflow-spec.md`, exported without credentials, and clean-imported into a fresh pinned container before the repository can claim a completed real n8n scene.
+Run the real Talon + Anthropic case:
+
+```bash
+make demo-n8n-buyer
+# or
+make demo-n8n-tech
+```
+
+The automated runner uses Linux host networking because Talon intentionally binds to host loopback. The n8n process itself remains loopback-only. For optional UI inspection, use the Compose instructions in `integrations/n8n/README.md`.
+
+The workflow processes sections sequentially, preserves each completed summary, and writes `status.json` when Talon denies the next request with `session_budget_exceeded`. Session limits are soft caps: completed requests may consume budget before the next one is denied.
 
 ## 10. Evidence gates
 
@@ -248,6 +276,8 @@ Provider routes, redaction, cost, policy decisions, identity, session attributio
 - All data and tool effects are synthetic.
 - Services bind to loopback by default.
 - Only the optional Zendesk adapter crosses the local boundary, through authenticated TLS termination.
+- An offline Zendesk ZIP is not Zendesk server-validated.
+- Zendesk browser observations are operator-confirmed; matching Talon evidence is machine-verified.
 - Talon governs LLM traffic and MCP calls routed through it; local shell, filesystem, browser, and direct API actions remain outside its control.
 - The Copilot scene proves the real client-integration path, not code-edit quality.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.
