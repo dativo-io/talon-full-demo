@@ -29,14 +29,37 @@ make real-smoke
 
 A successful smoke test proves a real support request was PII-redacted, the unavailable local provider failed, a disallowed fallback candidate was skipped, OpenAI was selected, and the resulting signed evidence verified offline.
 
-Optional real Copilot case:
+### 3. Choose the real Copilot presentation for your audience
+
+Install the CLI once:
 
 ```bash
-make copilot-install   # one-time; explicit opt-in installation
-make real-copilot
+make copilot-install
 ```
 
-The demo uses GitHub Copilot CLI in BYOK offline mode, pointed at Talon's local session shim. GitHub authentication is not required for this model/MCP path. `make real-copilot` is non-interactive and bounded: it mints a fresh Talon session, permits only `release_status` and `release_prepare` from the synthetic release MCP server, enforces a 90-second wall-clock limit, and independently verifies nonce-correlated receipts, the absence of a publish receipt, acting identity, and signed evidence. Shell commands and file writes are explicitly denied. This proves the real Copilot client, model, MCP, identity, and evidence path; it is not a benchmark of Copilot's code-editing quality.
+For a buyer, product leader, or executive audience:
+
+```bash
+make demo-copilot-buyer
+```
+
+For platform, security, architecture, or engineering reviewers:
+
+```bash
+make demo-copilot-tech
+```
+
+Both commands run the same bounded real Copilot path. The buyer mode retains the full client transcript under `.state/` and ends on a concise business-readable receipt. The technical mode streams the client and expands the same signed Talon session into its native audit summary, chronological evidence timeline, MCP action boundary, and cryptographic verification.
+
+After either run, present the same completed session again without rerunning Copilot:
+
+```bash
+make present-copilot       # concise buyer receipt
+make present-copilot-tech  # detailed technical proof
+make present-copilot-all   # both, buyer first
+```
+
+The demo uses GitHub Copilot CLI in BYOK offline mode, pointed at Talon's local session shim. GitHub authentication is not required for this model/MCP path. The run mints a fresh Talon session, permits only `release_status` and `release_prepare` from the synthetic release MCP server, enforces a 90-second wall-clock limit, and independently verifies nonce-correlated receipts, the absence of a publish receipt, acting identity, cost, and signed evidence. Shell commands and file writes are explicitly denied in the Copilot client. This proves the real Copilot client, model, MCP, identity, cost, and evidence path; it is not a benchmark of Copilot's code-editing quality.
 
 See [Real cases: the short path](docs/REAL_CASES_QUICKSTART.md) for the complete staged flow. Use [SETUP.md](docs/SETUP.md) as the manual reference and [PRESENTER_RUNBOOK.md](docs/PRESENTER_RUNBOOK.md) only after every relevant gate passes.
 
@@ -56,6 +79,7 @@ This repository deliberately separates what is implemented and locally testable 
 | Real Talon MCP + session-budget check | Implemented; `make live-check` |
 | Real OpenAI support smoke test | Implemented; `make real-prepare real-start real-smoke` |
 | Bounded real Copilot driver | Implemented; requires the CLI binary (`make copilot-install`) and a real OpenAI key seeded by `real-prepare` |
+| Buyer + technical evidence projections | Implemented; both export and verify the same latest Copilot session |
 | Zendesk adapter | Implemented and tested against a mock Talon endpoint |
 | Zendesk ticket-editor app | Implemented; requires private-app installation and secure-setting verification |
 | Synthetic release MCP server | Implemented and tested |
@@ -77,7 +101,7 @@ Local prerequisites: `go` (1.23.0+), `node` and `npm` (Node 20+), `python3`, `jq
 make validate-local
 ```
 
-If Go prints `download go1.23 ... toolchain not available`, pull the latest repository changes. To inspect the Go binary installed on the host without triggering module toolchain selection, run:
+If Go prints `download go1.23 ... toolchain not available`, pull the latest repository changes. To inspect the locally installed launcher without triggering module toolchain selection, run:
 
 ```bash
 GOTOOLCHAIN=local go version
@@ -85,7 +109,7 @@ GOTOOLCHAIN=local go version
 
 Install a current Go release from [go.dev/dl](https://go.dev/dl/) when the local version is older than 1.23.0 or automatic toolchain downloads are blocked.
 
-`make validate-local` builds the Go services, runs unit tests, exercises the Zendesk adapter and Copilot shim against a mock Talon gateway, exercises the synthetic MCP server with a nonce-correlated forbidden-tool proof, asserts the session-budget scenario, and verifies the deterministic billing fixture correction.
+`make validate-local` builds the Go services, runs unit tests, exercises the Zendesk adapter and Copilot shim against a mock Talon gateway, exercises the synthetic MCP server with a nonce-correlated forbidden-tool proof, asserts the session-budget scenario, verifies the deterministic billing fixture correction, and checks that both Copilot presentation modes remain evidence-backed.
 
 ## Validation levels
 
@@ -95,12 +119,15 @@ Install a current Go release from [go.dev/dl](https://go.dev/dl/) when the local
 | `make live-check` | No provider account | A real Talon binary enforces MCP and session-budget behavior. |
 | `make real-smoke` | OpenAI | One real provider-backed support path and signed evidence work end to end. |
 | `make real-copilot` | OpenAI + Copilot CLI | One bounded real Copilot run uses Talon for model traffic, calls two allowed MCP tools, and produces current-run Talon evidence. |
+| `make demo-copilot-buyer` | OpenAI + Copilot CLI | Run the real case and finish with a concise buyer-readable receipt derived from signed evidence. |
+| `make demo-copilot-tech` | OpenAI + Copilot CLI | Run the real case and expand its session, MCP boundary, cost, attribution, and signature verification. |
 | Zendesk private app | Zendesk + tunnel | Installed app secure settings and ticket-editor flow work. |
 | n8n scene | Anthropic + Docker | Pinned imported workflow and budget scene work. |
 
 ## Core truth rules
 
 - Application output is produced by the real application path, not by the presenter.
+- Buyer and technical summaries are computed from a newly exported and verified signed Talon session, never hard-coded.
 - Provider routes, redaction, costs, policy decisions, and signatures are displayed only after Talon evidence confirms them.
 - Talon is credited only for model traffic and tool calls routed through Talon.
 - Talon does not govern Copilot's local shell commands, filesystem changes, browser actions, or direct API calls.
