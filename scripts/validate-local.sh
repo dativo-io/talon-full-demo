@@ -200,13 +200,17 @@ import sys
 text = Path(sys.argv[1]).read_text()
 required = [
     'docker.n8n.io/n8nio/n8n:2.30.4',
-    '127.0.0.1:5678:5678',
+    'network_mode: host',
+    'N8N_LISTEN_ADDRESS: 127.0.0.1',
     'N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY}',
+    'TALON_N8N_GATEWAY_URL: ${TALON_N8N_GATEWAY_URL:-http://127.0.0.1:8080}',
     '../../cases/quarterly-report:/demo/input:ro',
 ]
 missing = [item for item in required if item not in text]
 if missing:
     raise SystemExit(f'n8n static contract missing: {missing}')
+if '\n    ports:' in text:
+    raise SystemExit('n8n host-network contract must not also declare bridge port mappings')
 PYCOMPOSE
 fi
 

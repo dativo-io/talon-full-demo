@@ -6,7 +6,7 @@ Every application case follows one rule:
 real application execution -> Talon evidence -> buyer projection / technical projection
 ```
 
-The buyer and technical views never use separate fixtures or presenter-authored success data. Each presenter recreates a signed session export, verifies it, and then derives its output from that same evidence.
+The buyer and technical views never use separate fixtures or presenter-authored success data. Each presenter recreates a signed session export, verifies it, and derives its output from the same evidence.
 
 ## Command matrix
 
@@ -15,56 +15,29 @@ The buyer and technical views never use separate fixtures or presenter-authored 
 | Customer-support gateway | `make demo-support-buyer` | `make demo-support-tech` | `make present-support-all` |
 | Zendesk adapter | `make demo-zendesk-buyer` | `make demo-zendesk-tech` | `make present-zendesk-all` |
 | GitHub Copilot CLI | `make demo-copilot-buyer` | `make demo-copilot-tech` | `make present-copilot-all` |
-| n8n workflow | external workflow run, then `make present-n8n` | external workflow run, then `make present-n8n-tech` | `make present-n8n-all` |
+| n8n workflow | `make demo-n8n-buyer` | `make demo-n8n-tech` | `make present-n8n-all` |
 
-All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first.
+All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first. The n8n case additionally requires Docker and an Anthropic key seeded by `real-prepare`.
 
 ## 1. Customer-support gateway
 
-### Buyer
-
 ```bash
 make demo-support-buyer
-```
-
-The buyer receipt shows:
-
-- the `customer-support` operational identity;
-- that a reply was drafted;
-- email and IBAN redaction before provider access;
-- the failed local provider;
-- the disallowed fallback candidate that was skipped;
-- the approved OpenAI fallback;
-- actual session cost;
-- signed-evidence verification.
-
-### Technical
-
-```bash
 make demo-support-tech
 ```
 
-The technical view expands the same session into the native Talon session summary, chronological failover records, PII classification/redaction facts, route decisions, cost, and individual evidence commands.
+The buyer receipt shows the `customer-support` identity, drafted reply, email and IBAN redaction, failed local provider, disallowed fallback skipped, approved OpenAI fallback, actual cost, and signed-evidence verification. The technical view expands the same session into native Talon audit records and the chronological failover path.
 
-The generated reply is an application output, not the proof. The evidence is the proof.
+The generated prose is an application output, not the proof. The evidence is the proof.
 
-## 2. Zendesk adapter
-
-### Buyer
+## 2. Zendesk adapter and private app
 
 ```bash
 make demo-zendesk-buyer
-```
-
-This sends one synthetic Zendesk-shaped ticket through the real local adapter and Talon. It shows the support outcome, PII handling, policy-valid failover, cost, and verified evidence.
-
-### Technical
-
-```bash
 make demo-zendesk-tech
 ```
 
-The technical view shows:
+This proves:
 
 ```text
 synthetic ticket request
@@ -75,50 +48,70 @@ synthetic ticket request
   -> signed session evidence
 ```
 
-It also verifies the adapter client attribution `zendesk-support-full-demo` and that the returned session ID matches the Talon evidence.
+The technical view verifies `zendesk-support-full-demo` client attribution and that the returned session ID matches Talon evidence.
 
-### Important external gate
+Build and inspect the private-app ZIP without an account:
 
-This automated case proves the real **local adapter -> Talon -> provider** path. It does not prove:
+```bash
+make zendesk-package
+```
 
-- installation as a Zendesk private app;
-- secure-setting substitution inside Zendesk;
-- selection of the newest public requester comment;
-- insertion into a real ticket editor.
+This hosted-CI gate proves required files, manifest shape, ticket-editor icon, deterministic packaging, and absence of generated credential values. It does not claim Zendesk server-side validation.
 
-Those claims require the installed private-app test described in [SETUP.md](SETUP.md#7-zendesk-private-app).
+Authenticate ZCLI and run the official validation/package gate:
+
+```bash
+zcli login -i
+make zendesk-zcli-package
+```
+
+Current ZCLI requires Zendesk authentication for `apps:validate` and `apps:package`. The hosted workflow runs this step automatically only when Zendesk OAuth repository secrets are configured.
+
+Installation inside Zendesk remains an account/browser operation. After observing private-app installation, secure-setting substitution, newest public requester-comment selection, and returned-draft insertion, record the final gate with:
+
+```bash
+export ZENDESK_INSTALLED_TICKET_ID='<ticket-id>'
+export ZENDESK_INSTALLED_SESSION_ID='<session-id-shown-by-the-app>'
+export ZENDESK_PRIVATE_APP_INSTALLED=yes
+export ZENDESK_SECURE_SETTING_CONFIRMED=yes
+export ZENDESK_NEWEST_REQUESTER_COMMENT_CONFIRMED=yes
+export ZENDESK_DRAFT_INSERTED_CONFIRMED=yes
+make verify-zendesk-installed
+```
+
+That command machine-verifies Talon evidence and records browser-only facts as operator-confirmed observations. It does not pretend Talon evidence proves DOM behavior inside Zendesk.
 
 ## 3. GitHub Copilot CLI
 
-### Buyer
-
 ```bash
 make demo-copilot-buyer
-```
-
-### Technical
-
-```bash
 make demo-copilot-tech
 ```
 
-Both views use the same real Copilot session. See the main README and presenter runbook for the MCP and local-action truth boundaries.
+Both views use the same real Copilot session. Talon proves the routed model and MCP surfaces, operational identity, cost, upstream receipts, and signatures. Local shell, filesystem, browser, and direct API actions remain outside this proof.
 
 ## 4. n8n partial-output workflow
 
-The repository does not yet contain a clean-imported n8n workflow export. The presenter therefore refuses to manufacture a result from the workflow specification alone.
+The repository contains `integrations/n8n/quarterly-compliance-workflow.json`, a credential-free workflow export for pinned n8n `2.30.4`.
 
-After the pinned workflow has been built, exported without credentials, imported into a clean n8n `2.30.4` container, and run with `TALON_N8N_SESSION_ID`, present it with:
+Validate the artifact without provider credentials:
 
 ```bash
-source .env
-source .state/demo-run.env
-
-TALON_PRESENT_N8N_SESSION_ID="$TALON_N8N_SESSION_ID" make present-n8n
-TALON_PRESENT_N8N_SESSION_ID="$TALON_N8N_SESSION_ID" make present-n8n-tech
+make n8n-validate
 ```
 
-The presenter fails unless all of the following exist and agree:
+The validation imports and executes the committed graph, exports it, proves the export contains no credential value, imports that export into a second clean runtime, and executes it again. Both runs must preserve one completed summary and stop the next request with a zero-cost budget denial.
+
+Run the real application path:
+
+```bash
+make demo-n8n-buyer
+make demo-n8n-tech
+```
+
+The workflow processes synthetic Markdown sections sequentially through Talon's `document-summary` identity. Completed sections are written under `.state/n8n-output`. When Talon returns `403 session_budget_exceeded`, n8n writes `status.json` and ends normally without processing another section.
+
+The presenter fails unless all of the following agree:
 
 - at least one completed `*.summary.md` section file;
 - `.state/n8n-output/status.json` containing `session_budget_exceeded`;
@@ -127,7 +120,7 @@ The presenter fails unless all of the following exist and agree:
 - zero provider cost on every denied request;
 - valid signatures for every exported record.
 
-The buyer view shows the preserved partial business output, the budget stop, denied-request cost, session spend, and evidence verification. The technical view adds the native audit session, timeline, artifact paths, and soft-cap boundary.
+The buyer view shows preserved business output, the budget stop, denied-request cost, session spend, and evidence verification. The technical view adds native audit output, timeline, artifact paths, and the soft-cap boundary.
 
 ## Presentation order
 
@@ -135,21 +128,24 @@ For most buyer meetings:
 
 1. `make demo-support-buyer`
 2. `make demo-copilot-buyer`
-3. expand one of them with its technical presenter only when the audience asks how the proof works.
+3. `make demo-n8n-buyer` when workflow cost control is relevant
+4. expand one scene with its technical presenter only when the audience asks how the proof works.
 
 For a platform or security review:
 
 1. `make demo-support-tech`
 2. `make demo-copilot-tech`
-3. `make live-check` for the separate adversarial MCP denial and real session-budget engine.
+3. `make demo-n8n-tech`
+4. `make live-check` for the separate adversarial MCP denial and hermetic budget-engine proof.
 
-Use the Zendesk adapter case when the buyer owns customer-support operations. Add n8n only after its external workflow gate is complete.
+Use the Zendesk scene when the buyer owns customer-support operations. Pair the adapter proof with the offline-inspected package, but make the Zendesk-validated or installed-app claim only after the authenticated ZCLI and account/browser gates are complete.
 
 ## Truth boundaries
 
 - Talon claims only the traffic and actions routed through its interception boundaries.
 - Provider routes, redaction, cost, identity, denials, and signatures come from Talon evidence.
-- Zendesk local-adapter proof is not private-app proof.
-- n8n presenters require real imported-workflow artifacts; the specification alone is insufficient.
+- An offline Zendesk ZIP is not described as Zendesk server-validated.
+- Zendesk UI behavior is operator-confirmed; the backend session is machine-verified.
+- n8n results require real workflow artifacts and matching evidence, never the specification alone.
 - Session budgets are soft caps: completed requests may consume budget before the next request is denied.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.
