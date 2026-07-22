@@ -70,7 +70,7 @@ HELP
 esac
 FAKE_COPILOT
 chmod +x "$copilot_test_dir/copilot"
-"$ROOT/scripts/check-copilot-cli.sh" "$copilot_test_dir/copilot" \
+bash "$ROOT/scripts/check-copilot-cli.sh" "$copilot_test_dir/copilot" \
   | grep -Fq 'GitHub Copilot CLI 1.0.73.' \
   || { rm -rf "$copilot_test_dir"; echo 'Copilot functional capability probe rejected compatible 1.0.73 interface' >&2; exit 1; }
 rm -rf "$copilot_test_dir"
