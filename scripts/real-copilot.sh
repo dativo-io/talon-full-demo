@@ -41,14 +41,7 @@ MESSAGE
   exit 1
 fi
 
-version="$($COPILOT --version 2>&1 || true)"
-[[ -n "$version" ]] || die "could not read Copilot CLI version from $COPILOT"
-
-help="$($COPILOT --help 2>&1 || true)"
-for flag in --prompt --no-ask-user --additional-mcp-config --disable-builtin-mcps --allow-tool --deny-tool --no-custom-instructions --no-banner --no-color; do
-  grep -q -- "$flag" <<<"$help" \
-    || die "Copilot CLI at $COPILOT does not support $flag. Update it with: make copilot-install"
-done
+version="$(bash "$ROOT/scripts/check-copilot-cli.sh" "$COPILOT")"
 
 [[ -f "$ENV_FILE" ]] || die "missing .env; run make real-prepare"
 # shellcheck disable=SC1090
@@ -118,8 +111,6 @@ set +e
       --prompt "$prompt" \
       --no-ask-user \
       --no-custom-instructions \
-      --no-banner \
-      --no-color \
       --additional-mcp-config="@$STATE/copilot-mcp.json" \
       --disable-builtin-mcps \
       --allow-tool='write(src/invoice.mjs),shell(npm test),release-gateway(release_status),release-gateway(release_prepare)' \

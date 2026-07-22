@@ -40,6 +40,41 @@ set -e
 [[ "$timeout_rc" -eq 124 ]] \
   || { echo "timeout runner returned $timeout_rc, expected 124" >&2; exit 1; }
 
+# Regression: stable Copilot 1.0.73 can expose the complete programmatic surface
+# through `copilot help` while abbreviated `copilot --help` and cosmetic flags
+# differ from newer documentation. Functional compatibility must still pass.
+copilot_test_dir="$(mktemp -d)"
+cat > "$copilot_test_dir/copilot" <<'FAKE_COPILOT'
+#!/usr/bin/env bash
+case "${1:-}" in
+  --version)
+    echo 'GitHub Copilot CLI 1.0.73.'
+    ;;
+  help)
+    cat <<'HELP'
+--prompt
+--no-ask-user
+--additional-mcp-config
+--disable-builtin-mcps
+--allow-tool
+--deny-tool
+--no-custom-instructions
+HELP
+    ;;
+  --help)
+    echo 'abbreviated help without the complete option list'
+    ;;
+  *)
+    exit 2
+    ;;
+esac
+FAKE_COPILOT
+chmod +x "$copilot_test_dir/copilot"
+bash "$ROOT/scripts/check-copilot-cli.sh" "$copilot_test_dir/copilot" \
+  | grep -Fq 'GitHub Copilot CLI 1.0.73.' \
+  || { rm -rf "$copilot_test_dir"; echo 'Copilot functional capability probe rejected compatible 1.0.73 interface' >&2; exit 1; }
+rm -rf "$copilot_test_dir"
+
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   N8N_ENCRYPTION_KEY=local-validation TALON_N8N_SESSION_ID=n8n-quarterly-demo \
     docker compose -f "$ROOT/integrations/n8n/compose.yaml" config --quiet
