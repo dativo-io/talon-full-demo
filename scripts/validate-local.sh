@@ -80,6 +80,21 @@ bash "$ROOT/scripts/check-copilot-cli.sh" "$copilot_test_dir/copilot" \
   || { rm -rf "$copilot_test_dir"; echo 'Copilot functional capability probe rejected compatible 1.0.73 interface' >&2; exit 1; }
 rm -rf "$copilot_test_dir"
 
+# Regression: status must enumerate the complete stack in a fresh shell where
+# provider keys are not exported. Provider secrets are already in Talon's vault;
+# their absence from the operator shell must not abort status reporting.
+set +e
+status_output="$(env -u OPENAI_API_KEY -u ANTHROPIC_API_KEY \
+  bash "$ROOT/scripts/real-status.sh" 2>&1)"
+status_probe_rc=$?
+set -e
+[[ "$status_probe_rc" -eq 0 || "$status_probe_rc" -eq 1 ]] \
+  || { echo "real-status returned unexpected status $status_probe_rc" >&2; echo "$status_output" >&2; exit 1; }
+for label in "Talon gateway" "Talon MCP proxy" "Copilot shim" "Zendesk adapter" "Release MCP" "Copilot CLI"; do
+  grep -Fq "$label" <<<"$status_output" \
+    || { echo "real-status omitted $label in a fresh shell" >&2; echo "$status_output" >&2; exit 1; }
+done
+
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   N8N_ENCRYPTION_KEY=local-validation TALON_N8N_SESSION_ID=n8n-quarterly-demo \
     docker compose -f "$ROOT/integrations/n8n/compose.yaml" config --quiet
