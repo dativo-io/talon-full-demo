@@ -38,6 +38,7 @@ shell-check:
 	bash -n scripts/*.sh
 
 validate-local: check-go fmt-check vet build test shell-check
+	bash ./scripts/test-real-demo-env-loader.sh
 	./scripts/validate-local.sh
 
 integration-local: build
