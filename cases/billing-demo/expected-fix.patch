@@ -1,6 +1,7 @@
 --- a/src/invoice.mjs
 +++ b/src/invoice.mjs
-@@ -3,7 +3,7 @@ export function invoiceTotal(lines) {
+@@ -1,7 +1,7 @@
+ export function invoiceTotal(lines) {
    const total = lines.reduce((sum, line) => {
      const taxed = line.unitPrice * line.quantity * (1 + line.taxRate);
 -    return sum + Math.round(taxed * 100) / 100;
