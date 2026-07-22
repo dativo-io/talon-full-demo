@@ -57,7 +57,9 @@ make present-n8n-tech
 make present-n8n-all
 ```
 
-The presenter fails closed unless completed `*.summary.md` files, `status.json`, `document-summary` attribution, allowed work followed by `session_budget_exceeded`, zero provider cost on the denied request, and valid Talon signatures all agree.
+The real runner stages the pinned `document-summary` session cap from its canonical `$0.01` value to `$0.00301` for this one run. Talon's pinned pre-request estimate for `claude-haiku-4-5` is `$0.003`, so the first section can run and completed spend makes a later request cross the staged boundary. The runner validates the pinned source and canonical value before editing, restores the original agent file on every normal or error exit, and recovers an interrupted prior stage before starting another run.
+
+The presenter does not trust that staging metadata as proof. It fails closed unless completed `*.summary.md` files, `status.json`, `document-summary` attribution, allowed work followed by `session_budget_exceeded`, zero provider cost on the denied request, valid Talon signatures, and the signed denial's `{limit, spent, estimate}` arithmetic all agree.
 
 ## Optional UI import
 
@@ -74,10 +76,12 @@ docker compose -f integrations/n8n/compose.yaml up
 
 The Compose runtime uses Linux host networking because Talon deliberately binds only to host loopback. `N8N_LISTEN_ADDRESS=127.0.0.1` keeps the n8n UI loopback-only as well. Import `/demo/config/credential.json` and `/demo/config/workflow.json` using n8n's CLI or UI; never commit the generated credential file.
 
+A manual UI run does not automatically stage the demo budget. Use the automated `make demo-n8n-*` path for the deterministic budget scene.
+
 ## Truth boundary
 
 Session budgets are soft caps. The accurate claim is:
 
 > Completed requests consumed session budget, so Talon denied the next request before provider dispatch. The denied request added zero provider cost, and the workflow preserved completed output.
 
-Do not claim atomic reservation, guaranteed no-overshoot behavior, or that a denied request reverses cost already incurred by completed requests.
+The staged cap is a transparent demo policy change, not a hidden product claim. Do not claim atomic reservation, guaranteed no-overshoot behavior, or that a denied request reverses cost already incurred by completed requests.
