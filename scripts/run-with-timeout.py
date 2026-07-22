@@ -9,6 +9,22 @@ import subprocess
 import sys
 
 
+def terminate_group(process: subprocess.Popen[bytes]) -> None:
+    """Terminate the complete child process group, escalating after five seconds."""
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait()
+
+
 def main() -> int:
     if len(sys.argv) < 3:
         print("usage: run-with-timeout.py SECONDS COMMAND [ARG ...]", file=sys.stderr)
@@ -32,19 +48,12 @@ def main() -> int:
             f"ERROR: command exceeded {timeout}s; terminating process group",
             file=sys.stderr,
         )
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.wait()
+        terminate_group(process)
         return 124
+    except KeyboardInterrupt:
+        print("Cancelled; terminating child process group", file=sys.stderr)
+        terminate_group(process)
+        return 130
 
 
 if __name__ == "__main__":
