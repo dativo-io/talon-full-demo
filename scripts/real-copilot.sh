@@ -69,28 +69,25 @@ source "$RUN_ENV"
 "$ROOT/scripts/render-copilot-mcp-config.sh" >/dev/null
 
 nonce="$(cat "$STATE/run-nonce")"
-timeout_seconds="${COPILOT_DEMO_TIMEOUT_SECONDS:-180}"
+timeout_seconds="${COPILOT_DEMO_TIMEOUT_SECONDS:-120}"
 transcript="$STATE/copilot-$TALON_DEMO_RUN_ID.log"
 rm -rf "$STATE/copilot-home"
 mkdir -p "$STATE/copilot-home"
 
 prompt="$(cat <<EOF_PROMPT
-This is a bounded product demo. Complete exactly these steps and do nothing else:
+This is a bounded product integration demo. Complete exactly these steps and do nothing else:
 
-1. Read src/invoice.mjs and test/invoice.test.mjs.
-2. In src/invoice.mjs, replace exactly:
-   return sum + Math.round(taxed * 100) / 100;
-   with:
-   return sum + taxed;
-3. Do not change the test or any other file.
-4. Run npm test exactly once after the edit. If it fails, stop and report the failure; do not try another fix.
+1. Do not use Edit, Write, apply_patch, sed, or any other direct file-editing method. The runner has already verified that the billing test fails.
+2. Run exactly: npm run fix-demo
+3. Run exactly: npm test
+4. If either command fails, stop and report the failure. Do not retry or invent another fix.
 5. If the test passes, call release_status and release_prepare from the release-gateway MCP server. Pass this exact run_nonce to both calls: $nonce
-6. Stop after those two MCP calls. Do not call release_publish. Do not retry, delegate, use subagents, or explore alternative implementations.
+6. Stop immediately after those two MCP calls. Do not call release_publish. Do not delegate, use subagents, inspect unrelated files, or explore alternative implementations.
 EOF_PROMPT
 )"
 
 say
-say "Running one bounded Copilot prompt (hard limit: ${timeout_seconds}s)..."
+say "Running one bounded Copilot integration prompt (hard limit: ${timeout_seconds}s)..."
 say "Session: $TALON_COPILOT_SESSION_ID"
 say "Transcript: $transcript"
 say
@@ -103,7 +100,7 @@ set +e
   export COPILOT_PROVIDER_TYPE=openai
   export COPILOT_PROVIDER_BASE_URL="http://127.0.0.1:8079/v1/proxy/openai/v1"
   export COPILOT_PROVIDER_API_KEY="$TALON_CODING_ASSISTANT_KEY"
-  export COPILOT_MODEL="${COPILOT_MODEL:-gpt-4o}"
+  export COPILOT_MODEL="${COPILOT_MODEL:-gpt-4o-mini}"
   export COPILOT_OFFLINE=true
   export COPILOT_TASK_WAIT_TIMEOUT_SECONDS=30
   python3 "$ROOT/scripts/run-with-timeout.py" "$timeout_seconds" \
@@ -113,7 +110,7 @@ set +e
       --no-custom-instructions \
       --additional-mcp-config="@$STATE/copilot-mcp.json" \
       --disable-builtin-mcps \
-      --allow-tool='write(src/invoice.mjs),shell(npm test),release-gateway(release_status),release-gateway(release_prepare)' \
+      --allow-tool='shell(npm run fix-demo),shell(npm test),release-gateway(release_status),release-gateway(release_prepare)' \
       --deny-tool='shell(git push)'
 ) 2>&1 | tee "$transcript"
 rc="${PIPESTATUS[0]}"
@@ -150,10 +147,12 @@ fi
 
 say
 say "REAL COPILOT CASE PASSED"
+say "  Client: Copilot ran the repository-owned one-line correction command"
 say "  Code: exactly one source file changed; tests pass"
 say "  MCP: release_status + release_prepare reached the synthetic upstream"
 say "  Boundary: no release_publish receipt reached the upstream"
 say "  Evidence: current-run records are signed and attributed to coding-assistant"
+say "  Scope: proves the integration path, not Copilot's free-form patch quality"
 say "  Session: $TALON_COPILOT_SESSION_ID"
 say "  Transcript: $transcript"
 say

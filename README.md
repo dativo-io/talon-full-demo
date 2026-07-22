@@ -3,7 +3,7 @@
 A standalone, early-adopter-oriented demonstration of three recognizable applications governed through [Dativo Talon](https://github.com/dativo-io/talon):
 
 - **Zendesk Support** — a human support agent requests a governed reply draft.
-- **GitHub Copilot CLI** — Copilot fixes a real test through Talon's OpenAI-compatible gateway and reaches a synthetic release boundary through Talon's MCP proxy.
+- **GitHub Copilot CLI** — Copilot runs a bounded repository-owned correction command, verifies a real test, and reaches a synthetic release boundary through Talon's MCP proxy.
 - **n8n** — a document workflow preserves partial business output when Talon prevents the next request on projected session cost.
 
 The intended experience is a **10–15 minute narrated interactive walkthrough**, not a long terminal GIF.
@@ -36,7 +36,7 @@ make copilot-install   # one-time; explicit opt-in installation
 make real-copilot
 ```
 
-The demo uses GitHub Copilot CLI in BYOK offline mode, pointed at Talon's local session shim. GitHub authentication is not required for this model/MCP path. `make real-copilot` is non-interactive and bounded: it restores the fixture from the committed baseline, mints a fresh Talon session, runs one exact prompt with a three-minute wall-clock limit, and independently verifies the one-file diff, passing test, allowed MCP receipts, absent publish receipt, and signed evidence. Do not paste a prompt into an open-ended Copilot session.
+The demo uses GitHub Copilot CLI in BYOK offline mode, pointed at Talon's local session shim. GitHub authentication is not required for this model/MCP path. `make real-copilot` is non-interactive and bounded: it restores the fixture, mints a fresh Talon session, permits only `npm run fix-demo`, `npm test`, and the two allowed release MCP calls, enforces a two-minute wall-clock limit, and independently verifies the one-file diff, passing test, nonce-correlated receipts, absent publish receipt, and signed evidence. Copilot receives no general file-write permission. This proves the real client and Talon integration path, not Copilot's free-form patch quality.
 
 See [Real cases: the short path](docs/REAL_CASES_QUICKSTART.md) for the complete staged flow. Use [SETUP.md](docs/SETUP.md) as the manual reference and [PRESENTER_RUNBOOK.md](docs/PRESENTER_RUNBOOK.md) only after every relevant gate passes.
 
@@ -59,7 +59,7 @@ This repository deliberately separates what is implemented and locally testable 
 | Zendesk adapter | Implemented and tested against a mock Talon endpoint |
 | Zendesk ticket-editor app | Implemented; requires private-app installation and secure-setting verification |
 | Synthetic release MCP server | Implemented and tested |
-| Billing repository fixture | Implemented; deterministically restored from the committed failing baseline before every Copilot run |
+| Billing repository fixture | Implemented; deterministically restored from the committed failing baseline and corrected through a repository-owned command |
 | n8n Compose and workflow specification | Compose implemented; workflow export and clean-import from pinned n8n UI remain external |
 | Talon configuration | Bootstrapped from canonical `talon/examples/product-demo` source |
 
@@ -85,7 +85,7 @@ GOTOOLCHAIN=local go version
 
 Install a current Go release from [go.dev/dl](https://go.dev/dl/) when the local version is older than 1.23.0 or automatic toolchain downloads are blocked.
 
-`make validate-local` builds the Go services, runs unit tests, exercises the Zendesk adapter and Copilot shim against a mock Talon gateway, exercises the synthetic MCP server with a nonce-correlated forbidden-tool proof, asserts the session-budget scenario, and verifies the billing fixture.
+`make validate-local` builds the Go services, runs unit tests, exercises the Zendesk adapter and Copilot shim against a mock Talon gateway, exercises the synthetic MCP server with a nonce-correlated forbidden-tool proof, asserts the session-budget scenario, and verifies the deterministic billing fixture correction.
 
 ## Validation levels
 
@@ -94,7 +94,7 @@ Install a current Go release from [go.dev/dl](https://go.dev/dl/) when the local
 | `make validate-local` | No | Repository and local mock paths work. |
 | `make live-check` | No provider account | A real Talon binary enforces MCP and session-budget behavior. |
 | `make real-smoke` | OpenAI | One real provider-backed support path and signed evidence work end to end. |
-| `make real-copilot` | OpenAI + Copilot CLI | One bounded real Copilot run changes exactly one file, passes its test, calls the two allowed MCP tools, and produces current-run Talon evidence. |
+| `make real-copilot` | OpenAI + Copilot CLI | One bounded real Copilot run executes the approved correction command, passes the test, calls two allowed MCP tools, and produces current-run Talon evidence. |
 | Zendesk private app | Zendesk + tunnel | Installed app secure settings and ticket-editor flow work. |
 | n8n scene | Anthropic + Docker | Pinned imported workflow and budget scene work. |
 
@@ -104,6 +104,7 @@ Install a current Go release from [go.dev/dl](https://go.dev/dl/) when the local
 - Provider routes, redaction, costs, policy decisions, and signatures are displayed only after Talon evidence confirms them.
 - Talon is credited only for model traffic and tool calls routed through Talon.
 - Talon does not govern Copilot's local shell commands, filesystem changes, browser actions, or direct API calls.
+- The bounded Copilot scene proves client integration and governed MCP/model paths; it does not prove free-form code-edit quality.
 - One coding-tool denial does not create a fictional `needs-attention` fleet state.
 - Session limits are soft caps.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.

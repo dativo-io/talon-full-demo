@@ -22,8 +22,13 @@ grep -Fq 'return sum + Math.round(taxed * 100) / 100;' \
     exit 1
   fi
   git apply --check expected-fix.patch
-  git apply expected-fix.patch
+  npm run fix-demo
   npm test
+  [[ "$(git diff --name-only)" == "src/invoice.mjs" ]] \
+    || { echo 'deterministic fix changed unexpected files' >&2; exit 1; }
+  grep -Fqx '    return sum + taxed;' src/invoice.mjs \
+    || { echo 'deterministic fix did not apply the expected one-line correction' >&2; exit 1; }
+  git diff --check
   git reset --hard -q HEAD
   [[ -z "$(git status --porcelain)" ]] || { echo 'billing fixture reset left changes' >&2; exit 1; }
 )
