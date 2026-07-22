@@ -1,1 +1,9 @@
-{"name":"talon-billing-demo","private":true,"type":"module","scripts":{"test":"node --test"}}
+{
+  "name": "talon-billing-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fix-demo": "node scripts/apply-demo-fix.mjs",
+    "test": "node --test"
+  }
+}
