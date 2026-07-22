@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke real-support present-support present-support-tech present-support-all demo-support-buyer demo-support-tech real-zendesk present-zendesk present-zendesk-tech present-zendesk-all demo-zendesk-buyer demo-zendesk-tech zendesk-package verify-zendesk-installed copilot-install real-copilot present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech n8n-validate real-n8n present-n8n present-n8n-tech present-n8n-all demo-n8n-buyer demo-n8n-tech real-status real-stop
+.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke real-support present-support present-support-tech present-support-all demo-support-buyer demo-support-tech real-zendesk present-zendesk present-zendesk-tech present-zendesk-all demo-zendesk-buyer demo-zendesk-tech zendesk-package zendesk-zcli-package verify-zendesk-installed copilot-install real-copilot present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech n8n-validate real-n8n present-n8n present-n8n-tech present-n8n-all demo-n8n-buyer demo-n8n-tech real-status real-stop
 
 all: test
 
@@ -107,9 +107,13 @@ demo-zendesk-tech:
 	bash ./scripts/real-zendesk.sh
 	bash ./scripts/present-zendesk.sh technical
 
-# ZCLI 1.1.4 validates and packages the private app without credentials.
+# Credential-free ZIP construction and source/secret inspection; runs in CI.
 zendesk-package:
-	bash ./scripts/package-zendesk-app.sh
+	bash ./scripts/package-zendesk-app.sh offline
+
+# Official ZCLI server-side validation/package. Zendesk authentication is required.
+zendesk-zcli-package:
+	bash ./scripts/package-zendesk-app.sh zcli
 
 # Final installed-app gate: machine-verify Talon evidence and record the four
 # browser-only observations explicitly as operator-confirmed facts.
