@@ -57,13 +57,6 @@ grep -Fq 'session_budget_exceeded' "$STATUS_FILE" \
 mapfile -d '' SUMMARY_FILES < <(find "$OUT" -maxdepth 1 -type f -name '*.summary.md' -print0 | sort -z)
 (( ${#SUMMARY_FILES[@]} > 0 )) || { echo 'ERROR: no completed n8n section files; partial-output preservation is unproven' >&2; exit 1; }
 REPORT_FILE="$OUT/quarterly-summary.partial.$SESSION.md"
-{
-  printf '# Quarterly compliance summary\n\n_Synthetic demonstration data._\n\n'
-  for file in "${SUMMARY_FILES[@]}"; do
-    cat "$file"
-    printf '\n'
-  done
-} >"$REPORT_FILE"
 
 EVIDENCE_FILE="${TALON_PRESENT_EVIDENCE_FILE:-$STATE/$SESSION.signed.json}"
 VERIFY_FILE="$STATE/$SESSION.verify.txt"
@@ -102,6 +95,16 @@ jq -e 'any(.records[]; .policy_decision.allowed == false
   || { echo 'ERROR: Talon evidence does not contain a session_budget_exceeded denial' >&2; exit 1; }
 jq -e '[.records[] | select(.policy_decision.allowed == false) | (.execution.cost // 0)] | all(. == 0)' "$EVIDENCE_FILE" >/dev/null \
   || { echo 'ERROR: a denied n8n request carries non-zero cost' >&2; exit 1; }
+
+# Only now create the report projection. A failed evidence proof must not leave a
+# presenter-generated business artifact behind.
+{
+  printf '# Quarterly compliance summary\n\n_Synthetic demonstration data._\n\n'
+  for file in "${SUMMARY_FILES[@]}"; do
+    cat "$file"
+    printf '\n'
+  done
+} >"$REPORT_FILE"
 
 umask 077
 cat >"$LATEST_ENV" <<EOF
