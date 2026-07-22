@@ -12,12 +12,14 @@ find_copilot() {
     printf '%s\n' "$COPILOT_BIN"
     return 0
   fi
-  if command -v copilot >/dev/null 2>&1; then
-    command -v copilot
-    return 0
-  fi
+  # Prefer the explicit repository installer location over a possibly stale
+  # system-wide copy that happens to appear earlier on PATH.
   if [[ -x "$HOME/.local/bin/copilot" ]]; then
     printf '%s\n' "$HOME/.local/bin/copilot"
+    return 0
+  fi
+  if command -v copilot >/dev/null 2>&1; then
+    command -v copilot
     return 0
   fi
   return 1
