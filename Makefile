@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke copilot-install real-copilot present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech real-status real-stop
+.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke real-support present-support present-support-tech present-support-all demo-support-buyer demo-support-tech real-zendesk present-zendesk present-zendesk-tech present-zendesk-all demo-zendesk-buyer demo-zendesk-tech copilot-install real-copilot present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech present-n8n present-n8n-tech present-n8n-all real-status real-stop
 
 all: test
 
@@ -59,8 +59,52 @@ real-prepare:
 real-start:
 	bash ./scripts/real-stack.sh start
 
+# Original direct smoke command retained for troubleshooting and compatibility.
 real-smoke:
 	bash ./scripts/real-stack.sh smoke
+
+# Fresh, isolated real support run plus evidence-backed audience projections.
+real-support:
+	bash ./scripts/real-support.sh
+
+present-support:
+	bash ./scripts/present-support.sh buyer
+
+present-support-tech:
+	bash ./scripts/present-support.sh technical
+
+present-support-all:
+	bash ./scripts/present-support.sh all
+
+demo-support-buyer:
+	SUPPORT_DEMO_OUTPUT=quiet bash ./scripts/real-support.sh
+	bash ./scripts/present-support.sh buyer
+
+demo-support-tech:
+	bash ./scripts/real-support.sh
+	bash ./scripts/present-support.sh technical
+
+# Real local Zendesk adapter path. This proves adapter -> Talon -> provider,
+# while the installed private-app gate remains external and explicitly separate.
+real-zendesk:
+	bash ./scripts/real-zendesk.sh
+
+present-zendesk:
+	bash ./scripts/present-zendesk.sh buyer
+
+present-zendesk-tech:
+	bash ./scripts/present-zendesk.sh technical
+
+present-zendesk-all:
+	bash ./scripts/present-zendesk.sh all
+
+demo-zendesk-buyer:
+	ZENDESK_DEMO_OUTPUT=quiet bash ./scripts/real-zendesk.sh
+	bash ./scripts/present-zendesk.sh buyer
+
+demo-zendesk-tech:
+	bash ./scripts/real-zendesk.sh
+	bash ./scripts/present-zendesk.sh technical
 
 # Explicit opt-in installation of GitHub's official Copilot CLI. The real
 # client path otherwise never downloads or installs third-party software.
@@ -90,6 +134,17 @@ demo-copilot-buyer:
 demo-copilot-tech:
 	bash ./scripts/real-copilot.sh
 	bash ./scripts/present-copilot.sh technical
+
+# n8n remains externally run in the pinned UI. These projections fail closed
+# unless real output artifacts and matching session-budget evidence exist.
+present-n8n:
+	bash ./scripts/present-n8n.sh buyer
+
+present-n8n-tech:
+	bash ./scripts/present-n8n.sh technical
+
+present-n8n-all:
+	bash ./scripts/present-n8n.sh all
 
 real-status:
 	bash ./scripts/real-status.sh
