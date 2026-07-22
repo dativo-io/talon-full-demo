@@ -80,6 +80,26 @@ bash "$ROOT/scripts/check-copilot-cli.sh" "$copilot_test_dir/copilot" \
   || { rm -rf "$copilot_test_dir"; echo 'Copilot functional capability probe rejected compatible 1.0.73 interface' >&2; exit 1; }
 rm -rf "$copilot_test_dir"
 
+# Regression: the real Copilot case is an MCP integration proof, not a local
+# coding task. Keep each permission as its own CLI argument and fail the contract
+# if shell/file access or the old npm command path returns.
+copilot_driver="$ROOT/scripts/real-copilot.sh"
+for required in \
+  "--allow-tool='release-gateway(release_status)'" \
+  "--allow-tool='release-gateway(release_prepare)'" \
+  "--deny-tool='shell'" \
+  "--deny-tool='write'" \
+  'COPILOT_DEMO_TIMEOUT_SECONDS:-90'; do
+  grep -Fq -- "$required" "$copilot_driver" \
+    || { echo "real Copilot driver is missing permission contract: $required" >&2; exit 1; }
+done
+for forbidden in "shell(npm" "npm run fix-demo" "npm test" "git -C \"\$CASE\" diff"; do
+  if grep -Fq -- "$forbidden" "$copilot_driver"; then
+    echo "real Copilot driver reintroduced local coding path: $forbidden" >&2
+    exit 1
+  fi
+done
+
 # Regression: status must enumerate the complete stack in a fresh shell where
 # provider keys are not exported. Provider secrets are already in Talon's vault;
 # their absence from the operator shell must not abort status reporting.
