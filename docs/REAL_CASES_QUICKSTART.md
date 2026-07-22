@@ -10,6 +10,8 @@ This is the recommended path for testing the demo against real providers. The lo
 | `make live-check` | No external provider | A real Talon binary enforces MCP policy, attributes identity, signs evidence, and applies the real session-budget engine. |
 | `make real-smoke` | OpenAI | A real support request is redacted, routed through policy-valid failover, charged, signed, exported, and verified. |
 | `make real-copilot` | OpenAI + Copilot CLI | One bounded real Copilot run uses Talon for model traffic, calls two allowed MCP tools, and produces current-run evidence. |
+| `make demo-copilot-buyer` | OpenAI + Copilot CLI | Runs the same real case and ends on a concise buyer-readable receipt derived from signed evidence. |
+| `make demo-copilot-tech` | OpenAI + Copilot CLI | Runs the same real case and expands its Talon session, MCP boundary, attribution, cost, and signature verification. |
 | Zendesk private app | OpenAI + Zendesk | The installed Zendesk app securely calls the adapter and inserts a governed draft. |
 | n8n | Anthropic + n8n | The pinned workflow demonstrates a soft session-budget boundary. This remains externally gated. |
 
@@ -95,7 +97,7 @@ synthetic support request
 
 A successful run ends with `REAL CASE PASSED` and prints the session and signed evidence file.
 
-## 4. Run the bounded real Copilot case
+## 4. Run and present the bounded real Copilot case
 
 Install GitHub Copilot CLI once:
 
@@ -103,33 +105,66 @@ Install GitHub Copilot CLI once:
 make copilot-install
 ```
 
-Then run:
+Choose one audience flow.
+
+### Buyer, product, or executive audience
 
 ```bash
-make real-copilot
+make demo-copilot-buyer
 ```
 
-Do **not** open Copilot separately and paste a task. `make real-copilot` drives the CLI programmatically with one bounded prompt.
+The real Copilot client still runs, but its detailed transcript is retained under `.state/`. The visible ending is a concise receipt computed from a fresh signed Talon export:
 
-The command automatically:
+```text
+TALON VERIFIED AI USE CASE
+Use case          GitHub Copilot CLI
+Operational ID    coding-assistant
+Business outcome  Release status checked; release prepared
+Action boundary   release_publish did not reach the upstream
+Data handling     <detected data>; input redaction recorded
+Model path        <model> through Talon
+Session cost      <actual cost>
+Evidence          <valid> valid / 0 invalid records
+Result            VERIFIED
+```
+
+### Platform, security, architecture, or engineering audience
+
+```bash
+make demo-copilot-tech
+```
+
+This streams the real client and then prints the native Talon session summary, chronological evidence timeline, MCP action boundary, attribution, cost, and signed-file verification totals.
+
+### Re-present the exact same completed session
+
+These commands do not rerun Copilot:
+
+```bash
+make present-copilot       # buyer receipt
+make present-copilot-tech  # technical proof
+make present-copilot-all   # both, buyer first
+```
+
+Both views recreate and verify the signed export for `TALON_COPILOT_SESSION_ID` from `.state/demo-run.env`. They are two projections of the same evidence—not separate presenter-authored stories.
+
+Do **not** open Copilot separately and paste a task. The real driver invokes Copilot programmatically with one bounded prompt.
+
+The underlying command automatically:
 
 1. mints a fresh Talon session and nonce for the attempt;
 2. restarts the local shim and synthetic integration components with that identity;
 3. invokes Copilot CLI with `--prompt` and `--no-ask-user`;
 4. allows only `release_status` and `release_prepare` from the `release-gateway` MCP server;
-5. explicitly denies shell commands and file writes;
+5. explicitly denies shell commands and file writes in the client;
 6. terminates the complete Copilot process group after 90 seconds by default;
 7. independently verifies nonce-correlated MCP receipts, the absence of a publish receipt, and current-run signed Talon evidence.
 
-The billing fixture remains covered by `make validate-local`, but it is intentionally separate from this real-client scene. Earlier versions tried to make the live Copilot run edit code; that introduced unrelated CLI patch and permission behavior into a Talon integration proof. The current scene tests the boundary Talon actually owns: model routing, acting identity, MCP discovery/execution, receipts, and evidence.
-
-A successful run ends with:
+A successful real run ends with:
 
 ```text
 REAL COPILOT CASE PASSED
 ```
-
-and prints the Talon session and transcript path.
 
 The default time limit can be adjusted for diagnosis, not for presentations:
 
@@ -145,9 +180,10 @@ A run that times out or fails any independent assertion does not count as a pass
 - MCP traffic reaches the Talon MCP proxy using the `coding-assistant` agent key.
 - Allowed `release_status` and `release_prepare` calls reach the synthetic upstream.
 - No `release_publish` receipt reaches the upstream.
-- Current-run records are signed and attributed to `coding-assistant`.
+- Current-run cost and records are attributed to `coding-assistant`.
+- The signed evidence export verifies with zero invalid, missing-signature, malformed, or unsupported records.
 
-The scene proves the real Copilot client path, governed model traffic, governed MCP traffic, identity, and evidence. It does not claim Talon governs local coding actions or that Copilot successfully edits code.
+The scene proves the real Copilot client path, governed model traffic, governed MCP traffic, identity, cost, and evidence. It does not claim Talon governs local coding actions or that Copilot successfully edits code. Client/session provenance remains attribution, not independent process attestation.
 
 ## 5. Optional Zendesk case
 
@@ -184,16 +220,26 @@ That is not part of the current real-client scene. Pull the current repository a
 ```bash
 cd ~/talon-full-demo
 git pull --ff-only
-make real-copilot
+make demo-copilot-buyer   # or: make demo-copilot-tech
 ```
 
 The current command allows only the two release MCP tools, explicitly denies shell and write operations, and terminates after 90 seconds. Do not resume an old Copilot session.
+
+### The buyer or technical presenter reports an assertion error
+
+Do not present that session. The projection fails closed when the signed export, session attribution, exact MCP tool set, upstream receipts, or verification totals do not match. Rerun:
+
+```bash
+make real-status
+make real-copilot
+make present-copilot-all
+```
 
 ### `GitHub Copilot CLI is not installed or is not on PATH`
 
 ```bash
 make copilot-install
-make real-copilot
+make demo-copilot-buyer
 ```
 
 The wrapper also discovers `~/.local/bin/copilot`. Set `COPILOT_BIN=/absolute/path/to/copilot` for another installation.
