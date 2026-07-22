@@ -9,7 +9,7 @@ This is the recommended path for testing the demo against real providers. The lo
 | `make validate-local` | No | Repository code, adapters, mock integration, MCP contract, and billing fixture work locally. |
 | `make live-check` | No external provider | A real Talon binary enforces MCP policy, attributes identity, signs evidence, and applies the real session-budget engine. |
 | `make real-smoke` | OpenAI | A real support request is redacted, routed through policy-valid failover, charged, signed, exported, and verified. |
-| `make real-copilot` | OpenAI + Copilot CLI | One bounded real Copilot run changes exactly one source file, passes its test, calls two allowed MCP tools, and produces current-run evidence. |
+| `make real-copilot` | OpenAI + Copilot CLI | One bounded real Copilot run executes an approved local correction command, passes its test, calls two allowed MCP tools, and produces current-run evidence. |
 | Zendesk private app | OpenAI + Zendesk | The installed Zendesk app securely calls the adapter and inserts a governed draft. |
 | n8n | Anthropic + n8n | The pinned workflow demonstrates a soft session-budget boundary. This remains externally gated. |
 
@@ -109,19 +109,21 @@ Then run:
 make real-copilot
 ```
 
-Do **not** open Copilot separately and paste a task. `make real-copilot` now drives the CLI programmatically with one bounded prompt.
+Do **not** open Copilot separately and paste a task. `make real-copilot` drives the CLI programmatically with one bounded prompt.
 
 The command automatically:
 
 1. restores the billing fixture from the outer repository's committed failing baseline;
-2. mints a fresh Talon session and nonce for this attempt;
-3. restarts the local shim and integration components with that identity;
-4. invokes Copilot CLI with `--prompt` and `--no-ask-user`;
-5. allows only the intended source-file write, one `npm test`, and the two allowed release MCP tools;
-6. terminates the entire Copilot process group after 180 seconds by default;
-7. independently verifies the exact one-file diff, passing test, MCP receipts, and current-run signed Talon evidence.
+2. verifies that the fixture fails before Copilot starts;
+3. mints a fresh Talon session and nonce for this attempt;
+4. restarts the local shim and integration components with that identity;
+5. invokes Copilot CLI with `--prompt` and `--no-ask-user`;
+6. permits only `npm run fix-demo`, `npm test`, `release_status`, and `release_prepare`;
+7. gives Copilot no general file-write permission;
+8. terminates the complete Copilot process group after 120 seconds by default;
+9. independently verifies the exact one-file diff, passing test, nonce-correlated MCP receipts, and current-run signed Talon evidence.
 
-The task itself is deliberately narrow: remove per-line invoice rounding, run the test once, then call `release_status` and `release_prepare`. This is a Talon integration demonstration, not a benchmark of open-ended autonomous debugging.
+`npm run fix-demo` is a committed, fail-closed fixture command. It replaces exactly the known per-line rounding regression and refuses to run when that exact baseline is absent. Copilot is responsible for invoking the approved command, verifying the test, and using the MCP tools. This is deliberately a **client and Talon integration demonstration**, not a benchmark of Copilot's free-form patch generation.
 
 A successful run ends with:
 
@@ -134,7 +136,7 @@ and prints the exact diff, Talon session, and transcript path.
 The default time limit can be adjusted for diagnosis, not for presentations:
 
 ```bash
-COPILOT_DEMO_TIMEOUT_SECONDS=240 make real-copilot
+COPILOT_DEMO_TIMEOUT_SECONDS=180 make real-copilot
 ```
 
 A run that times out or fails any independent assertion does not count as a pass.
@@ -147,7 +149,7 @@ A run that times out or fails any independent assertion does not count as a pass
 - No `release_publish` receipt reaches the upstream.
 - Current-run records are signed and attributed to `coding-assistant`.
 
-Talon does not govern Copilot's local file edit or local `npm test`; those remain local client actions.
+Talon does not govern Copilot's local shell commands or the repository-owned correction command. Those remain local client actions. The scene proves the real client path, governed model traffic, governed MCP traffic, identity, and evidence—not autonomous code-edit quality.
 
 ## 5. Optional Zendesk case
 
@@ -177,9 +179,9 @@ A later `make real-start` mints a new run identity. Run `make real-prepare` agai
 
 ## Common failures
 
-### Copilot runs for many minutes or consumes excessive tokens
+### Copilot opens `Edit`, reports invalid patch format, or runs for many minutes
 
-That was the behavior of the old interactive driver. Stop the session with `Ctrl+C`, pull the current repository, and use only the bounded command:
+That is the obsolete free-form edit path. Stop the session, pull the current repository, and use only the bounded shell-command driver:
 
 ```bash
 cd ~/talon-full-demo
@@ -187,7 +189,7 @@ git pull --ff-only
 make real-copilot
 ```
 
-The new command restores the fixture from the committed baseline and terminates after 180 seconds. Do not resume the old Copilot session.
+The current command gives Copilot no file-write permission and terminates after 120 seconds. Do not resume an old Copilot session.
 
 ### `GitHub Copilot CLI is not installed or is not on PATH`
 
