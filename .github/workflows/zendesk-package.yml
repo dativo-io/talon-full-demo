@@ -1,0 +1,30 @@
+name: zendesk-package
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install ZCLI runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq unzip libsecret-1-dev
+      - name: Validate and package private app
+        run: make zendesk-package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: talon-reply-assistant-zendesk-app
+          path: .state/zendesk-app/talon-reply-assistant.zip
+          if-no-files-found: error
