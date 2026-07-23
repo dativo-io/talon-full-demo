@@ -43,4 +43,17 @@ grep -Fq 'load_env() {' "$WORK/load-env-function.sh" \
 )
 
 echo 'real-demo environment loader handles optional provider keys in a fresh shell'
+
+cat >"$WORK/fake-talon" <<'EOF'
+#!/usr/bin/env bash
+[[ "${1:-}" == --probe ]] || exit 2
+echo 'resolved Talon CLI'
+EOF
+chmod +x "$WORK/fake-talon"
+TALON_BIN="$WORK/fake-talon" \
+  bash "$ROOT/scripts/with-talon.sh" talon --probe \
+  | grep -Fq 'resolved Talon CLI' \
+  || { echo 'Talon-aware wrapper did not expose the resolved CLI as talon' >&2; exit 1; }
+
+echo 'Talon CLI resolver works without inheriting the preparation shell PATH'
 bash "$ROOT/scripts/validate-completion-contracts.sh"

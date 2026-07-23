@@ -149,26 +149,27 @@ demo-copilot-tech:
 n8n-validate:
 	bash ./scripts/n8n-workflow.sh validate
 
-# Real imported workflow through Talon + Anthropic.
+# Real imported workflow through Talon + Anthropic. The wrapper resolves the
+# exact CLI used by the running stack even in a fresh shell with a shorter PATH.
 real-n8n:
-	bash ./scripts/n8n-workflow.sh real
+	bash ./scripts/with-talon.sh bash ./scripts/n8n-workflow.sh real
 
 present-n8n:
-	bash ./scripts/present-n8n.sh buyer
+	bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh buyer
 
 present-n8n-tech:
-	bash ./scripts/present-n8n.sh technical
+	bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh technical
 
 present-n8n-all:
-	bash ./scripts/present-n8n.sh all
+	bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh all
 
 demo-n8n-buyer:
-	N8N_DEMO_OUTPUT=quiet bash ./scripts/n8n-workflow.sh real
-	bash ./scripts/present-n8n.sh buyer
+	N8N_DEMO_OUTPUT=quiet bash ./scripts/with-talon.sh bash ./scripts/n8n-workflow.sh real
+	bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh buyer
 
 demo-n8n-tech:
-	bash ./scripts/n8n-workflow.sh real
-	bash ./scripts/present-n8n.sh technical
+	bash ./scripts/with-talon.sh bash ./scripts/n8n-workflow.sh real
+	bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh technical
 
 real-status:
 	bash ./scripts/real-status.sh
