@@ -56,4 +56,27 @@ TALON_BIN="$WORK/fake-talon" \
   || { echo 'Talon-aware wrapper did not expose the resolved CLI as talon' >&2; exit 1; }
 
 echo 'Talon CLI resolver works without inheriting the preparation shell PATH'
+
+mkdir -p "$WORK/fake-bin"
+cat >"$WORK/fake-bin/talon" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == validate && "\${2:-}" == --file && -f "\${3:-}" && "\$#" -eq 3 ]]; then
+  printf '%s\n' "\$*" >"$WORK/validate-args.txt"
+  exit 0
+fi
+printf 'unsupported fake Talon invocation: %s\n' "\$*" >&2
+exit 2
+EOF
+chmod +x "$WORK/fake-bin/talon"
+printf 'agent: {}\n' >"$WORK/agent.talon.yaml"
+PATH="$WORK/fake-bin:$PATH" \
+  bash "$ROOT/scripts/validate-agent-policy.sh" "$WORK/agent.talon.yaml" >/dev/null
+[[ "$(cat "$WORK/validate-args.txt")" == "validate --file $WORK/agent.talon.yaml" ]] \
+  || { echo 'single-agent validation did not use the released Talon --file contract' >&2; exit 1; }
+if grep -Fq -- 'talon validate --dir' "$ROOT/scripts/n8n-workflow.sh"; then
+  echo 'n8n runner still depends on the newer Talon --dir flag' >&2
+  exit 1
+fi
+
+echo 'n8n policy staging uses the released Talon single-file validation contract'
 bash "$ROOT/scripts/validate-completion-contracts.sh"
