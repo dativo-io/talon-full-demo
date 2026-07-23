@@ -6,6 +6,9 @@ WORKFLOW="$ROOT/integrations/n8n/quarterly-compliance-workflow.json"
 RUNNER="$ROOT/scripts/n8n-workflow.sh"
 VALIDATE_AGENT="$ROOT/scripts/validate-agent-policy.sh"
 PRESENTER="$ROOT/scripts/present-n8n.sh"
+WITH_TALON="$ROOT/scripts/with-talon.sh"
+AUDIT_RESOLVER="$ROOT/scripts/resolve-talon-audit.sh"
+MAKEFILE="$ROOT/Makefile"
 COMPOSE="$ROOT/integrations/n8n/compose.yaml"
 PACKAGE="$ROOT/scripts/package-zendesk-app.sh"
 INSTALLED="$ROOT/scripts/verify-zendesk-installed.sh"
@@ -13,7 +16,7 @@ ZENDESK_MANIFEST="$ROOT/integrations/zendesk-app/manifest.json"
 ZENDESK_ICON="$ROOT/integrations/zendesk-app/assets/icon_ticket_editor.svg"
 MOCK_TALON="$ROOT/mock/mock_talon.py"
 
-for file in "$WORKFLOW" "$RUNNER" "$VALIDATE_AGENT" "$PRESENTER" "$COMPOSE" "$PACKAGE" "$INSTALLED" "$ZENDESK_MANIFEST" "$ZENDESK_ICON" "$MOCK_TALON"; do
+for file in "$WORKFLOW" "$RUNNER" "$VALIDATE_AGENT" "$PRESENTER" "$WITH_TALON" "$AUDIT_RESOLVER" "$MAKEFILE" "$COMPOSE" "$PACKAGE" "$INSTALLED" "$ZENDESK_MANIFEST" "$ZENDESK_ICON" "$MOCK_TALON"; do
   [[ -s "$file" ]] || { echo "missing completion artifact: $file" >&2; exit 1; }
 done
 
@@ -70,6 +73,31 @@ if grep -Fq -- 'talon validate --dir' "$RUNNER"; then
 fi
 grep -Fq -- 'talon validate --file "$POLICY_FILE"' "$VALIDATE_AGENT" \
   || { echo 'single-agent helper does not use the released Talon --file validation contract' >&2; exit 1; }
+
+for required in \
+  'talon_supports_demo_audit' \
+  "grep -Fq -- '--session'" \
+  "grep -Fq -- 'signed-json'" \
+  "grep -Fq -- '--file'" \
+  'TALON_PINNED_COMMIT' \
+  'git -C "$source" worktree add --detach' \
+  'CGO_ENABLED=1 go build' \
+  '.state/talon-audit-cli'; do
+  grep -Fq -- "$required" "$AUDIT_RESOLVER" \
+    || { echo "audit CLI resolver missing compatibility contract: $required" >&2; exit 1; }
+done
+for required in \
+  'TALON_CLI_PROFILE:-runtime' \
+  'resolve_talon_audit_bin' \
+  'audit export --session' \
+  'audit verify'; do
+  grep -Fq -- "$required" "$WITH_TALON" \
+    || { echo "Talon wrapper missing audit profile contract: $required" >&2; exit 1; }
+done
+for target in present-n8n present-n8n-tech present-n8n-all demo-n8n-buyer demo-n8n-tech; do
+  make -n -C "$ROOT" "$target" | grep -Fq 'TALON_CLI_PROFILE=audit' \
+    || { echo "$target does not select the audit-capable Talon CLI profile" >&2; exit 1; }
+done
 
 for required in \
   '.session_budget.limit' \
