@@ -53,9 +53,45 @@ chmod +x "$WORK/fake-talon"
 TALON_BIN="$WORK/fake-talon" \
   bash "$ROOT/scripts/with-talon.sh" talon --probe \
   | grep -Fq 'resolved Talon CLI' \
-  || { echo 'Talon-aware wrapper did not expose the resolved CLI as talon' >&2; exit 1; }
+  || { echo 'Talon-aware wrapper did not expose the resolved runtime CLI as talon' >&2; exit 1; }
 
-echo 'Talon CLI resolver works without inheriting the preparation shell PATH'
+echo 'Talon runtime CLI resolver works without inheriting the preparation shell PATH'
+
+cat >"$WORK/old-audit-talon" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == audit && "${2:-}" == export && "${3:-}" == --help ]]; then
+  echo 'Output format: csv, json, or ndjson'
+  exit 0
+fi
+if [[ "${1:-}" == audit && "${2:-}" == verify && "${3:-}" == --help ]]; then
+  echo 'verify one evidence id'
+  exit 0
+fi
+[[ "${1:-}" == --probe ]] && { echo 'old audit CLI selected'; exit 0; }
+exit 2
+EOF
+cat >"$WORK/compatible-audit-talon" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == audit && "${2:-}" == export && "${3:-}" == --help ]]; then
+  echo '--session SESSION --format signed-json'
+  exit 0
+fi
+if [[ "${1:-}" == audit && "${2:-}" == verify && "${3:-}" == --help ]]; then
+  echo '--file FILE'
+  exit 0
+fi
+[[ "${1:-}" == --probe ]] && { echo 'compatible audit CLI selected'; exit 0; }
+exit 2
+EOF
+chmod +x "$WORK/old-audit-talon" "$WORK/compatible-audit-talon"
+TALON_CLI_PROFILE=audit \
+TALON_BIN="$WORK/old-audit-talon" \
+TALON_AUDIT_BIN="$WORK/compatible-audit-talon" \
+  bash "$ROOT/scripts/with-talon.sh" talon --probe \
+  | grep -Fq 'compatible audit CLI selected' \
+  || { echo 'audit profile did not reject the released CLI lacking signed session export' >&2; exit 1; }
+
+echo 'Talon audit CLI profile requires session-filtered signed export and file verification'
 
 mkdir -p "$WORK/fake-bin"
 cat >"$WORK/fake-bin/talon" <<EOF

@@ -52,3 +52,14 @@ jobs:
           TALON_REPO: ${{ github.workspace }}/talon
           TALON_STRICT_PIN: "1"
         run: make live-check
+
+      - name: Build and verify the pinned presenter CLI
+        working-directory: talon-full-demo
+        run: |
+          rm -rf .state/talon-audit-cli
+          source scripts/resolve-talon-audit.sh
+          audit_bin="$(resolve_talon_audit_bin "$PWD")"
+          test -x "$audit_bin"
+          "$audit_bin" audit export --help | grep -Fq -- '--session'
+          "$audit_bin" audit export --help | grep -Fq -- 'signed-json'
+          "$audit_bin" audit verify --help | grep -Fq -- '--file'

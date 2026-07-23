@@ -57,6 +57,8 @@ make present-n8n-tech
 make present-n8n-all
 ```
 
+The already-running Talon service may use a released binary whose `audit export` command predates session-filtered signed exports. Runtime execution continues to use that service unchanged. Presentation commands require `audit export --session --format signed-json` and `audit verify --file`; they select a compatible installed CLI or build and cache the repository-pinned CLI under `.state/talon-audit-cli/`. This does not restart or replace the running gateway.
+
 The real runner stages the pinned `document-summary` session cap from its canonical `$0.01` value to `$0.00301` for this one run. Talon's pinned pre-request estimate for `claude-haiku-4-5` is `$0.003`, so the first section can run and completed spend makes a later request cross the staged boundary. The runner validates the pinned source and canonical value before editing, restores the original agent file on every normal or error exit, and recovers an interrupted prior stage before starting another run.
 
 The presenter does not trust that staging metadata as proof. It fails closed unless completed `*.summary.md` files, `status.json`, `document-summary` attribution, allowed work followed by `session_budget_exceeded`, zero provider cost on the denied request, valid Talon signatures, and the signed denial's `{limit, spent, estimate}` arithmetic all agree.
