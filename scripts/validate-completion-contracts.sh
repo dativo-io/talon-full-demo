@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/integrations/n8n/quarterly-compliance-workflow.json"
 RUNNER="$ROOT/scripts/n8n-workflow.sh"
+VALIDATE_AGENT="$ROOT/scripts/validate-agent-policy.sh"
 PRESENTER="$ROOT/scripts/present-n8n.sh"
 COMPOSE="$ROOT/integrations/n8n/compose.yaml"
 PACKAGE="$ROOT/scripts/package-zendesk-app.sh"
@@ -12,7 +13,7 @@ ZENDESK_MANIFEST="$ROOT/integrations/zendesk-app/manifest.json"
 ZENDESK_ICON="$ROOT/integrations/zendesk-app/assets/icon_ticket_editor.svg"
 MOCK_TALON="$ROOT/mock/mock_talon.py"
 
-for file in "$WORKFLOW" "$RUNNER" "$PRESENTER" "$COMPOSE" "$PACKAGE" "$INSTALLED" "$ZENDESK_MANIFEST" "$ZENDESK_ICON" "$MOCK_TALON"; do
+for file in "$WORKFLOW" "$RUNNER" "$VALIDATE_AGENT" "$PRESENTER" "$COMPOSE" "$PACKAGE" "$INSTALLED" "$ZENDESK_MANIFEST" "$ZENDESK_ICON" "$MOCK_TALON"; do
   [[ -s "$file" ]] || { echo "missing completion artifact: $file" >&2; exit 1; }
 done
 
@@ -58,9 +59,17 @@ for required in \
   'TALON_SOURCE_COMMIT' \
   'stage_real_n8n_budget' \
   'restore_real_n8n_budget' \
+  'validate-agent-policy.sh' \
   'canonical session max_cost is not 0.01'; do
   grep -Fq -- "$required" "$RUNNER" || { echo "n8n runner missing: $required" >&2; exit 1; }
 done
+
+if grep -Fq -- 'talon validate --dir' "$RUNNER"; then
+  echo 'n8n runner depends on Talon directory validation unavailable in the released demo CLI' >&2
+  exit 1
+fi
+grep -Fq -- 'talon validate --file "$POLICY_FILE"' "$VALIDATE_AGENT" \
+  || { echo 'single-agent helper does not use the released Talon --file validation contract' >&2; exit 1; }
 
 for required in \
   '.session_budget.limit' \
