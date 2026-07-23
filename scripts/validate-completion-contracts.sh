@@ -134,10 +134,18 @@ for required in \
   'apps:validate' \
   'apps:package' \
   'sha256sum' \
+  'zipfile.ZipFile' \
+  'testzip()' \
+  'unsafe ZIP path' \
+  'symbolic links are not allowed' \
   'talon-reply-assistant.offline.zip' \
   'talon-reply-assistant.zcli.zip'; do
   grep -Fq -- "$required" "$PACKAGE" || { echo "Zendesk package gate missing: $required" >&2; exit 1; }
 done
+if grep -Eq '(^|[[:space:]])unzip([[:space:]]|$)' "$PACKAGE"; then
+  echo 'Zendesk package gate still depends on the optional unzip executable' >&2
+  exit 1
+fi
 for required in \
   'operator-confirmed-ui-plus-talon-evidence' \
   'ZENDESK_SECURE_SETTING_CONFIRMED' \
