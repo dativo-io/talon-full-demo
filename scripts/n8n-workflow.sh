@@ -17,6 +17,10 @@ say() { printf '%s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
 
+validate_n8n_agent_policy() {
+  bash "$ROOT/scripts/validate-agent-policy.sh" "$N8N_AGENT_CONFIG" >/dev/null
+}
+
 restore_real_n8n_budget() {
   [[ "$BUDGET_STAGED" == 1 ]] || return 0
   [[ -f "$N8N_AGENT_BACKUP" ]] || {
@@ -27,11 +31,11 @@ restore_real_n8n_budget() {
     echo "ERROR: could not restore canonical document-summary policy; backup retained at $N8N_AGENT_BACKUP" >&2
     return 1
   fi
-  rm -f "$N8N_AGENT_BACKUP"
-  if command -v talon >/dev/null 2>&1; then
-    talon validate --dir "$ROOT/config/generated/agents" >/dev/null \
-      || { echo 'ERROR: restored document-summary policy failed Talon validation' >&2; return 1; }
+  if ! validate_n8n_agent_policy; then
+    echo "ERROR: restored document-summary policy failed Talon validation; backup retained at $N8N_AGENT_BACKUP" >&2
+    return 1
   fi
+  rm -f "$N8N_AGENT_BACKUP"
   # The canonical product-demo registry reload interval is two seconds.
   sleep 3
   BUDGET_STAGED=0
@@ -214,7 +218,10 @@ if count != 1:
 path.write_text(updated)
 PY
 
-  talon validate --dir "$ROOT/config/generated/agents" >/dev/null
+  if ! validate_n8n_agent_policy; then
+    echo 'ERROR: staged document-summary policy failed Talon validation' >&2
+    return 1
+  fi
   # The pinned product-demo config reloads agents every two seconds.
   sleep 3
 
