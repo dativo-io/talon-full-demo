@@ -149,27 +149,31 @@ demo-copilot-tech:
 n8n-validate:
 	bash ./scripts/n8n-workflow.sh validate
 
-# Real imported workflow through Talon + Anthropic. The wrapper resolves the
-# exact CLI used by the running stack even in a fresh shell with a shorter PATH.
+# Real imported workflow through Talon + Anthropic. The runtime profile may use
+# the executable behind the already-running service because it only needs
+# single-file policy validation.
 real-n8n:
 	bash ./scripts/with-talon.sh bash ./scripts/n8n-workflow.sh real
 
+# Presenters require session-filtered signed export and file verification. The
+# audit profile selects a compatible CLI or builds the repository-pinned CLI
+# without replacing the running Talon service.
 present-n8n:
-	bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh buyer
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh buyer
 
 present-n8n-tech:
-	bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh technical
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh technical
 
 present-n8n-all:
-	bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh all
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh all
 
 demo-n8n-buyer:
 	N8N_DEMO_OUTPUT=quiet bash ./scripts/with-talon.sh bash ./scripts/n8n-workflow.sh real
-	bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh buyer
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh buyer
 
 demo-n8n-tech:
 	bash ./scripts/with-talon.sh bash ./scripts/n8n-workflow.sh real
-	bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh technical
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh technical
 
 real-status:
 	bash ./scripts/real-status.sh
