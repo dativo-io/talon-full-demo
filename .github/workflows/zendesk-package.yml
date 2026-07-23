@@ -23,7 +23,7 @@ jobs:
       - name: Install package inspection dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq unzip libsecret-1-dev
+          sudo apt-get install -y jq libsecret-1-dev
       - name: Build and inspect credential-free private-app ZIP
         run: make zendesk-package
       - name: Run official authenticated ZCLI validation when repository secrets exist
