@@ -10,8 +10,9 @@ PACKAGE="$ROOT/scripts/package-zendesk-app.sh"
 INSTALLED="$ROOT/scripts/verify-zendesk-installed.sh"
 ZENDESK_MANIFEST="$ROOT/integrations/zendesk-app/manifest.json"
 ZENDESK_ICON="$ROOT/integrations/zendesk-app/assets/icon_ticket_editor.svg"
+MOCK_TALON="$ROOT/mock/mock_talon.py"
 
-for file in "$WORKFLOW" "$RUNNER" "$PRESENTER" "$COMPOSE" "$PACKAGE" "$INSTALLED" "$ZENDESK_MANIFEST" "$ZENDESK_ICON"; do
+for file in "$WORKFLOW" "$RUNNER" "$PRESENTER" "$COMPOSE" "$PACKAGE" "$INSTALLED" "$ZENDESK_MANIFEST" "$ZENDESK_ICON" "$MOCK_TALON"; do
   [[ -s "$file" ]] || { echo "missing completion artifact: $file" >&2; exit 1; }
 done
 
@@ -27,12 +28,21 @@ jq -e '
       and .parameters.options.response.response.neverError == true
       and .credentials.httpHeaderAuth.id == "talonHeaderAuth1")
   and any(.nodes[]; .name == "Budget Stopped Next Request"
-      and (.parameters | tostring | contains("session_budget_exceeded")))
+      and (.parameters | tostring | contains("session_budget_exceeded"))
+      and (.parameters | tostring | contains("error?.type"))
+      and (.parameters | tostring | contains("error?.code")))
   and (tostring | contains("Bearer ") | not)
 ' "$WORKFLOW" >/dev/null || {
-  echo 'n8n workflow is missing its sequential budget/evidence/credential-free contract' >&2
+  echo 'n8n workflow is missing its sequential budget/evidence/real-error-schema/credential-free contract' >&2
   exit 1
 }
+
+grep -Fq "'type':'session_budget_exceeded'" "$MOCK_TALON" \
+  || { echo 'mock Talon does not emit the real error.type budget contract' >&2; exit 1; }
+if grep -Fq "'code':'session_budget_exceeded'" "$MOCK_TALON"; then
+  echo 'mock Talon still masks the real gateway schema by adding error.code' >&2
+  exit 1
+fi
 
 for required in \
   'docker.n8n.io/n8nio/n8n:2.30.4' \
