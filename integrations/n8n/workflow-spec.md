@@ -16,13 +16,15 @@ Manual Trigger
       → write `/demo/output/<order>-<slug>.summary.md`
       → continue the loop
 
-    403 + error.code=session_budget_exceeded
+    403 + error.type=session_budget_exceeded
       → write `/demo/output/status.json`
       → stop without dispatching another section
 
     anything else
       → Stop And Error
 ```
+
+The workflow also accepts `error.code=session_budget_exceeded` for compatibility with older fixtures, but real Talon `v1.9.3` identifies this denial through `error.type`.
 
 ## Request contract
 
@@ -44,7 +46,7 @@ The real runner transparently stages `document-summary.policies.session_limits.m
 
 ## Validation contract
 
-`make n8n-validate` proves import, execution, credential-free export, clean re-import, and second execution against the mock allow-then-deny contract. `make demo-n8n-buyer` and `make demo-n8n-tech` run the same committed graph through real Talon and Anthropic, then project buyer and technical views from the same signed Talon session.
+`make n8n-validate` proves import, execution, credential-free export, clean re-import, and second execution against a mock denial payload that matches real Talon's `error.type` schema. `make demo-n8n-buyer` and `make demo-n8n-tech` run the same committed graph through real Talon and Anthropic, then project buyer and technical views from the same signed Talon session.
 
 The technical presenter reads `{limit, spent, estimate}` from the signed denial record. Staging metadata is not accepted as proof.
 
