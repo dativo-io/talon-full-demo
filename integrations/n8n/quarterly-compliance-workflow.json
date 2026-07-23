@@ -190,7 +190,7 @@
             },
             {
               "id": "cdccdf28-694f-4540-880e-28d07eb1c3e0",
-              "leftValue": "={{ $json.body?.error?.code || '' }}",
+              "leftValue": "={{ $json.body?.error?.type || $json.body?.error?.code || '' }}",
               "rightValue": "session_budget_exceeded",
               "operator": {
                 "type": "string",
