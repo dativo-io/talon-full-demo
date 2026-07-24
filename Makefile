@@ -127,22 +127,24 @@ copilot-install:
 real-copilot:
 	bash ./scripts/real-copilot.sh
 
+# Copilot presenters require session-filtered signed export and file verification.
+# Select the audit-capable CLI explicitly rather than depending on the operator's PATH.
 present-copilot:
-	bash ./scripts/present-copilot.sh buyer
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-copilot.sh buyer
 
 present-copilot-tech:
-	bash ./scripts/present-copilot.sh technical
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-copilot.sh technical
 
 present-copilot-all:
-	bash ./scripts/present-copilot.sh all
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-copilot.sh all
 
 demo-copilot-buyer:
 	COPILOT_DEMO_OUTPUT=quiet bash ./scripts/real-copilot.sh
-	bash ./scripts/present-copilot.sh buyer
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-copilot.sh buyer
 
 demo-copilot-tech:
 	bash ./scripts/real-copilot.sh
-	bash ./scripts/present-copilot.sh technical
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-copilot.sh technical
 
 # Import, execute, export, clean-import, and execute again against the mock
 # allow-then-budget-deny contract in pinned n8n 2.30.4.
