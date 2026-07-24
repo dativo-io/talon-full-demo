@@ -12,7 +12,7 @@ say() { printf '%s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
 
-for cmd in node npm jq unzip sha256sum find python3 tee; do need "$cmd"; done
+for cmd in node npm jq sha256sum find python3 tee; do need "$cmd"; done
 case "$MODE" in offline|zcli) ;; *) die 'usage: package-zendesk-app.sh offline|zcli' ;; esac
 install -d -m 0700 "$STATE"
 rm -rf "$APP/tmp"
@@ -38,13 +38,61 @@ validate_source_contract() {
   fi
 }
 
+inspect_and_extract_zip() {
+  local archive="$1" listing="$2" extract="$3"
+  rm -rf "$extract"
+  install -d -m 0700 "$extract"
+
+  python3 - "$archive" "$listing" "$extract" <<'PY'
+from pathlib import Path, PurePosixPath
+import stat
+import sys
+import zipfile
+
+archive = Path(sys.argv[1])
+listing = Path(sys.argv[2])
+extract = Path(sys.argv[3]).resolve()
+
+with zipfile.ZipFile(archive) as zf:
+    bad = zf.testzip()
+    if bad is not None:
+        raise SystemExit(f"corrupt ZIP member: {bad}")
+
+    infos = sorted(zf.infolist(), key=lambda item: item.filename)
+    listing.write_text("".join(f"{item.filename}\n" for item in infos), encoding="utf-8")
+
+    for info in infos:
+        name = PurePosixPath(info.filename)
+        if name.is_absolute() or ".." in name.parts:
+            raise SystemExit(f"unsafe ZIP path: {info.filename}")
+
+        mode = (info.external_attr >> 16) & 0o170000
+        if mode == stat.S_IFLNK:
+            raise SystemExit(f"symbolic links are not allowed in the package: {info.filename}")
+
+        destination = (extract / Path(*name.parts)).resolve()
+        if extract != destination and extract not in destination.parents:
+            raise SystemExit(f"ZIP member escapes extraction directory: {info.filename}")
+
+        if info.is_dir():
+            destination.mkdir(parents=True, exist_ok=True)
+            continue
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(zf.read(info))
+        destination.chmod(0o600)
+PY
+}
+
 inspect_zip() {
   local source_zip="$1" target="$2" proof="$3"
   cp "$source_zip" "$target"
   chmod 0600 "$target"
 
   local listing="$STATE/package-files.txt"
-  unzip -Z1 "$target" | sort >"$listing"
+  local extract="$STATE/extracted"
+  inspect_and_extract_zip "$target" "$listing" "$extract"
+
   for expected in manifest.json assets/iframe.html assets/main.js assets/icon_ticket_editor.svg translations/en.json; do
     grep -Eq "(^|/)$expected$" "$listing" || die "Zendesk package is missing $expected"
   done
@@ -54,10 +102,6 @@ inspect_zip() {
     fi
   done
 
-  local extract="$STATE/extracted"
-  rm -rf "$extract"
-  mkdir -m 0700 "$extract"
-  unzip -qq "$target" -d "$extract"
   if grep -RIE --exclude='main.js' --exclude='manifest.json' \
     'Bearer[[:space:]]+[A-Za-z0-9_-]{16,}|TALON_(CUSTOMER_SUPPORT|DOCUMENT_SUMMARY|CODING_ASSISTANT)_KEY=' \
     "$extract" >/dev/null 2>&1; then
