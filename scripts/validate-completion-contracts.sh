@@ -94,7 +94,9 @@ for required in \
   grep -Fq -- "$required" "$WITH_TALON" \
     || { echo "Talon wrapper missing audit profile contract: $required" >&2; exit 1; }
 done
-for target in present-n8n present-n8n-tech present-n8n-all demo-n8n-buyer demo-n8n-tech; do
+for target in \
+  present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech \
+  present-n8n present-n8n-tech present-n8n-all demo-n8n-buyer demo-n8n-tech; do
   make -n -C "$ROOT" "$target" | grep -Fq 'TALON_CLI_PROFILE=audit' \
     || { echo "$target does not select the audit-capable Talon CLI profile" >&2; exit 1; }
 done
