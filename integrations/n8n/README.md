@@ -1,14 +1,17 @@
-# n8n integration
+# n8n integrations
 
-This directory contains a real, credential-free workflow export for the pinned `n8n:2.30.4` runtime:
+This directory contains real, credential-free workflow exports for the pinned `n8n:2.30.4` runtime:
 
-- `quarterly-compliance-workflow.json` — importable workflow graph;
+- `quarterly-compliance-workflow.json` — sequential document summaries with a session-budget stop;
+- `vendor-contract-review-workflow.json` — confidential vendor-package review with an egress denial before an approved provider call;
 - `compose.yaml` — loopback-only UI runtime for Ubuntu/Linux rehearsals;
-- `workflow-spec.md` — human-readable behavior and truth contract.
+- `workflow-spec.md` and `vendor-contract-review-spec.md` — human-readable behavior and truth contracts.
+
+## Quarterly-report workflow
 
 The workflow reads the three synthetic Markdown sections under `cases/quarterly-report`, processes them sequentially through Talon's `document-summary` identity, writes each completed summary, and stops cleanly when Talon returns `403 session_budget_exceeded`. Completed files remain available and `status.json` records which next section was not sent.
 
-## Credential-free clean-import validation
+### Credential-free clean-import validation
 
 ```bash
 make n8n-validate
@@ -24,9 +27,9 @@ This command uses pinned n8n `2.30.4` and mock Talon's allow-then-budget-deny co
 6. import that export into a second clean runtime;
 7. execute and verify the same contract again.
 
-The repository CI runs this exact sequence. No provider key is needed.
+No provider key is needed.
 
-## Real Talon + Anthropic demo
+### Real Talon + Anthropic demo
 
 Prepare the real stack with both provider keys once:
 
@@ -37,35 +40,72 @@ make real-prepare
 make real-start
 ```
 
-Run for a buyer:
+Run and present:
 
 ```bash
 make demo-n8n-buyer
-```
-
-Run for platform, security, or engineering reviewers:
-
-```bash
-make demo-n8n-tech
-```
-
-Re-present the same completed Talon session without rerunning n8n:
-
-```bash
-make present-n8n
-make present-n8n-tech
 make present-n8n-all
 ```
 
-The already-running Talon service may use a released binary whose `audit export` command predates session-filtered signed exports. Runtime execution continues to use that service unchanged. Presentation commands require `audit export --session --format signed-json` and `audit verify --file`; they select a compatible installed CLI or build and cache the repository-pinned CLI under `.state/talon-audit-cli/`. This does not restart or replace the running gateway.
+The real runner stages the pinned `document-summary` session cap from its canonical `$0.01` value to `$0.00301` for this one run. Talon's pinned pre-request estimate for `claude-haiku-4-5` is `$0.003`, so the first section can run and completed spend makes a later request cross the staged boundary. The runner validates the pinned source and canonical value before editing and restores the original agent file on exit.
 
-The real runner stages the pinned `document-summary` session cap from its canonical `$0.01` value to `$0.00301` for this one run. Talon's pinned pre-request estimate for `claude-haiku-4-5` is `$0.003`, so the first section can run and completed spend makes a later request cross the staged boundary. The runner validates the pinned source and canonical value before editing, restores the original agent file on every normal or error exit, and recovers an interrupted prior stage before starting another run.
+The presenter fails closed unless completed `*.summary.md` files, `status.json`, `document-summary` attribution, allowed work followed by `session_budget_exceeded`, zero provider cost on the denied request, valid Talon signatures, and the signed denial's `{limit, spent, estimate}` arithmetic all agree.
 
-The presenter does not trust that staging metadata as proof. It fails closed unless completed `*.summary.md` files, `status.json`, `document-summary` attribution, allowed work followed by `session_budget_exceeded`, zero provider cost on the denied request, valid Talon signatures, and the signed denial's `{limit, spent, estimate}` arithmetic all agree.
+## Vendor-contract review workflow
+
+The workflow reads three synthetic documents under `cases/vendor-contract-review`:
+
+- a vendor profile containing a synthetic contact email and billing IBAN;
+- a proposed data-processing addendum;
+- ACME's synthetic vendor-review criteria.
+
+It combines them into one confidential review package and runs two requests in the same Talon session:
+
+```text
+OpenAI destination probe
+  → Talon denies confidential-tier egress before provider access
+  → zero provider cost
+
+Approved Anthropic review
+  → Talon redacts email + IBAN
+  → Anthropic creates an advisory review packet
+  → n8n writes vendor-contract-review.md + status.json
+```
+
+OpenAI and Anthropic are both configured for the `vendor-contract-review` identity. The negative request is denied by the agent's egress rule, not by missing credentials or provider availability. The allowed request stays confidential-tier after redaction and is recorded in the same signed session.
+
+### Credential-free clean-import validation
+
+```bash
+make n8n-vendor-review-validate
+```
+
+The gate imports, executes, exports without credential values, clean-imports, and executes again against a mock matching Talon's egress error contract.
+
+### Real Talon + Anthropic demo
+
+```bash
+make demo-n8n-vendor-review-buyer
+make present-n8n-vendor-review-all
+```
+
+The buyer and technical views fail closed unless application artifacts and signed evidence agree on:
+
+- `vendor-contract-review` attribution;
+- a zero-cost OpenAI egress denial;
+- a later allowed Anthropic decision;
+- confidential-tier email and IBAN redaction;
+- matching session identity and valid signatures.
+
+The model output is an advisory first pass, not legal advice or a compliance determination.
+
+## Audit-capable presentation CLI
+
+The already-running Talon service may use a released binary whose `audit export` command predates session-filtered signed exports. Runtime execution continues to use that service unchanged. Presentation commands select a compatible installed CLI or build and cache the repository-pinned CLI under `.state/talon-audit-cli/`. This does not restart or replace the running gateway.
 
 ## Optional UI import
 
-The automated CLI runner is the canonical demo path. To inspect the same workflow in the n8n UI:
+The automated CLI runners are the canonical demo paths. To inspect the quarterly workflow in the n8n UI:
 
 ```bash
 source .env
@@ -76,14 +116,12 @@ cp integrations/n8n/quarterly-compliance-workflow.json .state/n8n-config/workflo
 docker compose -f integrations/n8n/compose.yaml up
 ```
 
-The Compose runtime uses Linux host networking because Talon deliberately binds only to host loopback. `N8N_LISTEN_ADDRESS=127.0.0.1` keeps the n8n UI loopback-only as well. Import `/demo/config/credential.json` and `/demo/config/workflow.json` using n8n's CLI or UI; never commit the generated credential file.
+The Compose runtime uses Linux host networking because Talon deliberately binds only to host loopback. `N8N_LISTEN_ADDRESS=127.0.0.1` keeps the n8n UI loopback-only as well. Never commit generated credential files.
 
-A manual UI run does not automatically stage the demo budget. Use the automated `make demo-n8n-*` path for the deterministic budget scene.
+## Truth boundaries
 
-## Truth boundary
-
-Session budgets are soft caps. The accurate claim is:
-
-> Completed requests consumed session budget, so Talon denied the next request before provider dispatch. The denied request added zero provider cost, and the workflow preserved completed output.
-
-The staged cap is a transparent demo policy change, not a hidden product claim. Do not claim atomic reservation, guaranteed no-overshoot behavior, or that a denied request reverses cost already incurred by completed requests.
+- Session budgets are soft caps. Completed requests may consume budget before the next request is denied.
+- The quarterly staged cap is a transparent demo policy change, not a hidden product claim.
+- The vendor-review contract and data are synthetic; human legal, privacy, security, and procurement review remains required.
+- Talon proves only controls applied to traffic routed through it. Direct model calls or document copies that bypass Talon are outside the proof.
+- HMAC evidence is tamper-evident and offline-verifiable, not immutable.
