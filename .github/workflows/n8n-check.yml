@@ -11,7 +11,7 @@ permissions:
 jobs:
   clean-import:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Verify runner dependencies
@@ -20,5 +20,7 @@ jobs:
           command -v docker
       - name: Pull pinned n8n image
         run: docker pull docker.n8n.io/n8nio/n8n:2.30.4
-      - name: Import, execute, export, and clean-import workflow
+      - name: Validate quarterly budget workflow
         run: make n8n-validate
+      - name: Validate vendor contract review workflow
+        run: make n8n-vendor-review-validate
