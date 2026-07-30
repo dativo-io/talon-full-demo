@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke real-support present-support present-support-tech present-support-all demo-support-buyer demo-support-tech real-zendesk present-zendesk present-zendesk-tech present-zendesk-all demo-zendesk-buyer demo-zendesk-tech zendesk-package zendesk-zcli-package verify-zendesk-installed copilot-install real-copilot present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech n8n-validate real-n8n present-n8n present-n8n-tech present-n8n-all demo-n8n-buyer demo-n8n-tech real-status real-stop
+.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke real-support present-support present-support-tech present-support-all demo-support-buyer demo-support-tech real-zendesk present-zendesk present-zendesk-tech present-zendesk-all demo-zendesk-buyer demo-zendesk-tech zendesk-package zendesk-zcli-package verify-zendesk-installed copilot-install real-copilot present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech n8n-validate real-n8n present-n8n present-n8n-tech present-n8n-all demo-n8n-buyer demo-n8n-tech n8n-vendor-review-validate real-n8n-vendor-review present-n8n-vendor-review present-n8n-vendor-review-tech present-n8n-vendor-review-all demo-n8n-vendor-review-buyer demo-n8n-vendor-review-tech real-status real-stop
 
 all: test
 
@@ -57,6 +57,7 @@ live-check:
 #   make real-prepare real-start
 real-prepare:
 	bash ./scripts/real-demo.sh prepare
+	bash ./scripts/seed-vendor-review.sh
 
 real-start:
 	bash ./scripts/real-stack.sh start
@@ -156,6 +157,7 @@ n8n-validate:
 # single-file policy validation.
 real-n8n:
 	bash ./scripts/with-talon.sh bash ./scripts/n8n-workflow.sh real
+	bash ./scripts/record-latest-n8n-session.sh quarterly
 
 # Presenters require session-filtered signed export and file verification. The
 # audit profile selects a compatible CLI or builds the repository-pinned CLI
@@ -171,11 +173,42 @@ present-n8n-all:
 
 demo-n8n-buyer:
 	N8N_DEMO_OUTPUT=quiet bash ./scripts/with-talon.sh bash ./scripts/n8n-workflow.sh real
+	bash ./scripts/record-latest-n8n-session.sh quarterly
 	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh buyer
 
 demo-n8n-tech:
 	bash ./scripts/with-talon.sh bash ./scripts/n8n-workflow.sh real
+	bash ./scripts/record-latest-n8n-session.sh quarterly
 	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n.sh technical
+
+# Vendor-contract review: clean-import gate proves the workflow's
+# egress-deny -> approved-review branching without provider credentials.
+n8n-vendor-review-validate:
+	bash ./scripts/n8n-vendor-review.sh validate
+
+# Real imported vendor-review workflow through Talon + Anthropic.
+real-n8n-vendor-review:
+	bash ./scripts/with-talon.sh bash ./scripts/n8n-vendor-review.sh real
+	bash ./scripts/record-latest-n8n-session.sh vendor-review
+
+present-n8n-vendor-review:
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n-vendor-review.sh buyer
+
+present-n8n-vendor-review-tech:
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n-vendor-review.sh technical
+
+present-n8n-vendor-review-all:
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n-vendor-review.sh all
+
+demo-n8n-vendor-review-buyer:
+	N8N_VENDOR_REVIEW_DEMO_OUTPUT=quiet bash ./scripts/with-talon.sh bash ./scripts/n8n-vendor-review.sh real
+	bash ./scripts/record-latest-n8n-session.sh vendor-review
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n-vendor-review.sh buyer
+
+demo-n8n-vendor-review-tech:
+	bash ./scripts/with-talon.sh bash ./scripts/n8n-vendor-review.sh real
+	bash ./scripts/record-latest-n8n-session.sh vendor-review
+	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n-vendor-review.sh technical
 
 real-status:
 	bash ./scripts/real-status.sh
