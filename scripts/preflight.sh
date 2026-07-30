@@ -10,8 +10,9 @@ for cmd in go node npm jq curl openssl python3 git talon; do
   command -v "$cmd" >/dev/null || { echo "missing command: $cmd" >&2; exit 1; }
 done
 for var in TALON_GATEWAY TALON_MCP_GATEWAY TALON_COPILOT_SESSION_ID TALON_N8N_SESSION_ID \
+           TALON_N8N_VENDOR_REVIEW_SESSION_ID \
            TALON_CUSTOMER_SUPPORT_KEY TALON_CODING_ASSISTANT_KEY TALON_DOCUMENT_SUMMARY_KEY \
-           ZENDESK_ADAPTER_TOKEN N8N_ENCRYPTION_KEY; do
+           TALON_VENDOR_CONTRACT_REVIEW_KEY ZENDESK_ADAPTER_TOKEN N8N_ENCRYPTION_KEY; do
   [[ -n "${!var:-}" ]] || { echo "$var is empty" >&2; exit 1; }
 done
 [[ -f "$TALON_CONFIG" ]] || { echo "missing generated Talon config: $TALON_CONFIG" >&2; exit 1; }
@@ -53,12 +54,11 @@ if curl --fail --silent --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 
   exit 1
 fi
 
-rm -rf "$ROOT/.state/n8n-output"
-# 0777 ONLY because the pinned n8n container writes to this loopback bind mount
-# as its own non-root UID. This is a throwaway demo scratch dir, NOT a deployment
-# pattern — a real deployment matches the container UID (or uses a named volume)
-# instead of world-writable perms. Everything else under .state stays 0700.
-install -d -m 0777 "$ROOT/.state/n8n-output"
+rm -rf "$ROOT/.state/n8n-output" "$ROOT/.state/n8n-vendor-review-output"
+# 0777 ONLY because the pinned n8n container writes to these loopback bind mounts
+# as its own non-root UID. They are throwaway demo scratch dirs, NOT a deployment
+# pattern — a real deployment matches the container UID or uses named volumes.
+install -d -m 0777 "$ROOT/.state/n8n-output" "$ROOT/.state/n8n-vendor-review-output"
 install -d -m 0700 "$ROOT/.state"
 : > "$ROOT/.state/release-mcp-receipts.jsonl"
 chmod 0600 "$ROOT/.state/release-mcp-receipts.jsonl"
