@@ -15,9 +15,10 @@ The buyer and technical views never use separate fixtures or presenter-authored 
 | Customer-support gateway | `make demo-support-buyer` | `make demo-support-tech` | `make present-support-all` |
 | Zendesk adapter | `make demo-zendesk-buyer` | `make demo-zendesk-tech` | `make present-zendesk-all` |
 | GitHub Copilot CLI | `make demo-copilot-buyer` | `make demo-copilot-tech` | `make present-copilot-all` |
-| n8n workflow | `make demo-n8n-buyer` | `make demo-n8n-tech` | `make present-n8n-all` |
+| n8n quarterly workflow | `make demo-n8n-buyer` | `make demo-n8n-tech` | `make present-n8n-all` |
+| n8n vendor-contract review | `make demo-n8n-vendor-review-buyer` | `make demo-n8n-vendor-review-tech` | `make present-n8n-vendor-review-all` |
 
-All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first. The n8n case additionally requires Docker and an Anthropic key seeded by `real-prepare`.
+All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first. The n8n cases additionally require Docker and an Anthropic key seeded by `real-prepare`.
 
 ## 1. Customer-support gateway
 
@@ -122,21 +123,60 @@ The presenter fails unless all of the following agree:
 
 The buyer view shows preserved business output, the budget stop, denied-request cost, session spend, and evidence verification. The technical view adds native audit output, timeline, artifact paths, and the soft-cap boundary.
 
+## 5. n8n vendor-contract review
+
+The repository contains `integrations/n8n/vendor-contract-review-workflow.json` and three synthetic input documents under `cases/vendor-contract-review`.
+
+Validate the artifact without provider credentials:
+
+```bash
+make n8n-vendor-review-validate
+```
+
+The clean-import gate uses a deterministic mock with the real egress error shape. It must deny the OpenAI destination at zero provider cost, allow the Anthropic review, export no credential value, clean-import, and reproduce the same result.
+
+Run the real application path:
+
+```bash
+make demo-n8n-vendor-review-buyer
+make demo-n8n-vendor-review-tech
+```
+
+The workflow combines a synthetic vendor profile, proposed DPA, and internal review criteria. It first sends the confidential package toward OpenAI as a negative probe. Talon's `vendor-contract-review` egress rule denies that destination before upstream access. The workflow then sends the same package to the approved Anthropic destination; Talon redacts the synthetic email and IBAN and records the allowed decision in the same session.
+
+n8n writes:
+
+- `.state/n8n-vendor-review-output/vendor-contract-review.md` — the advisory review packet;
+- `.state/n8n-vendor-review-output/status.json` — the application result linking denied and approved destinations.
+
+The presenter fails unless all of the following agree:
+
+- the review and status artifacts exist and reference the requested session;
+- every record belongs to `vendor-contract-review`;
+- signed evidence contains a zero-cost OpenAI `egress_*_destination_disallowed` decision;
+- signed evidence later contains an allowed Anthropic egress decision;
+- the allowed request is confidential tier and proves email + IBAN redaction;
+- every exported signature verifies.
+
+The model output is an advisory first pass. Talon does not decide whether the vendor terms are legally sufficient, and the demo does not claim compliance.
+
 ## Presentation order
 
 For most buyer meetings:
 
 1. `make demo-support-buyer`
-2. `make demo-copilot-buyer`
-3. `make demo-n8n-buyer` when workflow cost control is relevant
-4. expand one scene with its technical presenter only when the audience asks how the proof works.
+2. `make demo-n8n-vendor-review-buyer` when confidential documents or approved-provider boundaries matter
+3. `make demo-copilot-buyer`
+4. `make demo-n8n-buyer` when workflow cost control is relevant
+5. expand one scene with its technical presenter only when the audience asks how the proof works.
 
 For a platform or security review:
 
 1. `make demo-support-tech`
-2. `make demo-copilot-tech`
-3. `make demo-n8n-tech`
-4. `make live-check` for the separate adversarial MCP denial and hermetic budget-engine proof.
+2. `make demo-n8n-vendor-review-tech`
+3. `make demo-copilot-tech`
+4. `make demo-n8n-tech`
+5. `make live-check` for the separate adversarial MCP denial and hermetic budget-engine proof.
 
 Use the Zendesk scene when the buyer owns customer-support operations. Pair the adapter proof with the offline-inspected package, but make the Zendesk-validated or installed-app claim only after the authenticated ZCLI and account/browser gates are complete.
 
@@ -148,4 +188,5 @@ Use the Zendesk scene when the buyer owns customer-support operations. Pair the 
 - Zendesk UI behavior is operator-confirmed; the backend session is machine-verified.
 - n8n results require real workflow artifacts and matching evidence, never the specification alone.
 - Session budgets are soft caps: completed requests may consume budget before the next request is denied.
+- Vendor-review outputs are advisory and synthetic; human legal, privacy, security, and procurement review remains required.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.

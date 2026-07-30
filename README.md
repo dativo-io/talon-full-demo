@@ -4,7 +4,8 @@ A standalone, early-adopter-oriented demonstration of recognizable applications 
 
 - **Customer support / Zendesk** — a support workflow requests a governed reply draft.
 - **GitHub Copilot CLI** — a real Copilot client sends model traffic through Talon and reaches a synthetic release boundary through Talon's MCP proxy.
-- **n8n** — an imported document workflow preserves partial business output when Talon prevents the next request on projected session cost.
+- **n8n cost boundary** — an imported document workflow preserves partial business output when Talon prevents the next request on projected session cost.
+- **n8n vendor-contract review** — a confidential synthetic contract package is blocked from one destination, redacted, and reviewed through the approved provider with both decisions in one signed session.
 
 The intended experience is a **10–15 minute narrated walkthrough**. Every completed application case has two projections of the same Talon evidence:
 
@@ -21,13 +22,14 @@ See [Audience-specific demo views](docs/AUDIENCE_DEMOS.md) for the full command 
 make validate-local
 ```
 
-With Docker available, validate the real pinned n8n artifact separately:
+With Docker available, validate the real pinned n8n artifacts separately:
 
 ```bash
 make n8n-validate
+make n8n-vendor-review-validate
 ```
 
-This imports, executes, exports, clean-imports, and executes the credential-free workflow again in n8n `2.30.4` against the mock allow-then-budget-deny contract.
+The first gate reproduces the allow-then-budget-deny workflow. The second reproduces a zero-cost OpenAI egress denial followed by an approved Anthropic review. Both import, execute, export without credential values, clean-import, and execute again in n8n `2.30.4`.
 
 ### 2. Prepare and start the real stack
 
@@ -41,7 +43,7 @@ make real-start
 make real-status
 ```
 
-Anthropic is required only for the n8n/document-summary scene.
+Anthropic is required for both real n8n scenes. `real-prepare` also installs the full-demo-owned `vendor-contract-review` agent overlay into the generated Talon fleet and seeds its vault bindings.
 
 ## Choose a case and audience
 
@@ -121,7 +123,7 @@ make present-copilot-all
 
 The bounded run permits only `release_status` and `release_prepare`, independently verifies upstream receipts and signed evidence, and stays within Talon's real boundary: model traffic and MCP calls routed through Talon. It is not a benchmark of Copilot code editing.
 
-### n8n workflow
+### n8n session-budget workflow
 
 The repository contains a real, credential-free workflow export and a pinned clean-import gate.
 
@@ -145,17 +147,44 @@ make present-n8n-tech
 make present-n8n-all
 ```
 
-The workflow reads synthetic compliance sections sequentially, writes each completed summary, then preserves partial output and writes `status.json` when Talon denies the next request with `session_budget_exceeded`. The presenter fails closed unless output artifacts, `document-summary` identity, allowed work followed by a zero-cost denial, and valid signatures all agree.
+The workflow reads synthetic quarterly sections sequentially, writes each completed summary, then preserves partial output and writes `status.json` when Talon denies the next request with `session_budget_exceeded`. The presenter fails closed unless output artifacts, `document-summary` identity, allowed work followed by a zero-cost denial, and valid signatures all agree.
+
+### n8n vendor-contract review
+
+The input is a synthetic vendor profile, proposed DPA, and internal review policy. The workflow first probes OpenAI with the confidential package; Talon's agent-level egress rule denies it before provider access. The same package then goes to the approved Anthropic destination after email and IBAN redaction.
+
+Buyer/product/executive:
+
+```bash
+make demo-n8n-vendor-review-buyer
+```
+
+Platform/security/engineering:
+
+```bash
+make demo-n8n-vendor-review-tech
+```
+
+Re-present the same completed session:
+
+```bash
+make present-n8n-vendor-review
+make present-n8n-vendor-review-tech
+make present-n8n-vendor-review-all
+```
+
+The presenter fails closed unless the review and status artifacts, `vendor-contract-review` identity, zero-cost OpenAI egress denial, later allowed Anthropic decision, confidential-tier email/IBAN redaction, and every evidence signature agree. The generated review is advisory and synthetic; human legal, privacy, security, and procurement review remains required.
 
 ## Existing low-level commands
 
 ```bash
-make real-smoke       # direct support smoke path
-make real-support     # fresh support run, full output
-make real-zendesk     # fresh local Zendesk-adapter run, full output
-make real-copilot     # fresh bounded Copilot run, full output
-make real-n8n         # fresh imported n8n workflow, full output
-make live-check       # separate real-Talon MCP denial + budget-engine proof
+make real-smoke               # direct support smoke path
+make real-support             # fresh support run, full output
+make real-zendesk             # fresh local Zendesk-adapter run, full output
+make real-copilot             # fresh bounded Copilot run, full output
+make real-n8n                 # fresh quarterly-report n8n workflow
+make real-n8n-vendor-review   # fresh vendor-contract review n8n workflow
+make live-check               # separate real-Talon MCP denial + budget-engine proof
 ```
 
 Stop repository-managed services with:
@@ -176,16 +205,17 @@ make real-stop
 | Zendesk server-side ZCLI validation/package | Implemented command; Zendesk authentication required |
 | Zendesk installed private app | Account/browser gate; `make verify-zendesk-installed` records completion |
 | Real GitHub Copilot CLI path | Implemented; buyer + technical views |
-| n8n workflow artifact | Implemented; pinned import/execute/export/clean-import CI gate |
-| Real n8n + Anthropic path | Implemented command; host execution remains the provider credential gate |
-| Talon configuration | Bootstrapped from canonical `talon/examples/product-demo` source |
+| n8n session-budget workflow | Implemented; pinned import/execute/export/clean-import gate + real Anthropic path |
+| n8n vendor-contract review | Implemented; pinned egress-deny/allow clean-import gate + real Anthropic path |
+| Talon configuration | Canonical `talon/examples/product-demo` source plus a full-demo-owned vendor-review agent overlay |
 
 ## Validation levels
 
 | Command | External account needed? | Meaning |
 |---|---:|---|
 | `make validate-local` | No | Repository code, adapters, mock integration, presenter contracts, MCP contract, and billing fixture work locally. |
-| `make n8n-validate` | No provider account; Docker | The committed workflow imports, executes, exports without credentials, clean-imports, and executes again. |
+| `make n8n-validate` | No provider account; Docker | Quarterly workflow imports, executes, exports without credentials, clean-imports, and executes again. |
+| `make n8n-vendor-review-validate` | No provider account; Docker | Vendor-review workflow proves egress-deny then allow behavior twice with credential-free exports. |
 | `make live-check` | No provider account | A real Talon binary enforces MCP policy, signs evidence, and applies the real session-budget engine. |
 | `make demo-support-buyer` / `-tech` | OpenAI | Real support, PII, fallback, cost, and evidence. |
 | `make demo-zendesk-buyer` / `-tech` | OpenAI | Real local adapter path and evidence. |
@@ -193,7 +223,8 @@ make real-stop
 | `make zendesk-zcli-package` | Authenticated Zendesk account | Official ZCLI validation and package, then local ZIP inspection. |
 | `make verify-zendesk-installed` | Zendesk account | Machine-verified Talon session plus explicit operator-confirmed UI observations. |
 | `make demo-copilot-buyer` / `-tech` | OpenAI + Copilot CLI | Real Copilot model/MCP path and evidence. |
-| `make demo-n8n-buyer` / `-tech` | Anthropic + Docker | Real imported n8n workflow, partial output, budget stop, and evidence. |
+| `make demo-n8n-buyer` / `-tech` | Anthropic + Docker | Real imported workflow, partial output, budget stop, and evidence. |
+| `make demo-n8n-vendor-review-buyer` / `-tech` | OpenAI + Anthropic + Docker | Real imported workflow, egress denial, PII redaction, approved review, cost, and evidence. |
 
 ## Core truth rules
 
@@ -205,6 +236,7 @@ make real-stop
 - Zendesk browser-only observations are operator-confirmed, not misrepresented as Talon evidence.
 - Talon does not govern Copilot's local shell commands, filesystem changes, browser actions, or direct API calls.
 - Session limits are soft caps.
+- Vendor-contract review output is advisory, synthetic, and requires human review.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.
 - Only synthetic data belongs in this repository and demo.
 
@@ -215,7 +247,7 @@ cmd/                  runnable adapters and helper services
 internal/             tested implementation packages
 integrations/         Zendesk, Copilot, and n8n integration assets
 cases/                synthetic business fixtures
-config/               generated Talon config location and MCP templates
+config/               generated Talon config, integration overlays, and MCP templates
 mock/                  no-key local Talon-compatible test endpoint
 scripts/               setup, validation, orchestration, and presenters
 docs/                  quickstarts, architecture, setup, presenter, and blockers

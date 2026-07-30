@@ -13,6 +13,10 @@ LOG=Path(os.environ.get('MOCK_TALON_LOG','/tmp/mock-talon.jsonl'))
 # denial never incurs simulated provider cost. Unset (default) = no budgets,
 # preserving the original always-allow behavior.
 BUDGET=int(os.environ.get('MOCK_TALON_SESSION_BUDGET_REQUESTS','0') or '0')
+# Optional destination-policy simulation used by the vendor-contract review.
+# A matching provider path is denied before the mock provider response, with the
+# same egress machine code real Talon exposes. Existing mock modes are unchanged.
+DENY_PROVIDER=os.environ.get('MOCK_TALON_DENY_PROVIDER','').strip().lower()
 _sessions={}
 _lock=threading.Lock()
 
@@ -36,21 +40,37 @@ class H(BaseHTTPRequestHandler):
         try: rec['body']=json.loads(raw or b'{}')
         except Exception: rec['body']=None
         denied=False
-        if BUDGET>0:
+        denial_code=''
+        if DENY_PROVIDER and f'/{DENY_PROVIDER}/' in self.path.lower():
+            denied=True
+            denial_code='egress_tier_destination_disallowed'
+        elif BUDGET>0:
             session=rec['headers'].get('x-talon-session-id','')
             with _lock:
                 count=_sessions.get(session,0)+1
                 _sessions[session]=count
             denied=count>BUDGET
+            if denied:
+                denial_code='session_budget_exceeded'
         rec['denied']=denied
+        rec['denial_code']=denial_code
         rec['cost_usd']=0.0 if denied else 0.0001
         LOG.parent.mkdir(parents=True,exist_ok=True)
         with LOG.open('a') as f: f.write(json.dumps(rec)+'\n')
+        if denied and denial_code.startswith('egress_'):
+            self._write(403,{'error':{'message':f'{denial_code}: confidential data may not egress to provider {DENY_PROVIDER}','type':denial_code,'code':denial_code}})
+            return
         if denied:
             self._write(403,{'error':{'message':'session spend plus estimate exceeds limit','type':'session_budget_exceeded'}})
             return
         if '/anthropic/' in self.path:
-            self._write(200,{'id':'msg_demo','type':'message','role':'assistant','content':[{'type':'text','text':'Synthetic compliance summary.'}],'model':'claude-demo','stop_reason':'end_turn','usage':{'input_tokens':20,'output_tokens':8}})
+            prompt=''
+            try:
+                prompt=str(rec.get('body',{}).get('messages',[{}])[0].get('content',''))
+            except Exception:
+                pass
+            text='Synthetic vendor contract review. Material gaps: transfer mechanism, subprocessor notice, breach SLA, deletion periods, and unnamed model provider. Human review required.' if 'vendor contract' in prompt.lower() else 'Synthetic compliance summary.'
+            self._write(200,{'id':'msg_demo','type':'message','role':'assistant','content':[{'type':'text','text':text}],'model':'claude-demo','stop_reason':'end_turn','usage':{'input_tokens':20,'output_tokens':8}})
         else:
             self._write(200,{'id':'chatcmpl-demo','object':'chat.completion','model':'gpt-demo','choices':[{'index':0,'message':{'role':'assistant','content':'We received your synthetic refund request and are reviewing it.'},'finish_reason':'stop'}],'usage':{'prompt_tokens':20,'completion_tokens':12,'total_tokens':32}})
 

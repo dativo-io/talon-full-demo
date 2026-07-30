@@ -1,0 +1,168 @@
+{
+  "id": "talonVendorReview01",
+  "name": "Talon Vendor Contract Review",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1f11c890-7b0e-46c8-b917-b98be5e61f11",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-1120, 120]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/demo/input/*.md",
+        "options": {"dataPropertyName": "data"}
+      },
+      "id": "82e05a5e-c223-43c1-9fde-124a211e4ec8",
+      "name": "Read Vendor Package",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [-896, 120]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "binaryPropertyName": "data",
+        "destinationKey": "content",
+        "options": {"encoding": "utf8", "stripBOM": true, "keepSource": "json"}
+      },
+      "id": "e6bd38bd-b2fd-4d7c-817a-51b9914b0528",
+      "name": "Extract Vendor Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [-672, 120]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const docs = $input.all().map((item) => ({\n  filename: String(item.json.fileName || ''),\n  content: String(item.json.content || '')\n}));\nif (docs.length < 3) throw new Error(`Expected at least 3 vendor-review documents, got ${docs.length}`);\ndocs.sort((a, b) => a.filename.localeCompare(b.filename));\nfor (const doc of docs) {\n  if (!/^\\d{2}-.+\\.md$/.test(doc.filename)) throw new Error(`Unexpected vendor-review filename: ${doc.filename}`);\n  if (!doc.content.trim()) throw new Error(`Vendor-review document is empty: ${doc.filename}`);\n}\nconst reviewPackage = docs.map((doc) => `## SOURCE: ${doc.filename}\\n\\n${doc.content.trim()}`).join('\\n\\n---\\n\\n');\nreturn [{ json: { document_count: docs.length, filenames: docs.map((doc) => doc.filename), review_package: reviewPackage } }];"
+      },
+      "id": "8cf72fa1-0de7-40d6-8434-fd564982f37a",
+      "name": "Assemble Review Package",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-448, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TALON_N8N_GATEWAY_URL + '/v1/proxy/openai/v1/chat/completions' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {"parameters": [
+          {"name": "X-Talon-Session-ID", "value": "={{ $env.TALON_N8N_VENDOR_REVIEW_SESSION_ID }}"},
+          {"name": "X-Talon-Client", "value": "n8n-vendor-contract-review-full-demo"},
+          {"name": "Content-Type", "value": "application/json"}
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'gpt-4o-mini', max_tokens: 120, messages: [{ role: 'user', content: 'Review this synthetic vendor contract package and identify material gaps.\\n\\n' + $json.review_package }] } }}",
+        "options": {"timeout": 90000, "response": {"response": {"fullResponse": true, "neverError": true, "responseFormat": "json"}}}
+      },
+      "id": "2d552095-151b-433f-84b8-c76264623c9e",
+      "name": "Probe Disallowed OpenAI Destination",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-208, 120],
+      "credentials": {"httpHeaderAuth": {"id": "talonVendorReviewAuth1", "name": "Talon vendor-contract-review"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $('Assemble Review Package').item.json;\nconst status = Number($json.statusCode || 0);\nconst error = $json.body?.error || {};\nconst code = String(error.code || error.type || $json.body?.code || '');\nconst message = String(error.message || $json.body?.message || '');\nconst acceptedCodes = ['egress_tier_destination_disallowed', 'egress_destination_disallowed'];\nif (status !== 403 || (!acceptedCodes.includes(code) && !acceptedCodes.some((value) => message.includes(value)))) {\n  throw new Error(`Expected Talon egress denial for OpenAI, got HTTP ${status}: ${JSON.stringify($json.body)}`);\n}\nreturn { json: { ...source, denied_destination: 'openai', denial_code: acceptedCodes.includes(code) ? code : acceptedCodes.find((value) => message.includes(value)), denied_provider_cost_usd: 0 } };"
+      },
+      "id": "a58fbd28-8ebf-4df8-9b0f-a5524e99f847",
+      "name": "Require Egress Denial",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [32, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TALON_N8N_GATEWAY_URL + '/v1/proxy/anthropic/v1/messages' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {"parameters": [
+          {"name": "X-Talon-Session-ID", "value": "={{ $env.TALON_N8N_VENDOR_REVIEW_SESSION_ID }}"},
+          {"name": "X-Talon-Client", "value": "n8n-vendor-contract-review-full-demo"},
+          {"name": "Content-Type", "value": "application/json"}
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'claude-haiku-4-5', max_tokens: 600, messages: [{ role: 'user', content: 'Create a concise advisory review of this synthetic vendor contract package. Return Markdown with four sections: Executive summary, Material gaps, Questions for the vendor, and Human review required. Compare the vendor terms with the internal review policy. Do not claim legal compliance and do not invent missing terms.\\n\\n' + $json.review_package }] } }}",
+        "options": {"timeout": 90000, "response": {"response": {"fullResponse": true, "neverError": true, "responseFormat": "json"}}}
+      },
+      "id": "4d46af92-957e-460d-8c86-118f5697e778",
+      "name": "Review Through Approved Anthropic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [272, 120],
+      "credentials": {"httpHeaderAuth": {"id": "talonVendorReviewAuth1", "name": "Talon vendor-contract-review"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $('Require Egress Denial').item.json;\nconst status = Number($json.statusCode || 0);\nconst text = $json.body?.content?.[0]?.text;\nif (status !== 200 || typeof text !== 'string' || !text.trim()) {\n  throw new Error(`Approved Anthropic review failed: HTTP ${status} ${JSON.stringify($json.body)}`);\n}\nconst markdown = `# Synthetic vendor contract review\\n\\n> Advisory first-pass output. Human legal, privacy, security, and procurement review remains required.\\n\\n${text.trim()}\\n`;\nreturn {\n  json: { ...source, approved_destination: 'anthropic', approved_model: String($json.body?.model || 'claude-haiku-4-5'), report_file: 'vendor-contract-review.md' },\n  binary: { data: { data: Buffer.from(markdown, 'utf8').toString('base64'), mimeType: 'text/markdown', fileName: 'vendor-contract-review.md', fileExtension: 'md' } }\n};"
+      },
+      "id": "7f73172c-170e-4c8c-90a0-60076804a3f1",
+      "name": "Build Review Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [512, 120]
+    },
+    {
+      "parameters": {"operation": "write", "fileName": "/demo/output/vendor-contract-review.md", "dataPropertyName": "data", "options": {}},
+      "id": "215345ca-c6d6-4ed2-a38a-e63374329bf7",
+      "name": "Write Review Report",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [752, 72]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const report = $('Build Review Report').item.json;\nconst result = {\n  status: 'completed',\n  result: 'controlled_vendor_review',\n  session_id: $env.TALON_N8N_VENDOR_REVIEW_SESSION_ID,\n  operational_id: 'vendor-contract-review',\n  documents_reviewed: report.document_count,\n  denied_destination: report.denied_destination,\n  denial_code: report.denial_code,\n  denied_provider_cost_usd: 0,\n  approved_destination: report.approved_destination,\n  approved_model: report.approved_model,\n  pii_expected: ['email', 'iban'],\n  report_file: report.report_file,\n  human_review_required: true\n};\nconst rendered = JSON.stringify(result, null, 2) + '\\n';\nreturn { json: result, binary: { data: { data: Buffer.from(rendered, 'utf8').toString('base64'), mimeType: 'application/json', fileName: 'status.json', fileExtension: 'json' } } };"
+      },
+      "id": "a33ca0de-e8a1-4347-a5cb-cb7fe991e230",
+      "name": "Build Review Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [752, 216]
+    },
+    {
+      "parameters": {"operation": "write", "fileName": "/demo/output/status.json", "dataPropertyName": "data", "options": {}},
+      "id": "814987c4-a5c6-4ca5-9a17-47e6417f5761",
+      "name": "Write Review Status",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [992, 216]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {"main": [[{"node": "Read Vendor Package", "type": "main", "index": 0}]]},
+    "Read Vendor Package": {"main": [[{"node": "Extract Vendor Text", "type": "main", "index": 0}]]},
+    "Extract Vendor Text": {"main": [[{"node": "Assemble Review Package", "type": "main", "index": 0}]]},
+    "Assemble Review Package": {"main": [[{"node": "Probe Disallowed OpenAI Destination", "type": "main", "index": 0}]]},
+    "Probe Disallowed OpenAI Destination": {"main": [[{"node": "Require Egress Denial", "type": "main", "index": 0}]]},
+    "Require Egress Denial": {"main": [[{"node": "Review Through Approved Anthropic", "type": "main", "index": 0}]]},
+    "Review Through Approved Anthropic": {"main": [[{"node": "Build Review Report", "type": "main", "index": 0}]]},
+    "Build Review Report": {"main": [[{"node": "Write Review Report", "type": "main", "index": 0}]]},
+    "Write Review Report": {"main": [[{"node": "Build Review Status", "type": "main", "index": 0}]]},
+    "Build Review Status": {"main": [[{"node": "Write Review Status", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "saveManualExecutions": true, "callerPolicy": "workflowsFromSameOwner"},
+  "pinData": {},
+  "tags": [],
+  "versionId": "cad15e3c-ab5b-468e-9bb5-7c846c2ef17e"
+}

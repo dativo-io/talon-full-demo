@@ -1,0 +1,53 @@
+# Full-demo overlay — vendor-contract-review
+#
+# A procurement/legal-operations workflow reviews a synthetic vendor package.
+# The same confidential input is first sent toward OpenAI as an explicit negative
+# probe; the agent's egress policy denies that destination before provider access.
+# n8n then sends the package to the approved Anthropic destination. The
+# organization baseline redacts PII, and signed evidence records both decisions.
+agent:
+  name: vendor-contract-review
+  description: "Vendor contract review — confidential-data destination boundary and PII redaction"
+  version: "1.0.0"
+  tenant_id: acme
+  use_case:
+    purpose: "Create an advisory first-pass review of vendor contracts and DPAs"
+    department: "Procurement and Legal Operations"
+    criticality: important
+    owners:
+      business: "procurement-ops@acme.example"
+      technical: "ai-platform@acme.example"
+      budget: "procurement-ops@acme.example"
+      risk: "privacy-office@acme.example"
+    references:
+      - "AIGOV-104"
+      - "https://wiki.acme.example/ai/vendor-contract-review"
+  key:
+    secret_name: vendor-contract-review-talon-key
+
+policies:
+  # Both destinations are configured and available to the use case so the demo
+  # isolates the egress rule rather than failing on a provider allowlist or a
+  # missing provider secret. Confidential data may leave only through Anthropic.
+  allowed_providers: ["openai", "anthropic"]
+  egress:
+    default_action: deny
+    rules:
+      - tier: public
+        allowed_providers: ["openai", "anthropic"]
+      - tier: internal
+        allowed_providers: ["anthropic"]
+      - tier: confidential
+        allowed_providers: ["anthropic"]
+  data_classification:
+    input_scan: true
+    redact_input: true
+  cost_limits:
+    daily: 5.00
+    monthly: 100.00
+  session_limits:
+    max_cost: 0.05
+
+metadata:
+  team: procurement-operations
+  tags: ["workflow:n8n", "data:confidential-contracts"]
