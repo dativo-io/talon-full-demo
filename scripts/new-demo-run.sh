@@ -6,7 +6,7 @@ set -euo pipefail
 # carries a session or correlation derives from a single TALON_DEMO_RUN_ID.
 #
 # Writes .state/demo-run.env (mode 0600). Consumers (start-components.sh,
-# render-copilot-mcp-config.sh, the Zendesk adapter, assemble-n8n-report.sh,
+# render-copilot-mcp-config.sh, the Zendesk adapter, n8n runners, and
 # assert-evidence.sh) source or read these values. preflight.sh calls this at
 # the start of every run; run it before starting local components so the shim
 # and adapter pick up the per-run sessions.
@@ -31,13 +31,15 @@ export TALON_RUN_START_RFC3339=$START_RFC3339
 export TALON_COPILOT_SESSION_ID=copilot-$RUN_ID
 export TALON_N8N_SESSION_ID=n8n-$RUN_ID
 export TALON_N8N_VENDOR_REVIEW_SESSION_ID=n8n-vendor-review-$RUN_ID
+export TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID=n8n-support-resolution-$RUN_ID
 export RELEASE_RUN_NONCE=$NONCE
 EOF_RUN
 chmod 0600 "$OUT"
 
 echo "Demo run id: $RUN_ID"
-echo "  copilot session:       copilot-$RUN_ID"
-echo "  n8n session:           n8n-$RUN_ID"
-echo "  vendor-review session: n8n-vendor-review-$RUN_ID"
-echo "  run nonce:             $NONCE"
+echo "  copilot session:           copilot-$RUN_ID"
+echo "  n8n session:               n8n-$RUN_ID"
+echo "  vendor-review session:     n8n-vendor-review-$RUN_ID"
+echo "  support-resolution session: n8n-support-resolution-$RUN_ID"
+echo "  run nonce:                 $NONCE"
 echo "  values written to $OUT (source it, or let the demo scripts read it)"
