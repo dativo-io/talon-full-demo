@@ -55,9 +55,25 @@ for line in 'Invalid records: 0' 'Missing signature: 0' 'Could not parse: 0'; do
 done
 
 # When --since is set, restrict the working set to the current run's records.
-# RFC3339 UTC timestamps sort lexically, so a string compare is a valid ordering.
+# Talon timestamps may carry fractional seconds while a shell-captured run start
+# may not. Raw string comparison is wrong in that case because '.' sorts before
+# 'Z' (`...25.7Z` would appear older than `...25Z`). Normalize UTC timestamps to
+# a fixed nine-digit fractional form before comparing, preserving lexical RFC3339
+# ordering without discarding records created in the run's boundary second.
 if [[ -n "$SINCE" ]]; then
-  jq --arg t "$SINCE" '{records: [.records[] | select(.timestamp >= $t)]}' "$EXPORT_FILE" > "$EXPORT_FILE.win" \
+  jq --arg t "$SINCE" '
+    def fixed_rfc3339:
+      if test("\\.[0-9]+Z$") then
+        capture("^(?<base>.*\\.)(?<fraction>[0-9]+)Z$") as $m
+        | $m.base + (($m.fraction + "000000000")[0:9]) + "Z"
+      elif test("Z$") then
+        sub("Z$"; ".000000000Z")
+      else
+        .
+      end;
+    ($t | fixed_rfc3339) as $start
+    | {records: [.records[] | select((.timestamp | fixed_rfc3339) >= $start)]}
+  ' "$EXPORT_FILE" > "$EXPORT_FILE.win" \
     && mv "$EXPORT_FILE.win" "$EXPORT_FILE"
 fi
 
