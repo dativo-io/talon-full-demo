@@ -21,8 +21,14 @@ EOF_QUARTERLY
 export TALON_N8N_VENDOR_REVIEW_PRESENTED_SESSION_ID=$TALON_N8N_VENDOR_REVIEW_SESSION_ID
 EOF_VENDOR
     ;;
+  support-resolution)
+    [[ -n "${TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID:-}" ]] || { echo 'TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID is empty' >&2; exit 1; }
+    cat >"$ROOT/.state/latest-n8n-support-resolution-session.env" <<EOF_SUPPORT
+export TALON_N8N_SUPPORT_RESOLUTION_PRESENTED_SESSION_ID=$TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID
+EOF_SUPPORT
+    ;;
   *)
-    echo 'usage: scripts/record-latest-n8n-session.sh quarterly|vendor-review' >&2
+    echo 'usage: scripts/record-latest-n8n-session.sh quarterly|vendor-review|support-resolution' >&2
     exit 2
     ;;
 esac
