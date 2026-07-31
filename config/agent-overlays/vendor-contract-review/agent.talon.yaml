@@ -5,23 +5,20 @@
 # probe; the agent's egress policy denies that destination before provider access.
 # n8n then sends the package to the approved Anthropic destination. The
 # organization baseline redacts PII, and signed evidence records both decisions.
+#
+# Compatibility boundary: the full demo supports the released Talon v1.9.3 CLI.
+# Newer Talon versions support agent.use_case operating records, but v1.9.3 treats
+# that block as an unknown gateway-policy key. Keep the descriptive ownership
+# context in comments/docs and use only fields accepted by the released demo CLI.
+# Business owner: procurement-ops@acme.example
+# Technical owner: ai-platform@acme.example
+# Risk owner: privacy-office@acme.example
+# Operating reference: AIGOV-104
 agent:
   name: vendor-contract-review
   description: "Vendor contract review — confidential-data destination boundary and PII redaction"
   version: "1.0.0"
   tenant_id: acme
-  use_case:
-    purpose: "Create an advisory first-pass review of vendor contracts and DPAs"
-    department: "Procurement and Legal Operations"
-    criticality: important
-    owners:
-      business: "procurement-ops@acme.example"
-      technical: "ai-platform@acme.example"
-      budget: "procurement-ops@acme.example"
-      risk: "privacy-office@acme.example"
-    references:
-      - "AIGOV-104"
-      - "https://wiki.acme.example/ai/vendor-contract-review"
   key:
     secret_name: vendor-contract-review-talon-key
 
