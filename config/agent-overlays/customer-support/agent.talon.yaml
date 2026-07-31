@@ -1,0 +1,26 @@
+# Full-demo overlay — customer-support
+#
+# Compatible with the Talon v1.9.3 runtime floor used by this repository.
+# The use case may draft replies and inspect context supplied by n8n, but a
+# governed model request may never expose the financial `issue_refund` tool.
+agent:
+  name: customer-support
+  description: "Customer support assistant — PII redaction, policy-valid fallback, and refund action boundary"
+  version: "1.0.0"
+  tenant_id: acme
+  key:
+    secret_name: customer-support-talon-key
+
+capabilities:
+  forbidden_tools: ["issue_refund"]
+
+policies:
+  allowed_providers: ["local-llama", "openai"]
+  data_classification:
+    input_scan: true
+  cost_limits:
+    monthly: 200.00
+
+metadata:
+  team: support
+  tags: ["workflow:n8n", "action:human-approved-refund"]
