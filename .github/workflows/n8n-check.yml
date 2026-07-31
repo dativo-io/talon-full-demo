@@ -11,16 +11,20 @@ permissions:
 jobs:
   clean-import:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - name: Verify runner dependencies
         run: |
           command -v jq
           command -v docker
+      - name: Verify support resolution contracts
+        run: bash ./scripts/validate-support-resolution-contracts.sh
       - name: Pull pinned n8n image
         run: docker pull docker.n8n.io/n8nio/n8n:2.30.4
       - name: Validate quarterly budget workflow
         run: make n8n-validate
       - name: Validate vendor contract review workflow
         run: make n8n-vendor-review-validate
+      - name: Validate customer support resolution workflow
+        run: make n8n-support-resolution-validate

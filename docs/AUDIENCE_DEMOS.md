@@ -17,8 +17,9 @@ The buyer and technical views never use separate fixtures or presenter-authored 
 | GitHub Copilot CLI | `make demo-copilot-buyer` | `make demo-copilot-tech` | `make present-copilot-all` |
 | n8n quarterly workflow | `make demo-n8n-buyer` | `make demo-n8n-tech` | `make present-n8n-all` |
 | n8n vendor-contract review | `make demo-n8n-vendor-review-buyer` | `make demo-n8n-vendor-review-tech` | `make present-n8n-vendor-review-all` |
+| n8n customer-support resolution | `make demo-n8n-support-resolution-buyer` | `make demo-n8n-support-resolution-tech` | `make present-n8n-support-resolution-all` |
 
-All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first. The n8n cases additionally require Docker and an Anthropic key seeded by `real-prepare`.
+All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first. Every n8n case additionally requires Docker. The quarterly and vendor-review cases require Anthropic; the support-resolution case requires OpenAI.
 
 ## 1. Customer-support gateway
 
@@ -160,33 +161,78 @@ The presenter fails unless all of the following agree:
 
 The model output is an advisory first pass. Talon does not decide whether the vendor terms are legally sufficient, and the demo does not claim compliance.
 
+## 6. n8n customer-support resolution
+
+The repository contains `integrations/n8n/customer-support-resolution-workflow.json` and three synthetic inputs under `cases/customer-support-resolution`:
+
+- duplicate-charge ticket `SUP-1042` with a customer email and IBAN;
+- account context showing two matching EUR 249 charges;
+- refund policy requiring human support and finance approval.
+
+Validate the artifact without provider credentials:
+
+```bash
+make n8n-support-resolution-validate
+```
+
+The clean-import gate proves that the committed workflow creates a reply, interprets a zero-cost forbidden-tool response as an expected business state, exports no credential value, clean-imports, and reproduces the result. The mock does not claim to prove real failover or PII handling.
+
+Run the real application path:
+
+```bash
+make demo-n8n-support-resolution-buyer
+make demo-n8n-support-resolution-tech
+```
+
+The first request goes through the preferred local provider. With Ollama intentionally offline, Talon records the failed route, skips `openai-batch` because the use case may not reach it, selects OpenAI, redacts email and IBAN, and returns a customer-reply draft.
+
+A later request in the same session declares and forces the `issue_refund` function. The customer-support overlay forbids that tool, while the organization policy uses block mode. Talon therefore rejects the request before provider dispatch. n8n preserves the draft and writes:
+
+- `.state/n8n-support-resolution-output/customer-support-resolution.md` — the reply and explicit pending-approval status;
+- `.state/n8n-support-resolution-output/status.json` — the ticket, amount, blocked tool, zero denied cost, and required human approval.
+
+The presenter fails unless all of the following agree:
+
+- both application artifacts reference the requested session and ticket;
+- every Talon record belongs to `customer-support`;
+- signed evidence proves confidential-tier email and IBAN redaction;
+- signed evidence proves local-provider failure, the skipped disallowed candidate, and approved OpenAI fallback;
+- a later signed record shows `issue_refund` requested and filtered under a denied policy decision;
+- the denied request has zero provider cost;
+- every exported signature verifies.
+
+Talon does not execute, approve, or decline the refund. It proves that this governed provider request could not expose the forbidden financial action upstream.
+
 ## Presentation order
 
 For most buyer meetings:
 
-1. `make demo-support-buyer`
+1. `make demo-n8n-support-resolution-buyer` — broadest story: useful output, PII handling, reliability, and financial action control
 2. `make demo-n8n-vendor-review-buyer` when confidential documents or approved-provider boundaries matter
-3. `make demo-copilot-buyer`
+3. `make demo-copilot-buyer` when coding-agent governance matters
 4. `make demo-n8n-buyer` when workflow cost control is relevant
 5. expand one scene with its technical presenter only when the audience asks how the proof works.
 
 For a platform or security review:
 
-1. `make demo-support-tech`
+1. `make demo-n8n-support-resolution-tech`
 2. `make demo-n8n-vendor-review-tech`
 3. `make demo-copilot-tech`
 4. `make demo-n8n-tech`
 5. `make live-check` for the separate adversarial MCP denial and hermetic budget-engine proof.
 
-Use the Zendesk scene when the buyer owns customer-support operations. Pair the adapter proof with the offline-inspected package, but make the Zendesk-validated or installed-app claim only after the authenticated ZCLI and account/browser gates are complete.
+Use the direct support and Zendesk scenes when the buyer specifically owns customer-support operations or wants to inspect an adapter/private-app path. Pair the Zendesk adapter proof with the offline-inspected package, but make the Zendesk-validated or installed-app claim only after the authenticated ZCLI and account/browser gates are complete.
 
 ## Truth boundaries
 
 - Talon claims only the traffic and actions routed through its interception boundaries.
 - Provider routes, redaction, cost, identity, denials, and signatures come from Talon evidence.
+- A blocked tool schema proves the tool was not offered through that governed provider request; it is not proof about payment actions outside Talon.
+- Talon does not execute, approve, or decline refunds.
 - An offline Zendesk ZIP is not described as Zendesk server-validated.
 - Zendesk UI behavior is operator-confirmed; the backend session is machine-verified.
 - n8n results require real workflow artifacts and matching evidence, never the specification alone.
 - Session budgets are soft caps: completed requests may consume budget before the next request is denied.
 - Vendor-review outputs are advisory and synthetic; human legal, privacy, security, and procurement review remains required.
+- All customer-support ticket and account data in this repository are synthetic.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.

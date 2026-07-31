@@ -32,6 +32,7 @@ values = {
     "TALON_COPILOT_SESSION_ID": "copilot-billing-demo",
     "TALON_N8N_SESSION_ID": "n8n-quarterly-demo",
     "TALON_N8N_VENDOR_REVIEW_SESSION_ID": "n8n-vendor-review-demo",
+    "TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID": "n8n-support-resolution-demo",
     "ZENDESK_ADAPTER_TOKEN": secrets.token_hex(32),
     "ZENDESK_ADAPTER_DOMAIN": "",
     "ZENDESK_ADAPTER_BIND": "127.0.0.1:8443",
