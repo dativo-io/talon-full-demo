@@ -38,10 +38,28 @@ wait_for() {
   return 1
 }
 
-MOCK_PORT="$(free_port)"
-SHIM_PORT="$(free_port)"
-ADAPTER_PORT="$(free_port)"
-MCP_PORT="$(free_port)"
+# Reserve all initial ports in one Python process so none can be selected twice.
+# The old sequence called free_port four times after closing each socket; the OS
+# could return the same number twice, making one test service answer another's
+# URL with an intermittent 404.
+read -r MOCK_PORT SHIM_PORT ADAPTER_PORT MCP_PORT < <(python3 - <<'PYPORTS'
+import socket
+
+sockets=[]
+try:
+    for _ in range(4):
+        sock=socket.socket()
+        sock.bind(('127.0.0.1', 0))
+        sockets.append(sock)
+    print(*(sock.getsockname()[1] for sock in sockets))
+finally:
+    for sock in sockets:
+        sock.close()
+PYPORTS
+)
+[[ "$MOCK_PORT" != "$SHIM_PORT" && "$MOCK_PORT" != "$ADAPTER_PORT" && "$MOCK_PORT" != "$MCP_PORT" \
+   && "$SHIM_PORT" != "$ADAPTER_PORT" && "$SHIM_PORT" != "$MCP_PORT" && "$ADAPTER_PORT" != "$MCP_PORT" ]] \
+  || { echo 'local integration port allocator returned duplicates' >&2; exit 1; }
 
 MOCK_TALON_PORT="$MOCK_PORT" MOCK_TALON_LOG="$TMP/requests.jsonl" \
   python3 "$ROOT/mock/mock_talon.py" >"$TMP/mock.log" 2>&1 &
