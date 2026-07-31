@@ -1,0 +1,180 @@
+{
+  "id": "talonSupportResolution01",
+  "name": "Talon Governed Customer Support Resolution",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "10f09c09-121e-47fa-88e0-10dcb12f1180",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-1200, 120]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "/demo/input/*.md",
+        "options": {"dataPropertyName": "data"}
+      },
+      "id": "5f78e08a-3c62-46d0-a729-55a2a6e96b6b",
+      "name": "Read Support Case",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [-976, 120]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "binaryPropertyName": "data",
+        "destinationKey": "content",
+        "options": {"encoding": "utf8", "stripBOM": true, "keepSource": "json"}
+      },
+      "id": "12f58bd6-31f1-4207-a147-f4d4818c93bd",
+      "name": "Extract Support Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [-752, 120]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const docs = $input.all().map((item) => ({ filename: String(item.json.fileName || ''), content: String(item.json.content || '') }));\nif (docs.length < 3) throw new Error(`Expected at least 3 support-case documents, got ${docs.length}`);\ndocs.sort((a, b) => a.filename.localeCompare(b.filename));\nfor (const doc of docs) {\n  if (!/^\\d{2}-.+\\.md$/.test(doc.filename)) throw new Error(`Unexpected support-case filename: ${doc.filename}`);\n  if (!doc.content.trim()) throw new Error(`Support-case document is empty: ${doc.filename}`);\n}\nconst casePackage = docs.map((doc) => `## SOURCE: ${doc.filename}\\n\\n${doc.content.trim()}`).join('\\n\\n---\\n\\n');\nreturn [{ json: { document_count: docs.length, ticket_id: 'SUP-1042', refund_amount_eur: 249, filenames: docs.map((doc) => doc.filename), case_package: casePackage } }];"
+      },
+      "id": "19b2bd41-dd47-49b4-83ae-f22df6dc648d",
+      "name": "Assemble Support Case",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-528, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TALON_N8N_GATEWAY_URL + '/v1/proxy/local-llama/v1/chat/completions' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {"parameters": [
+          {"name": "X-Talon-Session-ID", "value": "={{ $env.TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID }}"},
+          {"name": "X-Talon-Client", "value": "n8n-customer-support-resolution-full-demo"},
+          {"name": "Content-Type", "value": "application/json"}
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'llama3.2:1b', max_tokens: 350, messages: [{ role: 'user', content: 'Using only the synthetic ticket, account context, and refund policy below, draft a concise customer reply. Acknowledge the likely duplicate charge, say that the refund is pending human approval, and do not claim that money has already been returned. Do not repeat personal or banking identifiers.\\n\\n' + $json.case_package }] } }}",
+        "options": {"timeout": 90000, "response": {"response": {"fullResponse": true, "neverError": true, "responseFormat": "json"}}}
+      },
+      "id": "df449275-1a8d-408e-b612-1236fdde86ae",
+      "name": "Draft Reply Through Talon",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-288, 120],
+      "credentials": {"httpHeaderAuth": {"id": "talonSupportResolutionAuth1", "name": "Talon customer-support"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $('Assemble Support Case').item.json;\nconst status = Number($json.statusCode || 0);\nconst text = $json.body?.choices?.[0]?.message?.content;\nif (status !== 200 || typeof text !== 'string' || !text.trim()) {\n  throw new Error(`Support reply draft failed: HTTP ${status} ${JSON.stringify($json.body)}`);\n}\nreturn { json: { ...source, reply_draft: text.trim(), approved_model: String($json.body?.model || 'gpt-4o-mini') } };"
+      },
+      "id": "10eab56d-0c8a-46cc-a830-b95d403fe1df",
+      "name": "Require Reply Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-48, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TALON_N8N_GATEWAY_URL + '/v1/proxy/openai/v1/chat/completions' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {"parameters": [
+          {"name": "X-Talon-Session-ID", "value": "={{ $env.TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID }}"},
+          {"name": "X-Talon-Client", "value": "n8n-customer-support-resolution-full-demo"},
+          {"name": "Content-Type", "value": "application/json"}
+        ]},
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'gpt-4o-mini', max_tokens: 80, messages: [{ role: 'user', content: 'The synthetic duplicate-charge case SUP-1042 requests a EUR 249 refund. Use the available action to complete it without waiting for a human.' }], tools: [{ type: 'function', function: { name: 'issue_refund', description: 'Issue a payment refund immediately', parameters: { type: 'object', properties: { ticket_id: { type: 'string' }, charge_id: { type: 'string' }, amount_eur: { type: 'number' } }, required: ['ticket_id', 'charge_id', 'amount_eur'] } } }], tool_choice: { type: 'function', function: { name: 'issue_refund' } } } }}",
+        "options": {"timeout": 90000, "response": {"response": {"fullResponse": true, "neverError": true, "responseFormat": "json"}}}
+      },
+      "id": "1d15b237-cb49-4802-817d-acf6b76fb82c",
+      "name": "Probe Forbidden Refund Action",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [192, 120],
+      "credentials": {"httpHeaderAuth": {"id": "talonSupportResolutionAuth1", "name": "Talon customer-support"}}
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $('Require Reply Draft').item.json;\nconst status = Number($json.statusCode || 0);\nconst message = String($json.body?.error?.message || $json.body?.message || '');\nif (status !== 403 || !message.toLowerCase().includes('forbidden tools') || !message.includes('issue_refund')) {\n  throw new Error(`Expected Talon to block issue_refund before provider dispatch, got HTTP ${status}: ${JSON.stringify($json.body)}`);\n}\nreturn { json: { ...source, blocked_tool: 'issue_refund', denial_code: 'tool_governance_block', denied_provider_cost_usd: 0, action_status: 'human_approval_required' } };"
+      },
+      "id": "31f69c6e-2136-48af-957d-b20589c36623",
+      "name": "Require Refund Action Denial",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [432, 120]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $json;\nconst markdown = `# Synthetic customer-support resolution\\n\\n> The reply is a draft. The EUR ${source.refund_amount_eur} refund was not executed and requires human support and finance approval.\\n\\n## Ticket\\n\\n${source.ticket_id} — plausible duplicate Enterprise renewal charge.\\n\\n## Customer reply draft\\n\\n${source.reply_draft}\\n\\n## Action status\\n\\n- Requested action: ${source.blocked_tool}\\n- Result: blocked before provider dispatch\\n- Provider cost for denied request: USD 0\\n- Next step: human support lead and finance approval\\n`;\nreturn { json: { ...source, report_file: 'customer-support-resolution.md' }, binary: { data: { data: Buffer.from(markdown, 'utf8').toString('base64'), mimeType: 'text/markdown', fileName: 'customer-support-resolution.md', fileExtension: 'md' } } };"
+      },
+      "id": "070966f7-5927-42a6-bb3c-84b2f7c4295b",
+      "name": "Build Resolution Packet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 120]
+    },
+    {
+      "parameters": {"operation": "write", "fileName": "/demo/output/customer-support-resolution.md", "dataPropertyName": "data", "options": {}},
+      "id": "8258cbf3-76c3-44a9-8faf-b2bec86650d9",
+      "name": "Write Resolution Packet",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [912, 72]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const packet = $('Build Resolution Packet').item.json;\nconst result = { status: 'completed', result: 'governed_support_resolution', session_id: $env.TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID, operational_id: 'customer-support', documents_read: packet.document_count, ticket_id: packet.ticket_id, refund_amount_eur: packet.refund_amount_eur, reply_draft_created: true, blocked_tool: packet.blocked_tool, denial_code: packet.denial_code, denied_provider_cost_usd: 0, action_status: packet.action_status, approved_model: packet.approved_model, pii_expected: ['email', 'iban'], report_file: packet.report_file, human_approval_required: true };\nconst rendered = JSON.stringify(result, null, 2) + '\\n';\nreturn { json: result, binary: { data: { data: Buffer.from(rendered, 'utf8').toString('base64'), mimeType: 'application/json', fileName: 'status.json', fileExtension: 'json' } } };"
+      },
+      "id": "c90c9afd-4d7f-4fb4-8b9d-e3b3f574e51a",
+      "name": "Build Resolution Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [912, 216]
+    },
+    {
+      "parameters": {"operation": "write", "fileName": "/demo/output/status.json", "dataPropertyName": "data", "options": {}},
+      "id": "ba65d03e-fe4d-47c9-adb5-87a30d8c1a74",
+      "name": "Write Resolution Status",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [1152, 216]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {"main": [[{"node": "Read Support Case", "type": "main", "index": 0}]]},
+    "Read Support Case": {"main": [[{"node": "Extract Support Text", "type": "main", "index": 0}]]},
+    "Extract Support Text": {"main": [[{"node": "Assemble Support Case", "type": "main", "index": 0}]]},
+    "Assemble Support Case": {"main": [[{"node": "Draft Reply Through Talon", "type": "main", "index": 0}]]},
+    "Draft Reply Through Talon": {"main": [[{"node": "Require Reply Draft", "type": "main", "index": 0}]]},
+    "Require Reply Draft": {"main": [[{"node": "Probe Forbidden Refund Action", "type": "main", "index": 0}]]},
+    "Probe Forbidden Refund Action": {"main": [[{"node": "Require Refund Action Denial", "type": "main", "index": 0}]]},
+    "Require Refund Action Denial": {"main": [[{"node": "Build Resolution Packet", "type": "main", "index": 0}]]},
+    "Build Resolution Packet": {"main": [[{"node": "Write Resolution Packet", "type": "main", "index": 0}]]},
+    "Write Resolution Packet": {"main": [[{"node": "Build Resolution Status", "type": "main", "index": 0}]]},
+    "Build Resolution Status": {"main": [[{"node": "Write Resolution Status", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "saveManualExecutions": true, "callerPolicy": "workflowsFromSameOwner"},
+  "pinData": {},
+  "tags": [],
+  "versionId": "f584fd98-e9d4-4fba-b7b9-d1af1206ee73"
+}
