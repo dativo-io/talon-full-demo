@@ -17,8 +17,27 @@ BUDGET=int(os.environ.get('MOCK_TALON_SESSION_BUDGET_REQUESTS','0') or '0')
 # A matching provider path is denied before the mock provider response, with the
 # same egress machine code real Talon exposes. Existing mock modes are unchanged.
 DENY_PROVIDER=os.environ.get('MOCK_TALON_DENY_PROVIDER','').strip().lower()
+# Optional gateway tool-schema denial used by the support-resolution workflow.
+# A request declaring the named OpenAI/Anthropic tool is rejected before the
+# mock provider response and carries zero simulated provider cost.
+DENY_TOOL=os.environ.get('MOCK_TALON_DENY_TOOL','').strip()
 _sessions={}
 _lock=threading.Lock()
+
+def tool_names(body):
+    if not isinstance(body, dict):
+        return []
+    names=[]
+    for tool in body.get('tools') or []:
+        if not isinstance(tool, dict):
+            continue
+        name=tool.get('name')
+        fn=tool.get('function')
+        if not name and isinstance(fn, dict):
+            name=fn.get('name')
+        if isinstance(name, str) and name:
+            names.append(name)
+    return names
 
 class H(BaseHTTPRequestHandler):
     protocol_version='HTTP/1.1'
@@ -39,9 +58,13 @@ class H(BaseHTTPRequestHandler):
         rec={'path':self.path,'headers':{k.lower():v for k,v in self.headers.items()},'body_raw':raw.decode(errors='replace')}
         try: rec['body']=json.loads(raw or b'{}')
         except Exception: rec['body']=None
+        rec['tool_names']=tool_names(rec['body'])
         denied=False
         denial_code=''
-        if DENY_PROVIDER and f'/{DENY_PROVIDER}/' in self.path.lower():
+        if DENY_TOOL and DENY_TOOL in rec['tool_names']:
+            denied=True
+            denial_code='tool_governance_block'
+        elif DENY_PROVIDER and f'/{DENY_PROVIDER}/' in self.path.lower():
             denied=True
             denial_code='egress_tier_destination_disallowed'
         elif BUDGET>0:
@@ -57,6 +80,9 @@ class H(BaseHTTPRequestHandler):
         rec['cost_usd']=0.0 if denied else 0.0001
         LOG.parent.mkdir(parents=True,exist_ok=True)
         with LOG.open('a') as f: f.write(json.dumps(rec)+'\n')
+        if denied and denial_code=='tool_governance_block':
+            self._write(403,{'error':{'message':f'Request contains forbidden tools: [{DENY_TOOL}]','type':'policy_denied'}})
+            return
         if denied and denial_code.startswith('egress_'):
             self._write(403,{'error':{'message':f'{denial_code}: confidential data may not egress to provider {DENY_PROVIDER}','type':denial_code,'code':denial_code}})
             return
