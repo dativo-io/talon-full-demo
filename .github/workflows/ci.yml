@@ -25,5 +25,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
+      - name: Verify vendor policy released-schema compatibility
+        run: bash scripts/test-vendor-policy-compatibility.sh
       - name: Run repository CI contract
         run: make ci
