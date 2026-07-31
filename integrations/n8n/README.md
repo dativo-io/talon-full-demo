@@ -4,8 +4,9 @@ This directory contains real, credential-free workflow exports for the pinned `n
 
 - `quarterly-compliance-workflow.json` — sequential document summaries with a session-budget stop;
 - `vendor-contract-review-workflow.json` — confidential vendor-package review with an egress denial before an approved provider call;
+- `customer-support-resolution-workflow.json` — duplicate-charge reply drafting with PII redaction, policy-valid fallback, and a blocked refund action;
 - `compose.yaml` — loopback-only UI runtime for Ubuntu/Linux rehearsals;
-- `workflow-spec.md` and `vendor-contract-review-spec.md` — human-readable behavior and truth contracts.
+- the accompanying `*-spec.md` files — human-readable behavior and truth contracts.
 
 ## Quarterly-report workflow
 
@@ -99,22 +100,63 @@ The buyer and technical views fail closed unless application artifacts and signe
 
 The model output is an advisory first pass, not legal advice or a compliance determination.
 
+## Customer-support resolution workflow
+
+The workflow reads three synthetic inputs under `cases/customer-support-resolution`:
+
+- a duplicate-charge ticket containing an email and IBAN;
+- account and charge context;
+- a refund policy requiring human support and finance approval.
+
+It produces one reply draft and then exercises the financial-action boundary in the same Talon session:
+
+```text
+Draft request through preferred local provider
+  → local provider is unavailable
+  → disallowed openai-batch candidate is skipped
+  → approved OpenAI fallback receives redacted input
+  → reply draft completes
+
+Autonomous refund-action branch
+  → request declares the issue_refund tool
+  → Talon blocks the request before provider dispatch
+  → denied provider cost is zero
+  → n8n preserves the draft and writes human-approval status
+```
+
+Talon does not execute or approve the refund. The proof is that the governed model request could not expose `issue_refund` upstream; n8n then converted the structured denial into an explicit business state.
+
+### Credential-free clean-import validation
+
+```bash
+make n8n-support-resolution-validate
+```
+
+The gate imports, executes, exports without credential values, clean-imports, and executes again against a mock reply-then-tool-denial contract. The mock does not prove real provider fallback; the real signed session does.
+
+### Real Talon + OpenAI demo
+
+```bash
+make demo-n8n-support-resolution-buyer
+make present-n8n-support-resolution-all
+```
+
+The presenters fail closed unless application artifacts and signed evidence agree on:
+
+- `customer-support` attribution;
+- confidential-tier email and IBAN redaction;
+- local provider failure, skipped disallowed fallback, and approved OpenAI selection;
+- a later `issue_refund` tool-schema denial;
+- zero provider cost on the denied action request;
+- matching session identity and valid signatures.
+
 ## Audit-capable presentation CLI
 
 The already-running Talon service may use a released binary whose `audit export` command predates session-filtered signed exports. Runtime execution continues to use that service unchanged. Presentation commands select a compatible installed CLI or build and cache the repository-pinned CLI under `.state/talon-audit-cli/`. This does not restart or replace the running gateway.
 
 ## Optional UI import
 
-The automated CLI runners are the canonical demo paths. To inspect the quarterly workflow in the n8n UI:
-
-```bash
-source .env
-source .state/demo-run.env
-mkdir -p .state/n8n-config .state/n8n-output
-bash scripts/render-n8n-credential.sh
-cp integrations/n8n/quarterly-compliance-workflow.json .state/n8n-config/workflow.json
-docker compose -f integrations/n8n/compose.yaml up
-```
+The automated CLI runners are the canonical demo paths. To inspect one of the workflows in the n8n UI, render its Header Auth credential into `.state`, copy the selected committed workflow to `.state/n8n-config/workflow.json`, and start `integrations/n8n/compose.yaml`.
 
 The Compose runtime uses Linux host networking because Talon deliberately binds only to host loopback. `N8N_LISTEN_ADDRESS=127.0.0.1` keeps the n8n UI loopback-only as well. Never commit generated credential files.
 
@@ -123,5 +165,7 @@ The Compose runtime uses Linux host networking because Talon deliberately binds 
 - Session budgets are soft caps. Completed requests may consume budget before the next request is denied.
 - The quarterly staged cap is a transparent demo policy change, not a hidden product claim.
 - The vendor-review contract and data are synthetic; human legal, privacy, security, and procurement review remains required.
-- Talon proves only controls applied to traffic routed through it. Direct model calls or document copies that bypass Talon are outside the proof.
+- The support-resolution ticket and account data are synthetic. Talon does not execute, approve, or decline the refund.
+- A blocked tool schema proves that the tool was not offered through that governed provider request; it is not proof about actions outside Talon.
+- Talon proves only controls applied to traffic routed through it. Direct model calls, document copies, or payment actions that bypass Talon are outside the proof.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.
