@@ -44,10 +44,13 @@ jq -e '
   and (.nodes | length) >= 18
   and any(.nodes[]; .name == "Draft Reply Through Talon"
       and (.parameters.url | contains("/local-llama/"))
+      and (.parameters.jsonBody | contains("llama3.2:1b"))
       and (.parameters.jsonBody | contains("write only the body"))
       and (.parameters.jsonBody | contains("Do not include a subject line")))
   and any(.nodes[]; .name == "Require Reply Draft"
       and (.parameters.jsCode | contains("Reply contains a redaction placeholder"))
+      and (.parameters.jsCode | contains("entry_requested_model: 'llama3.2:1b'"))
+      and (.parameters.jsCode | contains("fallback_target_model: 'gpt-4o-mini'"))
       and (.parameters.jsCode | contains("provider_reported_model")))
   and any(.nodes[]; .name == "Probe Forbidden Refund Action"
       and (.parameters.url | contains("/openai/"))
@@ -62,6 +65,8 @@ jq -e '
   and any(.nodes[]; .name == "Operator Approved?")
   and any(.nodes[]; .name == "Build Approved Artifacts"
       and (.parameters.jsCode | contains("approved_for_finance_processing"))
+      and (.parameters.jsCode | contains("entry_requested_model"))
+      and (.parameters.jsCode | contains("fallback_target_model"))
       and (.parameters.jsCode | contains("ACME Support Team"))
       and (.parameters.jsCode | contains("refund_executed: false")))
   and any(.nodes[]; .name == "Write Finance Handoff")
@@ -70,7 +75,7 @@ jq -e '
   and any(.nodes[]; .name == "Write Rejected Status")
   and (tostring | contains("Bearer ") | not)
 ' "$TMP/workflow.json" >/dev/null || {
-  echo 'rendered support workflow lost its draft, denial, blocking approval, or output contract' >&2
+  echo 'rendered support workflow lost its draft, model route, denial, blocking approval, or output contract' >&2
   exit 1
 }
 
@@ -96,6 +101,8 @@ for required in \
   'finance-refund-request.json' \
   'operator-approval-receipt.json' \
   'verify-support-approval.py' \
+  '.entry_requested_model == "llama3.2:1b"' \
+  '.fallback_target_model == "gpt-4o-mini"' \
   'mock receipts do not prove reply-then-zero-cost-refund-denial behavior'; do
   grep -Fq -- "$required" "$RUNNER" \
     || { echo "support-resolution runner missing: $required" >&2; exit 1; }
@@ -108,6 +115,8 @@ for required in \
   'Operator receipt  HMAC-SHA256 verified' \
   'Human gate' \
   'Refund status     not executed' \
+  'Entry model:' \
+  'Fallback target:' \
   'ticket + account context + refund policy' \
   'Direct provider calls or payment actions'; do
   grep -Fq -- "$required" "$PRESENTER" \
