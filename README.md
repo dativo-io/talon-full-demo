@@ -2,7 +2,7 @@
 
 A standalone, early-adopter-oriented demonstration of recognizable applications governed through [Dativo Talon](https://github.com/dativo-io/talon):
 
-- **n8n customer-support resolution** — a duplicate-charge workflow drafts a reply through a policy-valid provider path, protects customer PII, and cannot expose the forbidden refund action upstream.
+- **n8n customer-support resolution** — a duplicate-charge workflow drafts a reply through a policy-valid provider path, protects customer PII, blocks the refund action, and then literally waits for a demo operator to approve or reject the synthetic finance handoff.
 - **n8n vendor-contract review** — a confidential synthetic contract package is blocked from one destination, redacted, and reviewed through the approved provider with both decisions in one signed session.
 - **Customer support / Zendesk** — a support workflow requests a governed reply draft through direct and adapter paths.
 - **GitHub Copilot CLI** — a real Copilot client sends model traffic through Talon and reaches a synthetic release boundary through Talon's MCP proxy.
@@ -31,7 +31,7 @@ make n8n-vendor-review-validate
 make n8n-validate
 ```
 
-The support-resolution gate proves reply-then-tool-denial workflow behavior. The vendor-review gate reproduces a zero-cost OpenAI egress denial followed by an approved Anthropic review. The quarterly gate reproduces useful output followed by a session-budget denial. Each workflow imports, executes, exports without credential values, clean-imports, and executes again in n8n `2.30.4`.
+The support-resolution gate proves reply generation, zero-cost `issue_refund` denial, a blocking session-bound operator decision, approved and rejected branches, signed operator receipts, and credential-free clean import. The vendor-review gate reproduces a zero-cost OpenAI egress denial followed by an approved Anthropic review. The quarterly gate reproduces useful output followed by a session-budget denial. Each workflow executes in pinned n8n `2.30.4`.
 
 ### 2. Prepare and start the real stack
 
@@ -53,19 +53,42 @@ OpenAI is required for support, Copilot, Zendesk, and the customer-support resol
 
 The input is a synthetic duplicate-charge ticket, account context, and refund policy. n8n produces a useful reply draft despite the preferred local provider being unavailable, while Talon redacts the customer's email and IBAN, keeps failover inside the approved provider list, and blocks a later request that exposes `issue_refund`.
 
-Buyer/product/executive:
+The real demo then enters a literal human gate. The n8n execution remains blocked and no final status or synthetic finance handoff exists until the operator approves or rejects the exact EUR 249 request.
+
+Start the buyer demo in shell 1:
 
 ```bash
 make demo-n8n-support-resolution-buyer
 ```
 
-Platform/security/engineering:
+It will stop at:
+
+```text
+HUMAN APPROVAL REQUIRED
+...
+The workflow is blocked. No final status or finance handoff exists yet.
+```
+
+In shell 2, inspect or decide:
+
+```bash
+make status-n8n-support-resolution-approval
+make approve-n8n-support-resolution
+# or:
+make reject-n8n-support-resolution
+```
+
+The approval page shown by shell 1 is bound to loopback. On a remote demo host, use the terminal command or an SSH tunnel to open the page locally.
+
+The approved path creates a signed operator receipt plus `finance-refund-request.json`. The rejected path creates a signed rejection receipt and no finance handoff. Neither path executes a refund.
+
+Platform/security/engineering uses the same interaction:
 
 ```bash
 make demo-n8n-support-resolution-tech
 ```
 
-Re-present the same completed session:
+Re-present the same completed session without another model call:
 
 ```bash
 make present-n8n-support-resolution
@@ -73,9 +96,18 @@ make present-n8n-support-resolution-tech
 make present-n8n-support-resolution-all
 ```
 
-The presenter fails closed unless the resolution and status artifacts, `customer-support` identity, confidential-tier email/IBAN redaction, local-provider failure, skipped disallowed fallback, approved OpenAI selection, later zero-cost `issue_refund` tool denial, and every evidence signature agree.
+The presenter fails closed unless all of the following agree:
 
-Talon does not execute, approve, or decline the EUR 249 refund. The workflow preserves the reply and records that human support and finance approval remain required.
+- final customer reply and status artifacts;
+- `customer-support` identity;
+- confidential-tier email and IBAN redaction;
+- failed local route and policy-valid OpenAI fallback;
+- zero-cost `issue_refund` denial before provider dispatch;
+- separately signed operator approval or rejection bound to the exact session, run nonce, ticket, amount, and action;
+- approved finance handoff created after approval, or no handoff after rejection;
+- every Talon evidence signature and the operator-receipt HMAC.
+
+Talon does not execute, approve, or decline the EUR 249 refund. Talon blocks AI authority. The separate demo operator gate controls only whether the workflow may create a synthetic finance handoff.
 
 ### n8n vendor-contract review
 
@@ -210,7 +242,7 @@ make real-smoke                    # direct support smoke path
 make real-support                  # fresh support gateway run
 make real-zendesk                  # fresh local Zendesk-adapter run
 make real-copilot                  # fresh bounded Copilot run
-make real-n8n-support-resolution   # fresh customer-support resolution workflow
+make real-n8n-support-resolution   # fresh support workflow; blocks at operator gate
 make real-n8n-vendor-review        # fresh vendor-contract review workflow
 make real-n8n                      # fresh quarterly-report workflow
 make live-check                    # separate real-Talon MCP denial + budget-engine proof
@@ -228,7 +260,7 @@ make real-stop
 |---|---|
 | Local repository validation | Implemented and tested |
 | Real Talon MCP + session-budget check | Implemented; `make live-check` |
-| n8n customer-support resolution | Implemented; pinned clean-import gate + real OpenAI/fallback path |
+| n8n customer-support resolution | Implemented; clean-import gate + real OpenAI/fallback path + blocking operator approval/rejection |
 | n8n vendor-contract review | Implemented; pinned egress-deny/allow clean-import gate + real Anthropic path |
 | n8n session-budget workflow | Implemented; pinned import/execute/export/clean-import gate + real Anthropic path |
 | Real support gateway path | Implemented; buyer + technical views |
@@ -244,11 +276,11 @@ make real-stop
 | Command | External account needed? | Meaning |
 |---|---:|---|
 | `make validate-local` | No | Repository code, adapters, mock integration, presenter contracts, MCP contract, and billing fixture work locally. |
-| `make n8n-support-resolution-validate` | No provider account; Docker | Support workflow creates a reply, blocks `issue_refund`, exports without credentials, clean-imports, and executes again. |
+| `make n8n-support-resolution-validate` | No provider account; Docker | Renders the operator-gated workflow, clean-imports it twice with explicit approval, exercises rejection, verifies signed operator receipts, and proves no finance handoff follows rejection. |
 | `make n8n-vendor-review-validate` | No provider account; Docker | Vendor-review workflow proves egress-deny then allow behavior twice with credential-free exports. |
 | `make n8n-validate` | No provider account; Docker | Quarterly workflow imports, executes, exports without credentials, clean-imports, and executes again. |
 | `make live-check` | No provider account | A real Talon binary enforces MCP policy, signs evidence, and applies the real session-budget engine. |
-| `make demo-n8n-support-resolution-buyer` / `-tech` | OpenAI + Docker | Real imported support workflow, PII redaction, policy-valid fallback, forbidden refund tool, cost, and evidence. |
+| `make demo-n8n-support-resolution-buyer` / `-tech` | OpenAI + Docker + explicit operator decision | Real imported support workflow, PII redaction, policy-valid fallback, forbidden refund tool, blocking human gate, branch-specific artifacts, cost, and evidence. |
 | `make demo-n8n-vendor-review-buyer` / `-tech` | OpenAI + Anthropic + Docker | Real imported workflow, egress denial, PII redaction, approved review, cost, and evidence. |
 | `make demo-n8n-buyer` / `-tech` | Anthropic + Docker | Real imported workflow, partial output, budget stop, and evidence. |
 | `make demo-support-buyer` / `-tech` | OpenAI | Direct support PII, fallback, cost, and evidence. |
@@ -265,6 +297,8 @@ make real-stop
 - Provider routes, redaction, costs, policy decisions, and signatures are displayed only after Talon evidence confirms them.
 - Talon is credited only for model traffic and tool schemas or calls routed through Talon.
 - A blocked `issue_refund` schema proves it was not offered through that governed request; Talon does not execute, approve, or decline refunds.
+- The support demo's operator receipt is separate from Talon evidence: it proves only who released workflow continuation for that synthetic request.
+- Operator approval creates only a synthetic finance handoff; no refund or payment-system call occurs.
 - An offline Zendesk ZIP is not described as Zendesk server-validated.
 - Zendesk browser-only observations are operator-confirmed, not misrepresented as Talon evidence.
 - Talon does not govern Copilot's local shell commands, filesystem changes, browser actions, or direct API calls.
@@ -282,10 +316,10 @@ integrations/         Zendesk, Copilot, and n8n integration assets
 cases/                synthetic business fixtures
 config/               generated Talon config, integration overlays, and MCP templates
 mock/                  no-key local Talon-compatible test endpoint
-scripts/               setup, validation, orchestration, and presenters
+scripts/               setup, validation, orchestration, approval service, and presenters
 docs/                  quickstarts, architecture, setup, presenter, and blockers
 ```
 
 ## Security
 
-Never commit provider keys, Talon keys, Zendesk settings, generated evidence, n8n credentials, or real customer content. Real provider keys should be exported only for `make real-prepare`; the helper stores them in Talon's encrypted local vault and does not write them into `.env`.
+Never commit provider keys, Talon keys, Zendesk settings, generated evidence, n8n credentials, operator-approval keys, or real customer content. Real provider keys should be exported only for `make real-prepare`; the helper stores them in Talon's encrypted local vault and does not write them into `.env`.
