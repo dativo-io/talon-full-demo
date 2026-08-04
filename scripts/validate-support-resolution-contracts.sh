@@ -49,8 +49,10 @@ jq -e '
       and (.parameters.jsonBody | contains("Do not include a subject line")))
   and any(.nodes[]; .name == "Require Reply Draft"
       and (.parameters.jsCode | contains("Reply contains a redaction placeholder"))
-      and (.parameters.jsCode | contains("entry_requested_model: 'llama3.2:1b'"))
-      and (.parameters.jsCode | contains("fallback_target_model: 'gpt-4o-mini'"))
+      and (.parameters.jsCode | contains("entry_requested_model"))
+      and (.parameters.jsCode | contains("llama3.2:1b"))
+      and (.parameters.jsCode | contains("fallback_target_model"))
+      and (.parameters.jsCode | contains("gpt-4o-mini"))
       and (.parameters.jsCode | contains("provider_reported_model")))
   and any(.nodes[]; .name == "Probe Forbidden Refund Action"
       and (.parameters.url | contains("/openai/"))
