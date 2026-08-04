@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke real-support present-support present-support-tech present-support-all demo-support-buyer demo-support-tech real-zendesk present-zendesk present-zendesk-tech present-zendesk-all demo-zendesk-buyer demo-zendesk-tech zendesk-package zendesk-zcli-package verify-zendesk-installed copilot-install real-copilot present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech n8n-validate real-n8n present-n8n present-n8n-tech present-n8n-all demo-n8n-buyer demo-n8n-tech n8n-vendor-review-validate real-n8n-vendor-review present-n8n-vendor-review present-n8n-vendor-review-tech present-n8n-vendor-review-all demo-n8n-vendor-review-buyer demo-n8n-vendor-review-tech n8n-support-resolution-validate real-n8n-support-resolution present-n8n-support-resolution present-n8n-support-resolution-tech present-n8n-support-resolution-all demo-n8n-support-resolution-buyer demo-n8n-support-resolution-tech real-status real-stop
+.PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke real-support present-support present-support-tech present-support-all demo-support-buyer demo-support-tech real-zendesk present-zendesk present-zendesk-tech present-zendesk-all demo-zendesk-buyer demo-zendesk-tech zendesk-package zendesk-zcli-package verify-zendesk-installed copilot-install real-copilot present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech n8n-validate real-n8n present-n8n present-n8n-tech present-n8n-all demo-n8n-buyer demo-n8n-tech n8n-vendor-review-validate real-n8n-vendor-review present-n8n-vendor-review present-n8n-vendor-review-tech present-n8n-vendor-review-all demo-n8n-vendor-review-buyer demo-n8n-vendor-review-tech n8n-support-resolution-validate real-n8n-support-resolution present-n8n-support-resolution present-n8n-support-resolution-tech present-n8n-support-resolution-all approve-n8n-support-resolution reject-n8n-support-resolution status-n8n-support-resolution-approval demo-n8n-support-resolution-buyer demo-n8n-support-resolution-tech real-status real-stop
 
 all: test
 
@@ -211,8 +211,9 @@ demo-n8n-vendor-review-tech:
 	bash ./scripts/record-latest-n8n-session.sh vendor-review
 	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n-vendor-review.sh technical
 
-# Governed customer-support resolution: real reply draft followed by a
-# zero-cost tool-schema denial for issue_refund.
+# Governed customer-support resolution: Talon blocks issue_refund, then the
+# same n8n execution waits for an explicit operator decision before it can
+# write final artifacts or create the synthetic finance handoff.
 n8n-support-resolution-validate:
 	bash ./scripts/n8n-support-resolution.sh validate
 
@@ -228,6 +229,15 @@ present-n8n-support-resolution-tech:
 
 present-n8n-support-resolution-all:
 	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-n8n-support-resolution.sh all
+
+approve-n8n-support-resolution:
+	bash ./scripts/support-approval.sh approve
+
+reject-n8n-support-resolution:
+	bash ./scripts/support-approval.sh reject
+
+status-n8n-support-resolution-approval:
+	bash ./scripts/support-approval.sh status
 
 demo-n8n-support-resolution-buyer:
 	N8N_SUPPORT_RESOLUTION_DEMO_OUTPUT=quiet bash ./scripts/with-talon.sh bash ./scripts/n8n-support-resolution.sh real
