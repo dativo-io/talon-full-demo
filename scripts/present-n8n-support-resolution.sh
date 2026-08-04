@@ -90,7 +90,8 @@ jq -e --arg s "$SESSION" '
   and .operator_approval_required == true
   and .human_approval_completed == true
   and (.operator_decision == "approved" or .operator_decision == "rejected")
-  and .requested_model == "gpt-4o-mini"
+  and .entry_requested_model == "llama3.2:1b"
+  and .fallback_target_model == "gpt-4o-mini"
   and (.provider_reported_model | type == "string" and length > 0)
   and .refund_executed == false
 ' "$STATUS_FILE" >/dev/null || { echo 'ERROR: workflow status does not match the operator-gated support session' >&2; exit 1; }
@@ -101,7 +102,8 @@ APPROVAL_ID="$(jq -r '.approval_id' "$STATUS_FILE")"
 TICKET="$(jq -r '.ticket_id' "$STATUS_FILE")"
 AMOUNT="$(jq -r '.refund_amount_eur' "$STATUS_FILE")"
 BLOCKED_TOOL="$(jq -r '.blocked_tool' "$STATUS_FILE")"
-REQUESTED_MODEL="$(jq -r '.requested_model' "$STATUS_FILE")"
+ENTRY_REQUESTED_MODEL="$(jq -r '.entry_requested_model' "$STATUS_FILE")"
+FALLBACK_TARGET_MODEL="$(jq -r '.fallback_target_model' "$STATUS_FILE")"
 PROVIDER_REPORTED_MODEL="$(jq -r '.provider_reported_model' "$STATUS_FILE")"
 DOCUMENTS="$(jq -r '.documents_read' "$STATUS_FILE")"
 
@@ -216,7 +218,7 @@ AI authority      $BLOCKED_TOOL blocked before provider dispatch
 Human gate        $human_gate
 Refund status     not executed
 Denied request    \$$DENIED_COST_FMT provider cost
-Approved model    ${APPROVED_MODELS:-$REQUESTED_MODEL}
+Approved model    ${APPROVED_MODELS:-$FALLBACK_TARGET_MODEL}
 Session spend     \$$COST_FMT
 Talon evidence    $VALID valid / $INVALID invalid records
 Operator receipt  HMAC-SHA256 verified
@@ -244,7 +246,8 @@ PII:              $PII
 Failed route:     ${FAILED_PROVIDER:-not recorded}
 Selected route:   ${SELECTED_PROVIDER:-not recorded}
 Skipped route:    ${SKIPPED_PROVIDERS:-none}
-Requested model:  $REQUESTED_MODEL
+Entry model:      $ENTRY_REQUESTED_MODEL
+Fallback target:  $FALLBACK_TARGET_MODEL
 Provider model:   $PROVIDER_REPORTED_MODEL
 Evidence model:   ${APPROVED_MODELS:-not recorded}
 Blocked tool:     $BLOCKED_TOOL
@@ -290,10 +293,12 @@ EOF_TIMELINE
   cat <<EOF_PROOF
 
 Policy-valid service path
-  1. Preferred local provider failed: $FAILED_PROVIDER
-  2. Disallowed candidate was skipped: $SKIPPED_PROVIDERS
-  3. Approved fallback drafted the reply: $SELECTED_PROVIDER / ${APPROVED_MODELS:-not recorded}
-  4. Later request exposed $BLOCKED_TOOL: denied before provider dispatch
+  1. Entry request used the local provider's allowed model: $ENTRY_REQUESTED_MODEL
+  2. Preferred local provider failed: $FAILED_PROVIDER
+  3. Disallowed candidate was skipped: $SKIPPED_PROVIDERS
+  4. Approved fallback target was selected: $SELECTED_PROVIDER / $FALLBACK_TARGET_MODEL
+  5. Signed evidence records the executed model: ${APPROVED_MODELS:-not recorded}
+  6. Later request exposed $BLOCKED_TOOL: denied before provider dispatch
 
 Data boundary
   Detected: $PII
