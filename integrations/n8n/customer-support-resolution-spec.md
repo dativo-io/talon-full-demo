@@ -2,36 +2,44 @@
 
 ## Business input
 
-The committed workflow reads three synthetic Markdown files from `cases/customer-support-resolution`:
+The case reads three synthetic Markdown files from `cases/customer-support-resolution`:
 
 1. duplicate-charge ticket `SUP-1042` with a synthetic customer email and IBAN;
 2. account and charge context showing two matching EUR 249 charges;
-3. a refund policy that requires human support and finance approval.
+3. a refund policy requiring support and finance approval.
 
 The files are combined into one case package. n8n, not Talon, reads the local files.
 
-## Workflow
+## Rendered workflow
+
+`integrations/n8n/customer-support-resolution-workflow.json` is the credential-free base graph. `scripts/render-support-resolution-workflow.py` deterministically adds the operator gate and publish-safe output rules before import.
 
 ```text
 Manual Trigger
-  → Read `/demo/input/*.md`
-  → Extract UTF-8 text
-  → Assemble one support case
+  → read and assemble ticket + account context + refund policy
   → POST through Talon as `customer-support` to local-llama
       → real path: local connection failure
       → openai-batch skipped by provider policy
-      → OpenAI fallback returns the reply draft
+      → OpenAI fallback returns a body-only reply draft
   → POST a second governed request declaring `issue_refund`
       → Talon returns HTTP 403 before provider dispatch
-  → write `/demo/output/customer-support-resolution.md`
-  → write `/demo/output/status.json`
+  → create approval request bound to session + run nonce + ticket + amount + action
+  → wait for explicit operator decision
+      → approve: create signed approval receipt + synthetic finance handoff
+      → reject: create signed rejection receipt and no finance handoff
+  → write final reply and status only after the decision
 ```
 
-The refund-action request intentionally declares only the forbidden `issue_refund` function and forces that tool choice. With the product-demo organization default `tool_policy_action: block` and the full-demo customer-support overlay, Talon rejects the whole request before an upstream provider sees it.
+The main real-demo command remains blocked while the operator gate is pending. Before a decision, the workflow must not create:
+
+- `customer-support-resolution.md`;
+- `status.json`;
+- `operator-approval-receipt.json`;
+- `finance-refund-request.json`.
 
 ## Talon request contract
 
-Both requests use:
+Both governed model requests use:
 
 - operational identity: `customer-support`;
 - session: `TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID`;
@@ -39,34 +47,89 @@ Both requests use:
 - ephemeral n8n Header Auth credential generated under `.state`;
 - the OpenAI-compatible gateway surface.
 
-The first request uses the configured `local-llama` route and relies on Talon's policy-valid fallback chain. The second request goes directly to the allowed OpenAI destination so the observed denial is caused by tool policy, not provider availability.
+The first request uses the configured `local-llama` route and Talon's policy-valid fallback chain. The second request goes directly to the allowed OpenAI destination so the denial is caused by tool policy, not provider availability.
 
-## Required application artifacts
+The action request intentionally declares only `issue_refund` and forces that tool choice. With `tool_policy_action: block` and the customer-support overlay, Talon rejects the whole request before an upstream provider sees it.
 
-`customer-support-resolution.md` must contain:
+## Operator gate contract
 
-- the customer reply draft;
-- an explicit statement that no refund was executed;
-- the human support and finance approval requirement.
+The loopback approval service binds only to `127.0.0.1`. The request contains:
 
-`status.json` must contain:
+```json
+{
+  "approval_id": "apr_...",
+  "session_id": "n8n-support-resolution-...",
+  "run_nonce": "...",
+  "ticket_id": "SUP-1042",
+  "amount_eur": 249,
+  "requested_action": "issue_refund",
+  "refund_executed": false,
+  "status": "pending"
+}
+```
+
+The operator must either use the rendered approval page or run one of these commands in a second shell:
+
+```bash
+make approve-n8n-support-resolution
+make reject-n8n-support-resolution
+```
+
+A decision for a different approval ID, session, nonce, ticket, amount, or action cannot release the waiting execution.
+
+The operator receipt is HMAC-SHA256 signed with a fresh demo-run key. It is a proof source separate from Talon's signed evidence:
+
+- Talon evidence proves AI identity, data handling, route selection, model cost, and tool denial;
+- the operator receipt proves the exact human decision that released workflow continuation.
+
+Approval does not expose `issue_refund` to the model and does not execute a refund. It authorizes only creation of a synthetic finance handoff.
+
+## Output contract
+
+The model is asked for a body-only reply. n8n owns the final closing:
+
+```text
+Best regards,
+ACME Support Team
+```
+
+The workflow fails closed if the model output contains a redaction placeholder, the raw synthetic email or IBAN, or a claim that the refund was already executed.
+
+Every completed branch writes:
+
+- `customer-support-resolution.md`;
+- `operator-approval-receipt.json`;
+- `status.json`.
+
+The approved branch additionally writes `finance-refund-request.json`. The rejected branch must not create that file.
+
+Approved status includes:
 
 ```json
 {
   "result": "governed_support_resolution",
-  "operational_id": "customer-support",
-  "ticket_id": "SUP-1042",
-  "refund_amount_eur": 249,
-  "reply_draft_created": true,
-  "blocked_tool": "issue_refund",
-  "denial_code": "tool_governance_block",
-  "denied_provider_cost_usd": 0,
-  "action_status": "human_approval_required",
-  "human_approval_required": true
+  "operator_decision": "approved",
+  "action_status": "approved_for_finance_processing",
+  "finance_handoff_file": "finance-refund-request.json",
+  "refund_executed": false
 }
 ```
 
-## Required real evidence
+Rejected status includes:
+
+```json
+{
+  "result": "governed_support_resolution_rejected",
+  "operator_decision": "rejected",
+  "action_status": "human_rejected",
+  "finance_handoff_file": null,
+  "refund_executed": false
+}
+```
+
+Both statuses also preserve the session, run nonce, approval ID, requested model, provider-reported model, zero denied-request cost, and the `issue_refund` denial.
+
+## Required real proof
 
 The presenter must verify one matching session that proves:
 
@@ -76,18 +139,32 @@ The presenter must verify one matching session that proves:
 - OpenAI selected as the policy-valid fallback;
 - a later denied record whose requested and filtered tools include `issue_refund`;
 - zero provider cost for the denied tool-schema request;
-- all exported HMAC signatures validate.
+- every Talon HMAC signature validates;
+- the separate operator receipt signature validates;
+- approval/rejection fields match the application status exactly;
+- an approved finance handoff was created after the human decision;
+- a rejected request produced no finance handoff.
 
-## Clean-import validation
+## Validation
 
-`make n8n-support-resolution-validate` executes the committed graph against mock Talon, exports it without credential values, imports the export into a second clean pinned n8n `2.30.4` runtime, and executes it again.
+`make n8n-support-resolution-validate`:
 
-The mock gate proves workflow behavior and credential hygiene. It does not claim to prove real fallback, PII redaction, cost accounting, or signatures; those claims require the real Talon presenter.
+1. renders the operator-gated workflow;
+2. executes it against mock Talon with explicit auto-approval;
+3. exports it without credential values;
+4. imports and executes the export in a second clean n8n `2.30.4` runtime;
+5. executes the rejection branch;
+6. verifies signed operator receipts and branch-specific artifacts.
+
+`scripts/test-support-approval-gate.sh` separately proves that the long-poll remains blocked before a decision, a mismatched approval cannot release it, and explicit approval or rejection releases the correct request.
+
+The mock path proves workflow branching, approval gating, and credential hygiene. It does not prove real provider fallback, PII redaction, Talon cost accounting, or Talon evidence signatures; those claims require the real presenter.
 
 ## Truth boundaries
 
-- All input is synthetic.
+- All ticket, account, policy, approval, and finance data are synthetic.
 - The generated response is a draft, not proof of correctness.
 - Talon does not execute, approve, or decline the refund.
+- The operator gate controls workflow continuation, not payment execution.
 - The action proof covers the tool schema in the routed request. Direct payment-system calls or provider requests bypassing Talon remain outside the proof.
-- HMAC evidence is tamper-evident and offline-verifiable, not immutable.
+- Talon evidence and the operator receipt are tamper-evident and independently verifiable, not immutable.

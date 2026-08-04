@@ -2,17 +2,26 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKFLOW="$ROOT/integrations/n8n/customer-support-resolution-workflow.json"
+WORKFLOW_BASE="$ROOT/integrations/n8n/customer-support-resolution-workflow.json"
+WORKFLOW_RENDERER="$ROOT/scripts/render-support-resolution-workflow.py"
 RUNNER="$ROOT/scripts/n8n-support-resolution.sh"
 PRESENTER="$ROOT/scripts/present-n8n-support-resolution.sh"
+APPROVAL_SERVER="$ROOT/scripts/support-approval-server.py"
+APPROVAL_CLI="$ROOT/scripts/support-approval.sh"
+APPROVAL_VERIFY="$ROOT/scripts/verify-support-approval.py"
 POLICY="$ROOT/config/agent-overlays/customer-support/agent.talon.yaml"
 SEED="$ROOT/scripts/seed-support-resolution.sh"
 RECORDER="$ROOT/scripts/record-latest-n8n-session.sh"
 RUN_ID="$ROOT/scripts/new-demo-run.sh"
 MOCK="$ROOT/mock/mock_talon.py"
 MAKEFILE="$ROOT/Makefile"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 
-for file in "$WORKFLOW" "$RUNNER" "$PRESENTER" "$POLICY" "$SEED" "$RECORDER" "$RUN_ID" "$MOCK" "$MAKEFILE"; do
+for file in \
+  "$WORKFLOW_BASE" "$WORKFLOW_RENDERER" "$RUNNER" "$PRESENTER" \
+  "$APPROVAL_SERVER" "$APPROVAL_CLI" "$APPROVAL_VERIFY" \
+  "$POLICY" "$SEED" "$RECORDER" "$RUN_ID" "$MOCK" "$MAKEFILE"; do
   [[ -s "$file" ]] || { echo "missing support-resolution artifact: $file" >&2; exit 1; }
 done
 
@@ -27,28 +36,41 @@ grep -Fq 'anna.kowalska@example.test' "$ROOT/cases/customer-support-resolution/0
 grep -Fq 'PL61109010140000071219812874' "$ROOT/cases/customer-support-resolution/01-ticket.md"
 grep -Fq 'issue_refund' "$ROOT/cases/customer-support-resolution/03-refund-policy.md"
 
+python3 -m py_compile "$WORKFLOW_RENDERER" "$APPROVAL_SERVER" "$APPROVAL_VERIFY"
+python3 "$WORKFLOW_RENDERER" "$WORKFLOW_BASE" "$TMP/workflow.json"
 jq -e '
   .id == "talonSupportResolution01"
   and .active == false
-  and (.nodes | length) >= 11
+  and (.nodes | length) >= 18
   and any(.nodes[]; .name == "Draft Reply Through Talon"
       and (.parameters.url | contains("/local-llama/"))
-      and .parameters.options.response.response.fullResponse == true
-      and .parameters.options.response.response.neverError == true
-      and .credentials.httpHeaderAuth.id == "talonSupportResolutionAuth1")
+      and (.parameters.jsonBody | contains("write only the body"))
+      and (.parameters.jsonBody | contains("Do not include a subject line")))
+  and any(.nodes[]; .name == "Require Reply Draft"
+      and (.parameters.jsCode | contains("Reply contains a redaction placeholder"))
+      and (.parameters.jsCode | contains("provider_reported_model")))
   and any(.nodes[]; .name == "Probe Forbidden Refund Action"
       and (.parameters.url | contains("/openai/"))
-      and (.parameters.jsonBody | contains("issue_refund"))
-      and .credentials.httpHeaderAuth.id == "talonSupportResolutionAuth1")
-  and any(.nodes[]; .name == "Require Refund Action Denial"
-      and (.parameters.jsCode | contains("forbidden tools"))
-      and (.parameters.jsCode | contains("tool_governance_block")))
-  and any(.nodes[]; .name == "Build Resolution Status"
-      and (.parameters.jsCode | contains("governed_support_resolution"))
-      and (.parameters.jsCode | contains("human_approval_required")))
+      and (.parameters.jsonBody | contains("issue_refund")))
+  and any(.nodes[]; .name == "Create Human Approval Request"
+      and (.parameters.jsonBody | contains("RELEASE_RUN_NONCE"))
+      and (.parameters.jsonBody | contains("TALON_SUPPORT_APPROVAL_ID")))
+  and any(.nodes[]; .name == "Wait for Operator Decision"
+      and (.parameters.url | contains("/wait/")))
+  and any(.nodes[]; .name == "Validate Operator Decision"
+      and (.parameters.jsCode | contains("Operator approval receipt binding mismatch")))
+  and any(.nodes[]; .name == "Operator Approved?")
+  and any(.nodes[]; .name == "Build Approved Artifacts"
+      and (.parameters.jsCode | contains("approved_for_finance_processing"))
+      and (.parameters.jsCode | contains("ACME Support Team"))
+      and (.parameters.jsCode | contains("refund_executed: false")))
+  and any(.nodes[]; .name == "Write Finance Handoff")
+  and any(.nodes[]; .name == "Build Rejected Artifacts"
+      and (.parameters.jsCode | contains("human_rejected")))
+  and any(.nodes[]; .name == "Write Rejected Status")
   and (tostring | contains("Bearer ") | not)
-' "$WORKFLOW" >/dev/null || {
-  echo 'support-resolution workflow lost its draft/tool-denial/credential-free contract' >&2
+' "$TMP/workflow.json" >/dev/null || {
+  echo 'rendered support workflow lost its draft, denial, blocking approval, or output contract' >&2
   exit 1
 }
 
@@ -66,12 +88,15 @@ if grep -Eq '^[[:space:]]+use_case:' "$POLICY"; then
 fi
 
 for required in \
-  'MOCK_TALON_DENY_TOOL=issue_refund' \
-  'talonSupportResolutionAuth1' \
-  'n8n-customer-support-resolution-full-demo' \
-  'assert_mock_receipts' \
-  'tool_governance_block' \
-  'human-approval boundary'; do
+  'start_approval_server' \
+  'wait_for_approval_request' \
+  'assert_no_final_artifacts' \
+  'TALON_SUPPORT_APPROVAL_AUTO_DECISION' \
+  'make approve-n8n-support-resolution' \
+  'finance-refund-request.json' \
+  'operator-approval-receipt.json' \
+  'verify-support-approval.py' \
+  'mock receipts do not prove reply-then-zero-cost-refund-denial behavior'; do
   grep -Fq -- "$required" "$RUNNER" \
     || { echo "support-resolution runner missing: $required" >&2; exit 1; }
 done
@@ -79,22 +104,38 @@ done
 for required in \
   'talon audit export' \
   'talon audit verify --file' \
-  'all(.records[]; .session_id == $s)' \
-  '.tool_governance.tools_requested' \
-  '.tool_governance.tools_filtered' \
-  'index("issue_refund")' \
-  'failed_attempt' \
-  'fallback_decision' \
+  'verify-support-approval.py' \
+  'Operator receipt  HMAC-SHA256 verified' \
+  'Human gate' \
+  'Refund status     not executed' \
+  'ticket + account context + refund policy' \
   'Direct provider calls or payment actions'; do
   grep -Fq -- "$required" "$PRESENTER" \
     || { echo "support-resolution presenter missing: $required" >&2; exit 1; }
 done
+if grep -Fq 'queued for approval' "$PRESENTER" || grep -Fq 'Blocked model:' "$PRESENTER"; then
+  echo 'support-resolution presenter contains superseded or misleading wording' >&2
+  exit 1
+fi
 
 for required in \
-  'config/agent-overlays/customer-support/agent.talon.yaml' \
-  'talon validate --dir'; do
-  grep -Fq -- "$required" "$SEED" \
-    || { echo "support-resolution seed missing: $required" >&2; exit 1; }
+  '127.0.0.1' \
+  'approval service must remain bound to loopback' \
+  'HMAC-SHA256' \
+  '/wait/' \
+  'Approve finance handoff' \
+  'Reject request' \
+  'refund_executed'; do
+  grep -Fq -- "$required" "$APPROVAL_SERVER" \
+    || { echo "approval service missing: $required" >&2; exit 1; }
+done
+for required in \
+  'compare_digest' \
+  'approval run nonce mismatch' \
+  'finance handoff predates approval' \
+  'finance handoff exists without approval'; do
+  grep -Fq -- "$required" "$APPROVAL_VERIFY" \
+    || { echo "approval verifier missing: $required" >&2; exit 1; }
 done
 
 for required in \
@@ -116,6 +157,7 @@ grep -Fq 'support-resolution)' "$RECORDER" \
 for target in \
   n8n-support-resolution-validate real-n8n-support-resolution \
   present-n8n-support-resolution present-n8n-support-resolution-tech present-n8n-support-resolution-all \
+  approve-n8n-support-resolution reject-n8n-support-resolution status-n8n-support-resolution-approval \
   demo-n8n-support-resolution-buyer demo-n8n-support-resolution-tech; do
   make -n -C "$ROOT" "$target" >/dev/null \
     || { echo "Make target is not runnable: $target" >&2; exit 1; }
