@@ -13,6 +13,7 @@ INPUT="$ROOT/cases/customer-support-resolution"
 MODE="${1:-help}"
 DEMO_OUTPUT="${N8N_SUPPORT_RESOLUTION_DEMO_OUTPUT:-full}"
 PIDS=()
+APPROVAL_URL=""
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -153,9 +154,9 @@ start_approval_server() {
     --signing-key-file "$key_file" \
     >"$state_dir/server.log" 2>&1 &
   PIDS+=("$!")
-  local url="http://127.0.0.1:$port"
+  APPROVAL_URL="http://127.0.0.1:$port"
   for _ in $(seq 1 100); do
-    curl -fsS "$url/health" >/dev/null 2>&1 && { printf '%s\n' "$url"; return 0; }
+    curl -fsS "$APPROVAL_URL/health" >/dev/null 2>&1 && return 0
     sleep 0.1
   done
   cat "$state_dir/server.log" >&2 || true
@@ -369,7 +370,8 @@ validate_mode() {
   approval_key="$work/approval.key"
   openssl rand -hex 32 >"$approval_key"
   chmod 0600 "$approval_key"
-  approval_url="$(start_approval_server "$approval_state" "$approval_key" "$approval_port")"
+  start_approval_server "$approval_state" "$approval_key" "$approval_port"
+  approval_url="$APPROVAL_URL"
   rendered="$work/rendered-workflow.json"
   render_workflow "$rendered"
   N8N_ENCRYPTION_KEY="n8n-support-resolution-encryption-$(openssl rand -hex 16)"
@@ -454,7 +456,8 @@ real_mode() {
   rm -f "$approval_key"
   render_workflow "$rendered"
   prepare_config "$config" "$rendered" "$TALON_CUSTOMER_SUPPORT_KEY"
-  approval_url="$(start_approval_server "$approval_state" "$approval_key" "$approval_port")"
+  start_approval_server "$approval_state" "$approval_key" "$approval_port"
+  approval_url="$APPROVAL_URL"
   write_approval_env "$approval_url" "$approval_id" "$TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID" "$RELEASE_RUN_NONCE" "$approval_key" "$approval_state"
 
   say 'Running the committed customer-support resolution through Talon...'
