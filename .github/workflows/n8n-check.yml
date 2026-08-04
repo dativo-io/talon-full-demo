@@ -20,6 +20,8 @@ jobs:
           command -v docker
       - name: Verify support resolution contracts
         run: bash ./scripts/validate-support-resolution-contracts.sh
+      - name: Verify blocking operator approval gate
+        run: bash ./scripts/test-support-approval-gate.sh
       - name: Pull pinned n8n image
         run: docker pull docker.n8n.io/n8nio/n8n:2.30.4
       - name: Validate quarterly budget workflow
