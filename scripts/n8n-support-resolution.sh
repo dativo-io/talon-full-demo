@@ -293,7 +293,8 @@ assert_output_contract() {
     and .operator_approval_required == true
     and .human_approval_completed == true
     and .operator_decision == $decision
-    and .requested_model == "gpt-4o-mini"
+    and .entry_requested_model == "llama3.2:1b"
+    and .fallback_target_model == "gpt-4o-mini"
     and (.provider_reported_model | type == "string" and length > 0)
     and .refund_executed == false
   ' "$status" >/dev/null || die 'status.json does not match the operator-gated support contract'
