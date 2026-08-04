@@ -109,7 +109,14 @@ def one(nodes: list[dict[str, Any]], name: str) -> dict[str, Any]:
 
 
 def js_single_quoted(value: str) -> str:
-    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+        .replace("'", "\\'")
+    )
+    return "'" + escaped + "'"
 
 
 REQUIRE_REPLY_JS = r"""const source = $('Assemble Support Case').item.json;
