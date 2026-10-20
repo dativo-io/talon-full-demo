@@ -16,6 +16,8 @@ load_env() {
   local external_openai="${OPENAI_API_KEY:-}"
   local external_anthropic="${ANTHROPIC_API_KEY:-}"
   local external_openshell="${TALON_OPENSHELL_ENABLED:-}"
+  local external_openshell_runner="${TALON_OPENSHELL_SHOWCASE_RUNNER:-}"
+  local external_openshell_manifest="${TALON_OPENSHELL_RELEASE_MANIFEST:-}"
 
   if [[ ! -f "$ENV_FILE" ]]; then
     [[ ! -d "$STATE/talon" ]] || die ".env is missing but encrypted Talon state still exists. Remove .state and run again, or restore the matching .env."
@@ -30,6 +32,8 @@ load_env() {
   [[ -n "$external_openai" ]] && export OPENAI_API_KEY="$external_openai"
   [[ -n "$external_anthropic" ]] && export ANTHROPIC_API_KEY="$external_anthropic"
   [[ -n "$external_openshell" ]] && export TALON_OPENSHELL_ENABLED="$external_openshell"
+  [[ -n "$external_openshell_runner" ]] && export TALON_OPENSHELL_SHOWCASE_RUNNER="$external_openshell_runner"
+  [[ -n "$external_openshell_manifest" ]] && export TALON_OPENSHELL_RELEASE_MANIFEST="$external_openshell_manifest"
 
   # Optional provider variables are conditions, not the function result. Without
   # this explicit success, a missing Anthropic export returns status 1 and `set -e`
