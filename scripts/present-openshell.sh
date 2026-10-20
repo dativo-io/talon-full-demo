@@ -56,7 +56,7 @@ jq -e --arg s "$SESSION" --arg r "$RUNTIME" '
 }
 
 "$CLI" audit verify --operation "$OP" >"$OP_VERIFY"
-grep -Fq 'VALID' "$OP_VERIFY" \
+grep -Fxq 'Lifecycle: VALID' "$OP_VERIFY" \
   || { echo 'ERROR: refund lifecycle is not verified' >&2; exit 1; }
 "$CLI" audit list --runtime-ref "$RUNTIME" --limit 200 --report >"$REPORT"
 grep -Fq 'Runtime reference ' "$REPORT" \
