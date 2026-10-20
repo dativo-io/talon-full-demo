@@ -261,21 +261,21 @@ real-openshell:
 	bash ./scripts/real-openshell.sh run
 
 present-openshell:
-	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-openshell.sh buyer
+	TALON_REQUIRE_OPENSHELL_AUDIT=1 TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-openshell.sh buyer
 
 present-openshell-tech:
-	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-openshell.sh technical
+	TALON_REQUIRE_OPENSHELL_AUDIT=1 TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-openshell.sh technical
 
 present-openshell-all:
-	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-openshell.sh all
+	TALON_REQUIRE_OPENSHELL_AUDIT=1 TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-openshell.sh all
 
 demo-openshell-buyer:
 	bash ./scripts/real-openshell.sh run
-	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-openshell.sh buyer
+	TALON_REQUIRE_OPENSHELL_AUDIT=1 TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-openshell.sh buyer
 
 demo-openshell-tech:
 	bash ./scripts/real-openshell.sh run
-	TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-openshell.sh technical
+	TALON_REQUIRE_OPENSHELL_AUDIT=1 TALON_CLI_PROFILE=audit bash ./scripts/with-talon.sh bash ./scripts/present-openshell.sh technical
 
 status-openshell-approval:
 	bash ./scripts/real-openshell.sh approval-status
