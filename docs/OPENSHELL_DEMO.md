@@ -16,6 +16,16 @@ is draft integration wiring and must not be described as a released showcase.
 Do not substitute talon/scripts/openshell-live.sh: it starts a separate Talon
 fixture and is an engineering test, not this shared customer demo.
 
+## Package resolution
+
+The development path defaults to TALON_REPO and refuses a checkout older
+than PR #501. The published-evaluator path may set both
+TALON_OPENSHELL_SHOWCASE_RUNNER and TALON_OPENSHELL_RELEASE_MANIFEST to
+resolved files from a verified, pinned bundle. The main runner must verify the
+manifest/digest/compatibility contract. No unverified archive may silently
+replace the canonical Talon runner. The running Talon CLI is checked for the
+OpenShell audit capability in either mode.
+
 ## Usage
 
 OpenShell is optional. Existing demos work without it. On a supported Linux
