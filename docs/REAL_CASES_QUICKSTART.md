@@ -167,6 +167,20 @@ The workflow reads synthetic Markdown sections sequentially through Talon's `doc
 
 Session limits are soft caps: completed requests may consume budget before the next request is denied.
 
+## OpenShell sandboxed customer-support agent (optional)
+
+This advanced case uses the same Full Demo setup, shared Talon state, approval commands and buyer/technical presenter conventions. Opt in before preparation:
+
+    export TALON_OPENSHELL_ENABLED=1
+    make real-prepare
+    make real-start
+    make real-status
+    make demo-openshell-buyer
+
+Use `make status-openshell-approval` and then `make approve-openshell` or `make reject-openshell` from a second shell. Re-present with `make present-openshell-all` without rerunning the agent or dispatch. `make openshell-validate` is the deterministic no-key validation gate.
+
+PR #501 is merged but a released artifact and the canonical main-Talon showcase runner are still required. The adapter fails closed if they are missing. See [OPENSHELL_DEMO.md](OPENSHELL_DEMO.md).
+
 ## Stop and restart
 
 ```bash
