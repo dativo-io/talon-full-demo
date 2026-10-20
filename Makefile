@@ -40,6 +40,7 @@ shell-check:
 validate-local: check-go fmt-check vet build test shell-check
 	bash ./scripts/test-real-demo-env-loader.sh
 	./scripts/validate-local.sh
+	bash ./scripts/test-openshell-adapter.sh
 
 integration-local: build
 	./scripts/test-integration-local.sh
