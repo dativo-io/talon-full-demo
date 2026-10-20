@@ -32,6 +32,7 @@ export TALON_COPILOT_SESSION_ID=copilot-$RUN_ID
 export TALON_N8N_SESSION_ID=n8n-$RUN_ID
 export TALON_N8N_VENDOR_REVIEW_SESSION_ID=n8n-vendor-review-$RUN_ID
 export TALON_N8N_SUPPORT_RESOLUTION_SESSION_ID=n8n-support-resolution-$RUN_ID
+export TALON_OPENSHELL_SESSION_ID=openshell-$RUN_ID
 export RELEASE_RUN_NONCE=$NONCE
 EOF_RUN
 chmod 0600 "$OUT"
@@ -41,5 +42,6 @@ echo "  copilot session:           copilot-$RUN_ID"
 echo "  n8n session:               n8n-$RUN_ID"
 echo "  vendor-review session:     n8n-vendor-review-$RUN_ID"
 echo "  support-resolution session: n8n-support-resolution-$RUN_ID"
+echo "  openshell session prefix: openshell-$RUN_ID"
 echo "  run nonce:                 $NONCE"
 echo "  values written to $OUT (source it, or let the demo scripts read it)"
