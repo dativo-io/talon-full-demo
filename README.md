@@ -47,6 +47,20 @@ make real-status
 
 OpenAI is required for support, Copilot, Zendesk, and the customer-support resolution. Anthropic is required for the quarterly and vendor-review n8n cases. `real-prepare` installs the full-demo-owned vendor-review and customer-support action-boundary overlays into the generated Talon fleet and seeds their vault bindings.
 
+## OpenShell sandboxed support agent (advanced, opt-in)
+
+The OpenShell case uses the same prepared Talon fleet and signed evidence as the other demos. Enable it before preparation, on a supported Linux/Docker host with a compatible Talon build:
+
+    export TALON_OPENSHELL_ENABLED=1
+    make real-prepare
+    make real-start
+    make real-status
+    make demo-openshell-buyer
+
+In another terminal during the human gate: `make status-openshell-approval`, then `make approve-openshell` (or `make reject-openshell`). To re-present the same run: `make present-openshell-all`. Technical view: `make demo-openshell-tech`.
+
+**Integration status:** Talon PR #501 is merged but the latest published release predates it. The canonical main-Talon OpenShell showcase runner must be delivered and verified before this is a self-service demo. See [OpenShell demo contract](docs/OPENSHELL_DEMO.md). The option is off by default and does not affect existing cases.
+
 ## Choose a case and audience
 
 ### n8n customer-support resolution
