@@ -29,16 +29,29 @@ source "$ROOT/.state/demo-run.env"
 curl --fail --silent --show-error --max-time 5 "$TALON_GATEWAY/health" >/dev/null
 curl --fail --silent --show-error --max-time 5 "$TALON_MCP_GATEWAY/health" >/dev/null
 
-# A generic /health does not prove that agent-key auth and /mcp/proxy routing
-# actually work. Do a real authenticated MCP initialize with the coding-assistant
-# bearer (no admin key): it must be answered locally by talon-mcp-proxy.
-mcp_init="$(curl --fail --silent --show-error --max-time 5 "$TALON_MCP_GATEWAY/mcp/proxy" \
-  -H "Authorization: Bearer $TALON_CODING_ASSISTANT_KEY" \
-  -H "X-Talon-Session-ID: $TALON_COPILOT_SESSION_ID" \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"preflight","version":"0.0.1"}}}' 2>/dev/null || true)"
-echo "$mcp_init" | jq -e '.result.serverInfo.name == "talon-mcp-proxy"' >/dev/null 2>&1 \
-  || { echo "MCP proxy at $TALON_MCP_GATEWAY did not answer an authenticated initialize (agent-key auth / routing broken)" >&2; exit 1; }
+# A generic /health does not prove that agent-key auth and /mcp/proxy
+# routing work. With the merged Talon OpenShell path the ONLY supported MCP
+# wire is 2026-07-28; keep the previous case contract for the older pinned
+# non-OpenShell demonstration until the fleet migration is coordinated.
+if [[ "${TALON_OPENSHELL_ENABLED:-0}" == 1 ]]; then
+  mcp_discovery="$(curl --fail --silent --show-error --max-time 5 "$TALON_MCP_GATEWAY/mcp/proxy" \
+    -H "Authorization: Bearer $TALON_CODING_ASSISTANT_KEY" \
+    -H "X-Talon-Session-ID: $TALON_COPILOT_SESSION_ID" \
+    -H 'Content-Type: application/json' \
+    -H 'MCP-Protocol-Version: 2026-07-28' \
+    -H 'Mcp-Method: server/discover' \
+    -d '{"jsonrpc":"2.0","id":"preflight","method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"talon-full-demo","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}' 2>/dev/null || true)"
+  echo "$mcp_discovery" | jq -e '.result.supportedVersions == ["2026-07-28"] and (.result.capabilities.tools != null)' >/dev/null 2>&1 \
+    || { echo "MCP proxy is not ready for 2026-07-28 server/discover (OpenShell mode)" >&2; exit 1; }
+else
+  mcp_init="$(curl --fail --silent --show-error --max-time 5 "$TALON_MCP_GATEWAY/mcp/proxy" \
+    -H "Authorization: Bearer $TALON_CODING_ASSISTANT_KEY" \
+    -H "X-Talon-Session-ID: $TALON_COPILOT_SESSION_ID" \
+    -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"preflight","version":"0.0.1"}}}' 2>/dev/null || true)"
+  echo "$mcp_init" | jq -e '.result.serverInfo.name == "talon-mcp-proxy"' >/dev/null 2>&1 \
+    || { echo "MCP proxy did not answer an authenticated legacy initialize" >&2; exit 1; }
+fi
 
 # Local components (release MCP upstream, adapter) are verified here when already
 # running; their authoritative readiness gate is scripts/start-components.sh.
