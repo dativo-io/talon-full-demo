@@ -68,9 +68,9 @@ fi
 
 # Approval status is verified from Talon's own action lifecycle, not from the
 # reviewer script's exit status. OpenShell does NOT own human authorization.
-jq -e 'any(.records[]; .invocation_type == "action_lifecycle"
-  and ((.action_lifecycle // {} | tostring) | contains("approved")))' "$EVIDENCE" >/dev/null \
-  || { echo 'ERROR: no Talon approval lifecycle record' >&2; exit 1; }
+DECISION="$(jq -r --arg op "$OP" '[.records[] | select(.invocation_type == "action_lifecycle" and .action_lifecycle.operation_id == $op and .action_lifecycle.event == "approval_decided") | .action_lifecycle.approval_status] | last // empty' "$EVIDENCE")"
+[[ "$DECISION" == approved || "$DECISION" == rejected ]] \
+  || { echo 'ERROR: missing exact-operation Talon reviewer decision' >&2; exit 1; }
 
 COUNT="$(jq '.records|length' "$EVIDENCE")"
 COST="$(jq '[.records[]|(.execution.cost // 0)]|add // 0' "$EVIDENCE")"
@@ -86,7 +86,7 @@ Session           $SESSION
 Runtime           OpenShell contains the agent
 Company policy    Talon governs model and business actions
 Forbidden tool    delete_customer filtered
-Human decision    Approved in Talon's Action Gateway
+Human decision    $DECISION in Talon's Action Gateway
 Refund action     Lifecycle VERIFIED (synthetic downstream)
 Model spend       \$$COST (Talon signed-record accounting)
 Evidence          $COUNT records; all signatures verified
