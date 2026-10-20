@@ -10,12 +10,21 @@ talon_supports_demo_audit() {
   [[ -n "$candidate" && -x "$candidate" ]] || return 1
   export_help="$("$candidate" audit export --help 2>&1 || true)"
   verify_help="$("$candidate" audit verify --help 2>&1 || true)"
+  if [[ "${TALON_REQUIRE_OPENSHELL_AUDIT:-0}" == 1 ]]; then
+    local runtime_help
+    runtime_help="$("$candidate" audit list --help 2>&1 || true)"
+    grep -Fq -- '--runtime-ref' <<<"$runtime_help" || return 1
+    grep -Fq -- '--operation' <<<"$verify_help" || return 1
+  fi
   grep -Fq -- '--session' <<<"$export_help" \
     && grep -Fq -- 'signed-json' <<<"$export_help" \
     && grep -Fq -- '--file' <<<"$verify_help"
 }
 
 build_pinned_talon_audit_cli() {
+  # An older historical demo pin must never impersonate the new OpenShell
+  # execution/presentation interface. Require an explicit matching CLI.
+  [[ "${TALON_REQUIRE_OPENSHELL_AUDIT:-0}" != 1 ]] || return 1
   local root="$1" source pin cache_dir target tmp worktree
   source="$root/../talon"
   command -v git >/dev/null 2>&1 || return 1
