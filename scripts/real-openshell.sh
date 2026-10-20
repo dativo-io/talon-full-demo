@@ -31,10 +31,19 @@ fi
 TALON_REPO="${TALON_REPO:-$ROOT/../talon}"
 RUNNER="${TALON_OPENSHELL_SHOWCASE_RUNNER:-$TALON_REPO/examples/openshell/showcase/demo.sh}"
 [[ -f "$RUNNER" ]] || die "canonical Talon showcase runner missing: $RUNNER. This is a main-repo prerequisite."
-[[ -d "$TALON_REPO/.git" ]] || die "TALON_REPO must be a checkout: $TALON_REPO"
-# PR #501 merged at this commit. Older builds must never pass by accident.
-git -C "$TALON_REPO" merge-base --is-ancestor da61c47866a3d6aea787c762360f62f6b99089a2 HEAD \
-  || die 'Talon checkout predates merged OpenShell PR #501'
+# Developer mode uses canonical source; customer/release mode may consume a
+# published, verified showcase bundle without a Talon source checkout.
+# The canonical runner MUST verify the supplied release manifest/digests.
+if [[ -n "${TALON_OPENSHELL_SHOWCASE_RUNNER:-}" ]]; then
+  [[ -s "${TALON_OPENSHELL_RELEASE_MANIFEST:-}" ]] \
+    || die 'published showcase runner requires TALON_OPENSHELL_RELEASE_MANIFEST'
+  export TALON_SHOWCASE_RELEASE_MANIFEST="$TALON_OPENSHELL_RELEASE_MANIFEST"
+else
+  [[ -d "$TALON_REPO/.git" ]] || die "TALON_REPO must be a checkout: $TALON_REPO"
+  # PR #501 merged at this commit. Older builds must never pass by accident.
+  git -C "$TALON_REPO" merge-base --is-ancestor da61c47866a3d6aea787c762360f62f6b99089a2 HEAD \
+    || die 'Talon checkout predates merged OpenShell PR #501'
+fi
 if [[ "$COMMAND" != validate ]]; then
   command -v talon >/dev/null || die 'Talon CLI unavailable'
   talon audit list --help 2>&1 | grep -Fq -- '--runtime-ref' \
