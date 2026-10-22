@@ -1,0 +1,64 @@
+name: OpenShell real-runtime verification
+
+on:
+  pull_request:
+    paths:
+      - "TALON_PINNED_COMMIT"
+      - "scripts/*openshell*"
+      - "docs/OPENSHELL_DEMO.md"
+      - ".github/workflows/openshell-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  openshell-real-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out Full Demo
+        uses: actions/checkout@v4
+        with:
+          path: demo
+      - name: Check out the exact released Talon source
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: v1.15.2
+          fetch-depth: 0  # annotated tag must be present for exact-match verification
+          path: talon
+      - name: Verify the release pin
+        run: |
+          test "$(cat demo/TALON_PINNED_COMMIT)" = "$(git -C talon rev-parse HEAD)"
+          test "$(git -C talon describe --exact-match --tags HEAD)" = "v1.15.2"
+      - name: Install release Go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache-dependency-path: |
+            talon/go.sum
+            demo/go.sum
+      - name: Confirm Docker and core tools
+        run: |
+          go version
+          docker version
+          jq --version
+          curl --version
+      - name: Run real OpenShell sandbox integration (mock LLM, real runtime)
+        working-directory: demo
+        env:
+          TALON_REPO: ../talon
+          TALON_OPENSHELL_PROVIDER_MODE: mock
+          TALON_OPENSHELL_ENABLED: "1"
+        run: make openshell-validate
+      - name: Upload failed-run diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openshell-real-runtime-diagnostics
+          path: |
+            demo/.state/openshell/logs/
+            demo/.state/openshell/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
