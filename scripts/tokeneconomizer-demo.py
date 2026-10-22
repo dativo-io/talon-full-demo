@@ -376,8 +376,17 @@ def run():
         except subprocess.TimeoutExpired:
             server.kill()
         log.close()
+    # A CLI that silently ignored --plugin-dir would produce a meaningless
+    # comparison. Require actual TokenEconomizer hook state from this run.
+    plugin_state = STATE / run_id / "plugin-after"
+    observed_hooks = list(plugin_state.rglob("sessions/*.json"))
+    if len(observed_hooks) < 5:
+        raise RuntimeError("TokenEconomizer plugin was not observed in at least five sessions; "
+                           "refusing to publish a false before/after result. Check "
+                           + str(plugin_state))
     report = {
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
+        "token_economizer_hook_sessions": len(observed_hooks),
         "baseline": total(arms["baseline"][5:]),
         "with_tokeneconomizer": total(arms["after"][5:]),
         "baseline_warmup": total(arms["baseline"][:5]),
@@ -389,6 +398,7 @@ def run():
     private(STATE / "latest.txt", run_id)
     rows = table(report)
     html_report(report, rows, destination / "comparison.html")
+    print("Observed TokenEconomizer hook session files:", len(observed_hooks))
     print("HTML report:", destination / "comparison.html")
     print("Raw signed receipts:", destination)
 
