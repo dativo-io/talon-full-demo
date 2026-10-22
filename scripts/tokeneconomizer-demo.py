@@ -158,7 +158,8 @@ def validate():
     import tempfile
     with tempfile.TemporaryDirectory() as directory:
         before = total([{"tokens_in": 100, "tokens_out": 20, "cached": 10,
-                         "cost": 0.01, "calls": 1, "records": 1, "denials": 0,
+                         "cache_write": 4, "cost": 0.01, "calls": 1, "records": 1,
+                         "denials": 0, "provider_errors": 0,
                          "duration_s": 2.0, "passed": True}])
         after = dict(before)
         after["cost"] = 0.008
@@ -172,7 +173,7 @@ def validate():
         html_path = Path(directory) / "comparison.html"
         html_report(sample, rows, html_path)
         assert "<table>" in html_path.read_text()
-        assert "Provider cost (USD)" in html_path.read_text()
+        assert "Talon-estimated provider cost (USD)" in html_path.read_text()
     for arm in ARM_AGENTS:
         policy = agent_policy(arm)
         assert "daily: 5.00" in policy and "monthly: 5.00" in policy
@@ -352,17 +353,26 @@ def verified(session, agent, env, destination):
         for item in records)
     if not model_calls and not budget_denied:
         raise RuntimeError("No routed provider calls or budget denial found: " + session)
+    for row in model_calls:
+        execution = row["execution"]
+        if execution.get("model_used") != MODEL:
+            raise RuntimeError("Unexpected model in signed evidence: " + session)
+        if execution.get("currency") != "USD" or execution.get("pricing_basis") != "table":
+            raise RuntimeError("Talon lacks verified USD table pricing for this model; "
+                               "cannot claim trustworthy cost savings: " + session)
 
     def tokens(field):
         return sum(item.get("execution", {}).get("tokens", {}).get(field, 0) or 0
                    for item in model_calls)
 
     return {"tokens_in": tokens("input"), "tokens_out": tokens("output"),
-            "cached": tokens("cache_read"),
+            "cached": tokens("cache_read"), "cache_write": tokens("cache_write"),
             "cost": sum(item.get("execution", {}).get("cost", 0) or 0
                         for item in model_calls),
             "calls": len(model_calls), "records": len(records),
             "budget_denied": budget_denied,
+            "provider_errors": sum(bool(r.get("execution", {}).get("error"))
+                                   for r in model_calls),
             "denials": sum(not item.get("policy_decision", {}).get("allowed", True)
                            for item in records)}
 
@@ -412,8 +422,8 @@ def one(arm, index, run_id, workspace, values, plugin):
 
 
 def total(rows):
-    fields = ("tokens_in", "tokens_out", "cached", "cost", "calls",
-              "records", "denials", "duration_s")
+    fields = ("tokens_in", "tokens_out", "cached", "cache_write", "cost",
+              "calls", "records", "denials", "duration_s", "provider_errors")
     result = {key: sum(item[key] for item in rows) for key in fields}
     result.update(passed=sum(int(item["passed"]) for item in rows),
                   tasks=len(rows))
@@ -422,13 +432,15 @@ def total(rows):
 
 def table(report):
     before, after = report["baseline"], report["with_tokeneconomizer"]
-    fields = [("Provider cost (USD)", "cost", "USD {:.4f}"),
-              ("Input tokens", "tokens_in", "{:,.0f}"),
+    fields = [("Talon-estimated provider cost (USD)", "cost", "USD {:.4f}"),
+              ("Uncached input tokens", "tokens_in", "{:,.0f}"),
               ("Output tokens", "tokens_out", "{:,.0f}"),
               ("Cache read tokens", "cached", "{:,.0f}"),
+              ("Cache write tokens", "cache_write", "{:,.0f}"),
               ("Runtime (seconds)", "duration_s", "{:.1f}"),
               ("Passing tests", "passed", "{:,.0f}"),
               ("Provider calls", "calls", "{:,.0f}"),
+              ("Provider errors", "provider_errors", "{:,.0f}"),
               ("Signed evidence", "records", "{:,.0f}")]
     complete = all(status == "completed" for status in
                    report.get("arm_status", {"baseline": "completed",
@@ -617,7 +629,8 @@ def run():
         "arm_total_including_warmups": {a: total(rows) for a, rows in arms.items()},
         "arm_status": {a: ("budget_exhausted" if any(r["budget_denied"] for r in rows)
                            else "completed" if len(rows) == 10 and
-                             all(r["passed"] and r["cli_success"] for r in rows)
+                             all(r["passed"] and r["cli_success"] and
+                                 r["provider_errors"] == 0 for r in rows)
                            else "completed_with_failures" if len(rows) == 10
                            else "incomplete")
                        for a, rows in arms.items()},
