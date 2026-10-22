@@ -25,7 +25,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dativo-io/talon
-          ref: be9f4f4310fe0c249b6755690512fc7102ad515b
+          ref: v1.15.2
+          fetch-depth: 0  # annotated tag must be present for exact-match verification
           path: talon
       - name: Verify the release pin
         run: |
