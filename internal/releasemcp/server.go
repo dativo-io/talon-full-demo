@@ -129,12 +129,12 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 	switch request.Method {
 	case "server/discover":
 		reply(w, request.ID, map[string]any{
-			"resultType": "complete",
+			"resultType":      "complete",
 			"supportedVersions": []string{"2026-07-28"},
-			"capabilities": map[string]any{"tools": map[string]any{}},
-			"_meta": map[string]any{"io.modelcontextprotocol/serverInfo": map[string]string{"name": "talon-demo-release", "version": "1.0.0"}},
-			"ttlMs": 60000,
-			"cacheScope": "public",
+			"capabilities":      map[string]any{"tools": {}},
+			"_meta":             map[string]any{"io.modelcontextprotocol/serverInfo": map[string]string{"name": "talon-demo-release", "version": "1.0.0"}},
+			"ttlMs":             60000,
+			"cacheScope":        "public",
 		})
 	case "tools/list":
 		tools := make([]map[string]any, 0, 3)
@@ -160,7 +160,12 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 				},
 			})
 		}
-		reply(w, request.ID, map[string]any{"resultType":"complete", "tools": tools, "ttlMs":60000, "cacheScope":"private"})
+		reply(w, request.ID, map[string]any{
+			"resultType": "complete",
+			"tools":      tools,
+			"ttlMs":      60000,
+			"cacheScope": "private",
+		})
 	case "tools/call":
 		var params callParams
 		if err := json.Unmarshal(request.Params, &params); err != nil {
@@ -187,7 +192,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		reply(w, request.ID, map[string]any{
 			"resultType": "complete",
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Synthetic %s completed; no external release action exists", params.Name)}},
+			"content":    []map[string]any{{"type": "text", "text": fmt.Sprintf("Synthetic %s completed; no external release action exists", params.Name)}},
 			"isError": false,
 		})
 	default:
