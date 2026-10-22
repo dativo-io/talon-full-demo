@@ -16,8 +16,16 @@ fi
 # Same .env as all other Full Demo cases, retaining an explicit command-line
 # opt-in when the file was generated before OpenShell support existed.
 external_enabled="${TALON_OPENSHELL_ENABLED:-}"
+external_provider_mode="${TALON_OPENSHELL_PROVIDER_MODE:-}"
+external_runner="${TALON_OPENSHELL_SHOWCASE_RUNNER:-}"
+external_manifest="${TALON_OPENSHELL_RELEASE_MANIFEST:-}"
 [[ ! -f "$ROOT/.env" ]] || source "$ROOT/.env"
+# Explicit environment values take precedence over optional .env defaults,
+# including when the release bundle was resolved in the calling shell.
 [[ -z "$external_enabled" ]] || TALON_OPENSHELL_ENABLED="$external_enabled"
+[[ -z "$external_provider_mode" ]] || TALON_OPENSHELL_PROVIDER_MODE="$external_provider_mode"
+[[ -z "$external_runner" ]] || TALON_OPENSHELL_SHOWCASE_RUNNER="$external_runner"
+[[ -z "$external_manifest" ]] || TALON_OPENSHELL_RELEASE_MANIFEST="$external_manifest"
 : "${TALON_OPENSHELL_ENABLED:=0}"
 [[ "$TALON_OPENSHELL_ENABLED" == 0 || "$TALON_OPENSHELL_ENABLED" == 1 ]] \
   || die 'TALON_OPENSHELL_ENABLED must be 0 or 1'
