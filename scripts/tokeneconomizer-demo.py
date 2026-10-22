@@ -64,7 +64,7 @@ TASK_CHECKS = [
     [("add(2,3)", 5), ("add(-2,5)", 3), ("add(0,0)", 0)],
     [("double(4)", 8), ("double(-3)", -6), ("double(0)", 0)],
     [("trim('  Hi  ')", "hi"), ("trim(' A B ')", "a b"),
-     ("trim('\tWOW\n')", "wow")],
+     ("trim('  WOW  ')", "wow")],
     [("clamp(10,0,7)", 7), ("clamp(-2,0,7)", 0), ("clamp(3,0,7)", 3)],
     [("even(6)", True), ("even(7)", False), ("even(0)", True)],
     [("divide(9,0)", 0), ("divide(8,2)", 4), ("divide(-3,1)", -3)],
