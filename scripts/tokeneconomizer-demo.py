@@ -22,6 +22,8 @@ STATE = ROOT / ".state" / "tokeneconomizer-demo"
 PORT = int(os.getenv("TE_DEMO_PORT", "18086"))
 MODEL = os.getenv("TE_DEMO_MODEL", "claude-sonnet-5")
 ARM_BUDGET = 5.0
+# Reviewed upstream revision; intentionally not a floating checkout.
+TOKENECONOMIZER_COMMIT = "0ce0e067b42b1dd5a5f5984275d07f8c7686c44a"
 # These model identifiers have entries in Talon's embedded USD pricing table.
 # An unrecognized model might undermine cost-based admission and comparison.
 SUPPORTED_PRICED_MODELS = {
@@ -180,6 +182,7 @@ def validate():
     assert "ANTHROPIC_API_KEY" not in safe_env()
     assert "OPENAI_API_KEY" not in safe_env()
     assert "claude-sonnet-5" in SUPPORTED_PRICED_MODELS
+    assert len(TOKENECONOMIZER_COMMIT) == 40
     print("PASS: 10 failing fixtures and independent sealed grading, two distinct $5 Talon policies, "
           "credential isolation, and comparison UX; zero API calls.")
 
@@ -309,12 +312,22 @@ def install_plugin():
         execute(["git", "clone", "--depth", "1",
                  "https://github.com/microsoft/TokenEconomizer.git", str(directory)],
                 timeout=180)
+    dirty = execute(["git", "-C", str(directory), "status", "--porcelain"]).stdout
+    if dirty.strip():
+        raise RuntimeError("TokenEconomizer checkout has local modifications: " + str(directory))
     commit = execute(["git", "-C", str(directory), "rev-parse", "HEAD"]).stdout.strip()
+    if commit != TOKENECONOMIZER_COMMIT:
+        execute(["git", "-C", str(directory), "fetch", "--depth", "1", "origin",
+                 TOKENECONOMIZER_COMMIT], timeout=180)
+        execute(["git", "-C", str(directory), "checkout", "--detach",
+                 TOKENECONOMIZER_COMMIT])
+        commit = execute(["git", "-C", str(directory), "rev-parse", "HEAD"]).stdout.strip()
+    if commit != TOKENECONOMIZER_COMMIT:
+        raise RuntimeError("TokenEconomizer revision did not match pinned SHA")
     plugin = directory / "plugin"
     if not (plugin / "scripts" / "te-hook").exists():
-        raise RuntimeError("TokenEconomizer checkout missing hook launcher")
+        raise RuntimeError("Pinned TokenEconomizer checkout missing hook launcher")
     return plugin, commit
-
 
 def verified(session, agent, env, destination):
     destination.mkdir(parents=True, exist_ok=True)
@@ -559,6 +572,12 @@ def run():
     values = keys(run_id)
     setup(values, run_id)
     plugin, commit = install_plugin()
+    versions = {}
+    for command, label in ((["claude", "--version"], "claude_cli"),
+                           (["talon", "--version"], "talon_cli"),
+                           (["git", "--version"], "git")):
+        version = execute(command, check=False, timeout=15)
+        versions[label] = (version.stdout or version.stderr).strip()[:200]
     server, log = start_gateway(values, run_id)
     arms = {}
     try:
@@ -591,6 +610,7 @@ def run():
                            + str(plugin_state))
     report = {
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
+        "tool_versions": versions, "comparison_policy": "separate $5 Talon agents",
         "token_economizer_hook_sessions": len(observed_hooks),
         "plugin_mechanisms_observed": observed_optimizations(plugin_state),
         "budget_cap_usd_per_arm": ARM_BUDGET,
