@@ -5,6 +5,7 @@ Run: python3 scripts/tokeneconomizer-demo.py validate|run|present
 Secrets stay outside Git, in .state/tokeneconomizer-demo and Talon's vault.
 """
 import html
+import tempfile
 import json
 import os
 import secrets
@@ -58,6 +59,45 @@ TASKS = [
 ]
 
 
+# These grading cases are absent from the agent's working repository.
+TASK_CHECKS = [
+    [("add(2,3)", 5), ("add(-2,5)", 3), ("add(0,0)", 0)],
+    [("double(4)", 8), ("double(-3)", -6), ("double(0)", 0)],
+    [("trim('  Hi  ')", "hi"), ("trim(' A B ')", "a b"),
+     ("trim('\tWOW\n')", "wow")],
+    [("clamp(10,0,7)", 7), ("clamp(-2,0,7)", 0), ("clamp(3,0,7)", 3)],
+    [("even(6)", True), ("even(7)", False), ("even(0)", True)],
+    [("divide(9,0)", 0), ("divide(8,2)", 4), ("divide(-3,1)", -3)],
+    [("unique([1,1,2,1])", [1, 2]), ("unique([])", []),
+     ("unique(['b','a','b'])", ["b", "a"])],
+    [("mean([])", 0), ("mean([2,4])", 3), ("mean([5])", 5)],
+    [("slug(' Hi   World ')", "hi-world"),
+     ("slug('Hello There')", "hello-there"), ("slug('  x ')", "x")],
+    [("negative(-3)", True), ("negative(3)", False), ("negative(0)", False)],
+]
+
+
+def independent_grade(workspace, index):
+    """Run multi-input hidden tests against only the agent's repaired module."""
+    name = TASKS[index - 1][0]
+    with tempfile.TemporaryDirectory(prefix="te-sealed-grader-") as directory:
+        grade = Path(directory)
+        (grade / "src").mkdir()
+        (grade / "src" / "__init__.py").write_text("")
+        shutil.copy2(workspace / "src" / f"case_{index}.py",
+                     grade / "src" / f"case_{index}.py")
+        cases = ["import unittest",
+                 f"from src.case_{index} import {name}",
+                 "class SealedGrade(unittest.TestCase):"]
+        for test_id, (expression, expected) in enumerate(TASK_CHECKS[index - 1]):
+            cases.extend([f"    def test_{test_id:02d}(self):",
+                          f"        self.assertEqual({expression}, {repr(expected)})"])
+        (grade / "test_grade.py").write_text("\n".join(cases) + "\n")
+        graded = execute([sys.executable, "-m", "unittest", "-q",
+                          "test_grade"], cwd=grade, timeout=20, check=False)
+        return graded.returncode == 0
+
+
 def execute(args, *, env=None, cwd=None, check=True, timeout=120, stdin=None):
     proc = subprocess.run(args, env=env if env is not None else safe_env(),
                           cwd=cwd, capture_output=True,
@@ -102,6 +142,16 @@ def validate():
                               "-s", "tests", "-p", f"test_case_{i}.py"],
                              cwd=path, check=False)
             assert result.returncode, f"fixture {i} unexpectedly passed"
+            assert not independent_grade(path, i), (
+                f"independent grade {i} unexpectedly passed")
+    # Rewriting the visible test cannot fool the sealed grader.
+    with tempfile.TemporaryDirectory() as directory:
+        workspace = Path(directory) / "fixture"
+        fixture(workspace)
+        (workspace / "tests" / "test_case_1.py").write_text(
+            "import unittest\nclass Fake(unittest.TestCase):\n"
+            "    def test_cheat(self): self.assertTrue(True)\n")
+        assert not independent_grade(workspace, 1)
     # Also exercise the terminal/HTML report without creating a fake live result.
     import tempfile
     with tempfile.TemporaryDirectory() as directory:
@@ -130,7 +180,7 @@ def validate():
     assert "ANTHROPIC_API_KEY" not in safe_env()
     assert "OPENAI_API_KEY" not in safe_env()
     assert "claude-sonnet-5" in SUPPORTED_PRICED_MODELS
-    print("PASS: 10 failing fixtures, two distinct $5 Talon policies, "
+    print("PASS: 10 failing fixtures and independent sealed grading, two distinct $5 Talon policies, "
           "credential isolation, and comparison UX; zero API calls.")
 
 
@@ -332,12 +382,10 @@ def one(arm, index, run_id, workspace, values, plugin):
     except subprocess.TimeoutExpired:
         answer = None
     duration = round(time.monotonic() - started, 2)
-    grade = execute([sys.executable, "-m", "unittest", "discover",
-                     "-s", "tests", "-p", f"test_case_{index}.py"],
-                    cwd=workspace, timeout=15, check=False)
+    grade_passed = independent_grade(workspace, index)
     destination = STATE / run_id / arm / f"task-{index:02d}"
     metrics = verified(session, ARM_AGENTS[arm], tenv(values, run_id), destination)
-    metrics.update(task=index, warmup=index <= 5, passed=grade.returncode == 0,
+    metrics.update(task=index, warmup=index <= 5, passed=grade_passed,
                    cli_success=answer is not None and answer.returncode == 0,
                    duration_s=duration, session=session)
     private(destination / "metrics.json", json.dumps(metrics, indent=2))
@@ -548,7 +596,10 @@ def run():
         "budget_cap_usd_per_arm": ARM_BUDGET,
         "arm_total_including_warmups": {a: total(rows) for a, rows in arms.items()},
         "arm_status": {a: ("budget_exhausted" if any(r["budget_denied"] for r in rows)
-                           else "completed" if len(rows) == 10 else "incomplete")
+                           else "completed" if len(rows) == 10 and
+                             all(r["passed"] and r["cli_success"] for r in rows)
+                           else "completed_with_failures" if len(rows) == 10
+                           else "incomplete")
                        for a, rows in arms.items()},
         "baseline": total(arms["baseline"][5:]),
         "with_tokeneconomizer": total(arms["after"][5:]),
