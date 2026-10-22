@@ -131,7 +131,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 		reply(w, request.ID, map[string]any{
 			"resultType":      "complete",
 			"supportedVersions": []string{"2026-07-28"},
-			"capabilities":      map[string]any{"tools": {}},
+			"capabilities":      map[string]any{"tools": map[string]any{}},
 			"_meta":             map[string]any{"io.modelcontextprotocol/serverInfo": map[string]string{"name": "talon-demo-release", "version": "1.0.0"}},
 			"ttlMs":             60000,
 			"cacheScope":        "public",
