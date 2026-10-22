@@ -39,6 +39,7 @@ cat >"$tmpdir/canonical-runner.sh" <<'RUNNER'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "${1:-}" == validate ]] || exit 10
+[[ "${TALON_SHOWCASE_EMBEDDED:-}" == 0 ]] || exit 14
 [[ "${TALON_SHOWCASE_RELEASE_MANIFEST:-}" == "${ADAPTER_TEST_MANIFEST:-}" ]] || exit 11
 [[ "${TALON_SHOWCASE_PROVIDER_MODE:-}" == real ]] || exit 12
 [[ "${TALON_SHOWCASE_BUNDLE_DIR:-}" == "${ADAPTER_TEST_BUNDLE:-}" ]] || exit 13
