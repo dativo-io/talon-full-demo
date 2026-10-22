@@ -59,7 +59,8 @@ TASKS = [
 
 
 def execute(args, *, env=None, cwd=None, check=True, timeout=120, stdin=None):
-    proc = subprocess.run(args, env=env, cwd=cwd, capture_output=True,
+    proc = subprocess.run(args, env=env if env is not None else safe_env(),
+                          cwd=cwd, capture_output=True,
                           text=True, timeout=timeout, input=stdin)
     if check and proc.returncode:
         raise RuntimeError("Failed " + str(args[:3]) + ": " +
@@ -376,6 +377,16 @@ def table(report):
         delta = "incomplete" if not complete else (
             "n/a" if not x else f"{(y / x - 1) * 100:+.1f}%")
         rows.append((label, display.format(x), display.format(y), delta))
+    spent = report.get("arm_total_including_warmups") or {}
+    if "baseline" in spent and "after" in spent:
+        x, y = spent["baseline"]["cost"], spent["after"]["cost"]
+        delta = "incomplete" if not complete else (
+            "n/a" if not x else f"{(y / x - 1) * 100:+.1f}%")
+        rows.insert(1, ("Full-arm cost incl. warmups (USD)",
+                        f"USD {x:.4f}", f"USD {y:.4f}", delta))
+        rows.insert(2, ("Talon budget utilization",
+                        f"{100*x/ARM_BUDGET:.1f}%",
+                        f"{100*y/ARM_BUDGET:.1f}%", "incomplete" if not complete else "—"))
     widths = [max(map(lambda line: len(str(line[i])),
                   [("Metric", "Before", "After", "Change")] + rows)) for i in range(4)]
     layout = lambda line: " | ".join(str(line[i]).ljust(widths[i]) for i in range(4))
