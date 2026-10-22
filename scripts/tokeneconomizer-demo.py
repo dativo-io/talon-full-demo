@@ -476,9 +476,10 @@ def table(report):
               ("Provider calls", "calls", "{:,.0f}"),
               ("Provider errors", "provider_errors", "{:,.0f}"),
               ("Signed evidence", "records", "{:,.0f}")]
-    complete = all(status == "completed" for status in
-                   report.get("arm_status", {"baseline": "completed",
-                                              "after": "completed"}).values())
+    complete = (all(status == "completed" for status in
+                    report.get("arm_status", {"baseline": "completed",
+                                               "after": "completed"}).values())
+                and report.get("optimizer_effect_observed", True))
     rows = []
     for label, key, display in fields:
         x, y = before[key], after[key]
@@ -511,8 +512,8 @@ def table(report):
         print(f"{arm}: USD {summary['cost']:.4f} estimated total "
               f"(warmups and measured, limit USD {ARM_BUDGET:.2f})")
     if not complete:
-        print("INCOMPLETE: one or both arms stopped before ten tasks; "
-              "do not interpret this as measured savings.")
+        print("INCONCLUSIVE: one or both arms failed to complete successfully "
+              "or the optimizer effect was not observed. Do not claim savings.")
     print("Five warmup tasks per arm excluded from measured comparison. "
           "Costs are Talon pricing estimates from real provider usage.")
     return rows
@@ -548,7 +549,7 @@ input/response PII scans observe without changing synthetic code.</p>
 <p>Five warmup sessions and five measured repairs per arm. Independent Claude profiles,
 Git workspaces and plugin state. The operator's Anthropic key is stored only in the local
 Talon encrypted vault, not passed to Claude Code. All model calls must have Talon evidence.</p>
-<p>Execution status: STATUS.</p>
+<p>Execution status: STATUS. Optimizer effect: ACTIVATION.</p>
 <p class="ok">Included calls have signed evidence.</p>
 <p>Small sample; not a statistical significance claim. Warmups incur real spend
 and are excluded only from measured comparison. Costs are Talon estimates based
@@ -566,6 +567,9 @@ not Talon-governed actions.</p>
                     .replace("MODEL", html.escape(report["model"]))
                     .replace("REV", report["tokeneconomizer_sha"][:12])
                     .replace("STATUS", html.escape(str(report.get("arm_status", {}))))
+                    .replace("ACTIVATION", "observed" if
+                             report.get("optimizer_effect_observed", False)
+                             else "not proven — comparison inconclusive")
                     .replace("FACTS", str(report.get("plugin_mechanisms_observed", {}).get("learned_facts", 0)))
                     .replace("PROPOSALS", str(report.get("plugin_mechanisms_observed", {}).get("proposed_tools", 0)))
                     .replace("PRUNED", str(report.get("plugin_mechanisms_observed", {}).get("pruned_tools", 0)))
@@ -646,19 +650,18 @@ def run():
         except subprocess.TimeoutExpired:
             server.kill()
         log.close()
-    # A CLI that silently ignored --plugin-dir would produce a meaningless
-    # comparison. Require actual TokenEconomizer hook state from this run.
+    # Distinguish plugin installation, hook execution and an observed optimization.
+    # A hook that fired but did nothing must NOT be marketed as a saving.
     plugin_state = STATE / run_id / "plugin-after"
     observed_hooks = list(plugin_state.rglob("sessions/*.json"))
-    if len(arms["after"]) == 10 and len(observed_hooks) < 5:
-        raise RuntimeError("TokenEconomizer plugin was not observed in at least five sessions; "
-                           "refusing to publish a false before/after result. Check "
-                           + str(plugin_state))
+    mechanisms = observed_optimizations(plugin_state)
+    effect_observed = len(observed_hooks) >= 5 and any(mechanisms.values())
     report = {
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
         "tool_versions": versions, "comparison_policy": "separate $5 Talon agents",
         "token_economizer_hook_sessions": len(observed_hooks),
-        "plugin_mechanisms_observed": observed_optimizations(plugin_state),
+        "plugin_mechanisms_observed": mechanisms,
+        "optimizer_effect_observed": effect_observed,
         "budget_cap_usd_per_arm": ARM_BUDGET,
         "arm_total_including_warmups": {a: total(rows) for a, rows in arms.items()},
         "arm_status": {a: ("budget_exhausted" if any(r["budget_denied"] for r in rows)
@@ -681,6 +684,7 @@ def run():
     html_report(report, rows, destination / "comparison.html")
     print("Observed TokenEconomizer hook session files:", len(observed_hooks))
     print("Plugin mechanisms:", report["plugin_mechanisms_observed"])
+    print("Optimizer effect observed:", effect_observed)
     print("HTML report:", destination / "comparison.html")
     print("Raw signed receipts:", destination)
 
