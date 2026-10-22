@@ -58,7 +58,13 @@ if [[ "$COMMAND" != validate ]]; then
     || die 'Installed Talon CLI predates OpenShell runtime evidence support'
 fi
 
-export TALON_SHOWCASE_EMBEDDED=1
+# The canonical validate subcommand owns its own disposable standalone Talon
+# and sandbox. Other commands attach to Full Demo's shared Talon instance.
+if [[ "$COMMAND" == validate ]]; then
+  export TALON_SHOWCASE_EMBEDDED=0
+else
+  export TALON_SHOWCASE_EMBEDDED=1
+fi
 export TALON_SHOWCASE_CONFIG_DIR="$ROOT/config/generated"
 export TALON_SHOWCASE_TALON_DATA_DIR="${TALON_DATA_DIR:-$ROOT/.state/talon}"
 export TALON_SHOWCASE_RUN_DIR="$STATE"
