@@ -280,6 +280,7 @@ def verified(session, agent, env, destination):
                           item.get("agent_id") != agent for item in records):
         raise RuntimeError("Missing/misattributed evidence: " + session)
     model_calls = [item for item in records if item.get("invocation_type") == "gateway"
+                   and item.get("policy_decision", {}).get("allowed", False)
                    and item.get("execution", {}).get("model_used")]
     budget_denied = any(
         not item.get("policy_decision", {}).get("allowed", True)
