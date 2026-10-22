@@ -229,7 +229,7 @@ def start_gateway(values, run_id):
     log = (STATE / run_id / "gateway.log").open("w")
     process = subprocess.Popen(
         ["talon", "serve", "--host", "127.0.0.1", "--port", str(PORT),
-         "--gateway", "--gateway-config", str(STATE / "config" / "talon.config.yaml")],
+         "--gateway", "--gateway-config", str(STATE / run_id / "config" / "talon.config.yaml")],
         cwd=STATE / run_id / "config", env=tenv(values, run_id),
         stdout=log, stderr=subprocess.STDOUT)
     for _ in range(100):
@@ -359,10 +359,14 @@ def table(report):
               ("Passing tests", "passed", "{:,.0f}"),
               ("Provider calls", "calls", "{:,.0f}"),
               ("Signed evidence", "records", "{:,.0f}")]
+    complete = all(status == "completed" for status in
+                   report.get("arm_status", {"baseline": "completed",
+                                              "after": "completed"}).values())
     rows = []
     for label, key, display in fields:
         x, y = before[key], after[key]
-        delta = "n/a" if not x else f"{(y / x - 1) * 100:+.1f}%"
+        delta = "incomplete" if not complete else (
+            "n/a" if not x else f"{(y / x - 1) * 100:+.1f}%")
         rows.append((label, display.format(x), display.format(y), delta))
     widths = [max(map(lambda line: len(str(line[i])),
                   [("Metric", "Before", "After", "Change")] + rows)) for i in range(4)]
@@ -376,6 +380,12 @@ def table(report):
           "Admission estimates may differ from final billed costs.")
     if report.get("arm_status"):
         print("Arm completion:", report["arm_status"])
+    for arm, summary in report.get("arm_total_including_warmups", {}).items():
+        print(f"{arm}: USD {summary['cost']:.4f} estimated total "
+              f"(warmups and measured, limit USD {ARM_BUDGET:.2f})")
+    if not complete:
+        print("INCOMPLETE: one or both arms stopped before ten tasks; "
+              "do not interpret this as measured savings.")
     print("Five warmup tasks per arm excluded from measured comparison. "
           "Costs are Talon pricing estimates from real provider usage.")
     return rows
