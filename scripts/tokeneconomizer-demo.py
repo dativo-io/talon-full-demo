@@ -359,11 +359,49 @@ Talon encrypted vault, not passed to Claude Code. All model calls must have Talo
 <p class="ok">Included calls have signed evidence.</p>
 <p>Small sample; not a statistical significance claim. Warmups incur real spend.
 Savings may be negative. Local file edits and test subprocesses are not Talon-governed actions.</p>
+</div><div class="card"><h2>What TokenEconomizer actually did</h2>
+<p>Learned facts: FACTS · Proposed tool exclusions: PROPOSALS · Applied exclusions: PRUNED · Loop nudges: NUDGES.</p>
+<p>These are observed plugin events, not assumed feature activation. Zero means none observed.</p>
 </div><p class="label">Run RUNID · model MODEL · TokenEconomizer REV</p></div></html>"""
     path.write_text(document.replace("ROWS", row_html)
                     .replace("RUNID", report["run_id"])
                     .replace("MODEL", html.escape(report["model"]))
-                    .replace("REV", report["tokeneconomizer_sha"][:12]))
+                    .replace("REV", report["tokeneconomizer_sha"][:12])
+                    .replace("FACTS", str(report.get("plugin_mechanisms_observed", {}).get("learned_facts", 0)))
+                    .replace("PROPOSALS", str(report.get("plugin_mechanisms_observed", {}).get("proposed_tools", 0)))
+                    .replace("PRUNED", str(report.get("plugin_mechanisms_observed", {}).get("pruned_tools", 0)))
+                    .replace("NUDGES", str(report.get("plugin_mechanisms_observed", {}).get("nudges", 0))))
+
+
+def observed_optimizations(directory):
+    """Read local plugin observations, without inventing any optimizations."""
+    result = {"learned_facts": 0, "proposed_tools": 0, "pruned_tools": 0, "nudges": 0}
+    for f in directory.rglob("injection.json"):
+        try:
+            result["learned_facts"] += len(json.loads(f.read_text()).get("rendered_ids") or [])
+        except (OSError, ValueError):
+            pass
+    for f in directory.rglob("untool.json"):
+        try:
+            result["proposed_tools"] += len(json.loads(f.read_text()).get("proposal") or [])
+        except (OSError, ValueError):
+            pass
+    for f in directory.rglob("untool_applied.json"):
+        try:
+            d = json.loads(f.read_text())
+            result["pruned_tools"] += sum(len(v) for v in (d.get("by_path") or {}).values())
+        except (OSError, ValueError):
+            pass
+    for f in directory.rglob("events.jsonl"):
+        try:
+            for line in f.read_text().splitlines():
+                try:
+                    result["nudges"] += json.loads(line).get("kind") == "nudge"
+                except ValueError:
+                    pass
+        except OSError:
+            pass
+    return result
 
 
 def run():
@@ -406,6 +444,7 @@ def run():
     report = {
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
         "token_economizer_hook_sessions": len(observed_hooks),
+        "plugin_mechanisms_observed": observed_optimizations(plugin_state),
         "baseline": total(arms["baseline"][5:]),
         "with_tokeneconomizer": total(arms["after"][5:]),
         "baseline_warmup": total(arms["baseline"][:5]),
@@ -418,6 +457,7 @@ def run():
     rows = table(report)
     html_report(report, rows, destination / "comparison.html")
     print("Observed TokenEconomizer hook session files:", len(observed_hooks))
+    print("Plugin mechanisms:", report["plugin_mechanisms_observed"])
     print("HTML report:", destination / "comparison.html")
     print("Raw signed receipts:", destination)
 
