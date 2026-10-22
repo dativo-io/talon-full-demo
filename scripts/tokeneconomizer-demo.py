@@ -618,6 +618,9 @@ def run():
             raise RuntimeError(tool + " not installed")
     if "--plugin-dir" not in execute(["claude", "--help"], timeout=30).stdout:
         raise RuntimeError("Claude Code version does not advertise --plugin-dir")
+    task_limit = int(os.getenv("TE_DEMO_TASK_LIMIT", "10"))
+    if task_limit not in (1, 10):
+        raise RuntimeError("TE_DEMO_TASK_LIMIT must be 1 (smoke) or 10 (comparison)")
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     values = keys(run_id)
     setup(values, run_id)
@@ -629,20 +632,29 @@ def run():
         version = execute(command, check=False, timeout=15)
         versions[label] = (version.stdout or version.stderr).strip()[:200]
     server, log = start_gateway(values, run_id)
-    arms = {}
+    arms = {arm: [] for arm in ARM_AGENTS}
+    run_error = ""
     try:
         for arm in ("baseline", "after"):
             workspace = STATE / run_id / ("workspace-" + arm)
             fixture(workspace)
-            arms[arm] = []
-            for index in range(1, 11):
-                result = one(arm, index, run_id, workspace, values,
-                             plugin if arm == "after" else None)
+            for index in range(1, task_limit + 1):
+                try:
+                    result = one(arm, index, run_id, workspace, values,
+                                 plugin if arm == "after" else None)
+                except Exception as exc:
+                    # Preserve all completed task receipts and report the
+                    # interrupted/failed experiment instead of losing the run.
+                    run_error = f"{arm} task {index}: {exc}"
+                    print("RUN ERROR:", run_error, file=sys.stderr, flush=True)
+                    break
                 arms[arm].append(result)
                 if result["budget_denied"]:
                     print(f"{arm}: Talon denied a request due to budget; "
                           "stopping arm (no bypass).", flush=True)
                     break
+            if run_error:
+                break
     finally:
         server.terminate()
         try:
@@ -658,6 +670,7 @@ def run():
     effect_observed = len(observed_hooks) >= 5 and any(mechanisms.values())
     report = {
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
+        "task_limit": task_limit, "run_error": run_error,
         "tool_versions": versions, "comparison_policy": "separate $5 Talon agents",
         "token_economizer_hook_sessions": len(observed_hooks),
         "plugin_mechanisms_observed": mechanisms,
@@ -665,6 +678,7 @@ def run():
         "budget_cap_usd_per_arm": ARM_BUDGET,
         "arm_total_including_warmups": {a: total(rows) for a, rows in arms.items()},
         "arm_status": {a: ("budget_exhausted" if any(r["budget_denied"] for r in rows)
+                           else "smoke_only" if task_limit == 1 and len(rows) == 1
                            else "completed" if len(rows) == 10 and
                              all(r["passed"] and r["cli_success"] and
                                  r["provider_errors"] == 0 for r in rows)
@@ -687,6 +701,9 @@ def run():
     print("Optimizer effect observed:", effect_observed)
     print("HTML report:", destination / "comparison.html")
     print("Raw signed receipts:", destination)
+    if run_error:
+        raise RuntimeError("Incomplete experiment; partial report saved: " +
+                           str(destination / "comparison.html") + " — " + run_error)
 
 
 def main():
