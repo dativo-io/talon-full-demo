@@ -21,6 +21,13 @@ STATE = ROOT / ".state" / "tokeneconomizer-demo"
 PORT = int(os.getenv("TE_DEMO_PORT", "18086"))
 MODEL = os.getenv("TE_DEMO_MODEL", "claude-sonnet-5")
 ARM_BUDGET = 5.0
+# These model identifiers have entries in Talon's embedded USD pricing table.
+# An unrecognized model might undermine cost-based admission and comparison.
+SUPPORTED_PRICED_MODELS = {
+    "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5",
+    "claude-haiku-4-5", "claude-opus-4-8", "claude-opus-4-7",
+    "claude-opus-4-6", "claude-opus-4-5",
+}
 ARM_AGENTS = {"baseline": "te-baseline", "after": "te-after"}
 # Deliberately allowlist subprocess environment so operator credentials never
 # leak to the coding agent, plugin hooks, or Talon server process.
@@ -121,6 +128,7 @@ def validate():
         assert json.dumps(MODEL) in policy
     assert "ANTHROPIC_API_KEY" not in safe_env()
     assert "OPENAI_API_KEY" not in safe_env()
+    assert "claude-sonnet-5" in SUPPORTED_PRICED_MODELS
     print("PASS: 10 failing fixtures, two distinct $5 Talon policies, "
           "credential isolation, and comparison UX; zero API calls.")
 
@@ -149,6 +157,7 @@ def agent_policy(arm):
     agent = ARM_AGENTS[arm]
     # Both warmup and measured requests consume this arm's Talon daily and
     # monthly budget. Session limits are supplementary (one per CLI task).
+    # cost_limits.per_request is native-run-only, not a gateway budget.
     return f"""agent:
   name: {agent}
   tenant_id: demo
@@ -160,7 +169,6 @@ policies:
   models:
     allowed: [{json.dumps(MODEL)}]
   cost_limits:
-    per_request: 1.00
     daily: {ARM_BUDGET:.2f}
     monthly: {ARM_BUDGET:.2f}
   session_limits:
@@ -477,6 +485,9 @@ def observed_optimizations(directory):
 
 
 def run():
+    if MODEL not in SUPPORTED_PRICED_MODELS:
+        raise RuntimeError(f"Model {MODEL!r} is not in the verified Talon USD "
+                           "pricing allowlist; refusing unpriced budget experiment.")
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise RuntimeError("Export ANTHROPIC_API_KEY before make demo-tokeneconomizer")
     for tool in ("talon", "claude", "git"):
