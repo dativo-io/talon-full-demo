@@ -81,7 +81,26 @@ def validate():
                               "-s", "tests", "-p", f"test_case_{i}.py"],
                              cwd=path, check=False)
             assert result.returncode, f"fixture {i} unexpectedly passed"
-    print("PASS: 10 independent initially failing fixtures; zero API calls.")
+    # Also exercise the terminal/HTML report without creating a fake live result.
+    import tempfile
+    with tempfile.TemporaryDirectory() as directory:
+        before = total([{"tokens_in": 100, "tokens_out": 20, "cached": 10,
+                         "cost": 0.01, "calls": 1, "records": 1, "denials": 0,
+                         "duration_s": 2.0, "passed": True}])
+        after = dict(before)
+        after["cost"] = 0.008
+        sample = {"baseline": before, "with_tokeneconomizer": after,
+                  "run_id": "offline-format-test", "model": "test",
+                  "tokeneconomizer_sha": "0" * 40}
+        import io
+        import contextlib
+        with contextlib.redirect_stdout(io.StringIO()):
+            rows = table(sample)
+        html_path = Path(directory) / "comparison.html"
+        html_report(sample, rows, html_path)
+        assert "<table>" in html_path.read_text()
+        assert "Provider cost (USD)" in html_path.read_text()
+    print("PASS: 10 independent initially failing fixtures and comparison UX; zero API calls.")
 
 
 def keys():
