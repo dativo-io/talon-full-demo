@@ -27,5 +27,7 @@ jobs:
           sudo apt-get install -y jq
       - name: Verify vendor policy released-schema compatibility
         run: bash scripts/test-vendor-policy-compatibility.sh
+      - name: Validate TokenEconomizer coding fixtures (no credentials, no model calls)
+        run: make tokeneconomizer-validate
       - name: Run repository CI contract
         run: make ci
