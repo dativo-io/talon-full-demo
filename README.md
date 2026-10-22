@@ -343,8 +343,10 @@ Never commit provider keys, Talon keys, Zendesk settings, generated evidence, n8
 
 This optional case is **isolated** from the other Full Demo workflows. It does
 not modify the Talon source checkout or the existing generated fleet. It starts
-a loopback Talon gateway on port 18086 with its own AI-use-case identity and
-encrypted vault under the Git-ignored .state/tokeneconomizer-demo directory.
+a loopback Talon gateway on port 18086 with **two isolated Talon agent identities**
+(te-baseline and te-after), separate cost ledgers, and an encrypted vault under
+the Git-ignored .state/tokeneconomizer-demo directory. Each invocation uses a
+fresh data store so earlier experiments cannot consume its budget.
 
 It drives the **real Claude Code CLI** on two equivalent synthetic Python
 repositories: five learning sessions and five measured repair sessions without
@@ -365,14 +367,34 @@ TokenEconomizer plugin loaded through the Claude Code --plugin-dir flag.
     make demo-tokeneconomizer           # real paid model calls through Talon
     make present-tokeneconomizer        # replay measured table without new calls
 
-The run prints a before/after table for real provider cost, input and output
-tokens, cached-input tokens, runtime, independently graded Python unit tests,
-provider calls and signed Talon evidence. It also saves an audience-friendly
+The run prints a before/after table for **Talon-estimated USD cost from real
+Anthropic usage**, input and output tokens, cached-input tokens, runtime,
+independently graded Python unit tests, provider calls and signed Talon evidence. It also saves an audience-friendly
 HTML comparison under .state/tokeneconomizer-demo/<RUN_ID>/comparison.html,
 JSON data, and signed per-session Talon receipts under the same run directory.
 
+**Talon cost policy: USD $5 per arm (USD $10 across the experiment).** Each arm
+uses its own Talon agent with `cost_limits.daily: 5.00` and
+`cost_limits.monthly: 5.00` plus a `session_limits.max_cost: 5.00` safeguard.
+Talon enforces each agent's **aggregate** daily/monthly limit across all its
+Claude CLI task sessions. Both the baseline and the TokenEconomizer arm include
+all warmup and measured requests in their budget. Policy is limited to the
+configured, Talon-priced Anthropic model (default: `claude-sonnet-5`).
+Synthetic Python prompts and responses are PII-scanned in **warn** mode so
+benchmark content is not silently rewritten or blocked. Local file/test tools
+remain Claude Code permissions, not Talon-controlled actions.
+
+The $5 values are **pre-request admission budgets, not a guaranteed invoice
+hard ceiling**: Talon checks the model cost estimate before forwarding requests,
+but a request costing more than estimated can overshoot. This is why the report
+shows the total including warmups for each agent and marks a budget-stopped arm
+**incomplete**, with no before/after savings percentage. Actual billed provider
+cost can differ from Talon's pricing-table estimates. The user must still monitor
+their Anthropic billing limits.
+
 Five warmups per arm are excluded from the headline comparison, but their
-spend is recorded separately in the JSON. The sampled task count is small,
+spend is recorded separately in the JSON and counted against the $5 arm cap.
+The sampled task count is small,
 so results are not a statistically powered measure of product savings. The
 result can be a negative cost reduction; none is assumed in advance.
 
@@ -383,9 +405,12 @@ test outcome determines task correctness, not Claude's self-assessment.
 Tool pruning may modify only the synthetic repository's local Claude settings;
 the plugin is given isolated state and a five-session threshold. The operator's
 real upstream API key is stored in a local Talon encrypted vault, never passed
-to Claude Code, written to reports or committed to Git. The demonstration uses
-small bounded coding tasks and eight maximum agent turns per task; the configured
-Talon caps are not an exact experiment-total spend ceiling.
+to Claude Code, written to reports or committed to Git. It is passed to Talon
+vault setup by stdin (not process arguments), and both Claude Code and Talon
+receive an allowlisted environment with unrelated host credentials removed.
+The provider secret is accessible only to the two benchmark agent identities.
+The demonstration uses small bounded coding tasks and eight maximum agent turns
+per task.
 
 This demo governs only the model traffic that actually crosses Talon. File
 edits, local shell/test execution and bypass traffic remain outside the Talon
