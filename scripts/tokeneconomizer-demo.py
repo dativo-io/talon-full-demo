@@ -174,6 +174,35 @@ def validate():
         html_report(sample, rows, html_path)
         assert "<table>" in html_path.read_text()
         assert "Talon-estimated provider cost (USD)" in html_path.read_text()
+    # Unit contract: signed-export schema accounting, denied-budget evidence,
+    # and attribution/pricing fail-closed cases; no Talon executable required.
+    sample = {"session_id": "s1", "agent_id": ARM_AGENTS["baseline"],
+              "tenant_id": "demo", "invocation_type": "gateway",
+              "policy_decision": {"allowed": True},
+              "execution": {"model_used": MODEL, "currency": "USD",
+                            "pricing_basis": "table", "cost": 0.025,
+                            "tokens": {"input": 10, "output": 4,
+                                       "cache_read": 15, "cache_write": 3}}}
+    denied = {"session_id": "s1", "agent_id": ARM_AGENTS["baseline"],
+              "tenant_id": "demo", "invocation_type": "gateway",
+              "policy_decision": {"allowed": False,
+                                  "reasons": ["budget_exceeded: agent daily cost"]},
+              "execution": {"cost": 0}}
+    data = summarize_session_records([sample, denied], "s1", ARM_AGENTS["baseline"])
+    assert data["cost"] == 0.025 and data["cache_write"] == 3
+    assert data["calls"] == 1 and data["budget_denied"] and data["denials"] == 1
+    assert summarize_session_records([denied], "s1",
+                                     ARM_AGENTS["baseline"])["calls"] == 0
+    for mutation in ({"agent_id": "someone-else"},
+                     {"execution": dict(sample["execution"], pricing_basis="default_estimate")},
+                     {"execution": dict(sample["execution"], currency="EUR")}):
+        bad = dict(sample, **mutation)
+        try:
+            summarize_session_records([bad], "s1", ARM_AGENTS["baseline"])
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("Untrusted/misattributed cost evidence accepted")
     for arm in ARM_AGENTS:
         policy = agent_policy(arm)
         assert "daily: 5.00" in policy and "monthly: 5.00" in policy
@@ -330,19 +359,12 @@ def install_plugin():
         raise RuntimeError("Pinned TokenEconomizer checkout missing hook launcher")
     return plugin, commit
 
-def verified(session, agent, env, destination):
-    destination.mkdir(parents=True, exist_ok=True)
-    signed = destination / "signed.json"
-    execute(["talon", "audit", "export", "--session", session,
-             "--format", "signed-json", "--output", str(signed)], env=env)
-    check = execute(["talon", "audit", "verify", "--file", str(signed)], env=env).stdout
-    if not all(value in check for value in
-               ("Invalid records: 0", "Missing signature: 0", "Could not parse: 0")):
-        raise RuntimeError("Signed evidence failed verification: " + session)
-    records = json.loads(signed.read_text()).get("records", [])
+def summarize_session_records(records, session, agent):
+    """Extract comparable accounting ONLY from verified, correctly attributed records."""
     if not records or any(item.get("session_id") != session or
-                          item.get("agent_id") != agent for item in records):
-        raise RuntimeError("Missing/misattributed evidence: " + session)
+                          item.get("agent_id") != agent or
+                          item.get("tenant_id") != "demo" for item in records):
+        raise RuntimeError("Missing/misattributed Talon evidence: " + session)
     model_calls = [item for item in records if item.get("invocation_type") == "gateway"
                    and item.get("policy_decision", {}).get("allowed", False)
                    and item.get("execution", {}).get("model_used")]
@@ -352,30 +374,42 @@ def verified(session, agent, env, destination):
                 (item.get("policy_decision", {}).get("reasons") or []))
         for item in records)
     if not model_calls and not budget_denied:
-        raise RuntimeError("No routed provider calls or budget denial found: " + session)
+        raise RuntimeError("No routed calls or budget denial found: " + session)
     for row in model_calls:
         execution = row["execution"]
         if execution.get("model_used") != MODEL:
             raise RuntimeError("Unexpected model in signed evidence: " + session)
         if execution.get("currency") != "USD" or execution.get("pricing_basis") != "table":
-            raise RuntimeError("Talon lacks verified USD table pricing for this model; "
-                               "cannot claim trustworthy cost savings: " + session)
+            raise RuntimeError("No verified USD table pricing; savings cannot be claimed: " +
+                               session)
 
     def tokens(field):
-        return sum(item.get("execution", {}).get("tokens", {}).get(field, 0) or 0
-                   for item in model_calls)
+        return sum(r.get("execution", {}).get("tokens", {}).get(field, 0) or 0
+                   for r in model_calls)
 
     return {"tokens_in": tokens("input"), "tokens_out": tokens("output"),
             "cached": tokens("cache_read"), "cache_write": tokens("cache_write"),
-            "cost": sum(item.get("execution", {}).get("cost", 0) or 0
-                        for item in model_calls),
+            "cost": sum(r.get("execution", {}).get("cost", 0) or 0 for r in model_calls),
             "calls": len(model_calls), "records": len(records),
             "budget_denied": budget_denied,
             "provider_errors": sum(bool(r.get("execution", {}).get("error"))
                                    for r in model_calls),
-            "denials": sum(not item.get("policy_decision", {}).get("allowed", True)
-                           for item in records)}
+            "denials": sum(not r.get("policy_decision", {}).get("allowed", True)
+                           for r in records)}
 
+
+def verified(session, agent, env, destination):
+    destination.mkdir(parents=True, exist_ok=True)
+    signed = destination / "signed.json"
+    execute(["talon", "audit", "export", "--session", session, "--tenant",
+             "demo", "--agent", agent,
+             "--format", "signed-json", "--output", str(signed)], env=env)
+    check = execute(["talon", "audit", "verify", "--file", str(signed)], env=env).stdout
+    if not all(value in check for value in
+               ("Invalid records: 0", "Missing signature: 0", "Could not parse: 0")):
+        raise RuntimeError("Signed evidence failed verification: " + session)
+    return summarize_session_records(json.loads(signed.read_text()).get("records", []),
+                                     session, agent)
 
 def one(arm, index, run_id, workspace, values, plugin):
     session = f"te-{run_id}-{arm}-{index}"
