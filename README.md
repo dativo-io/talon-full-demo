@@ -337,3 +337,56 @@ docs/                  quickstarts, architecture, setup, presenter, and blockers
 ## Security
 
 Never commit provider keys, Talon keys, Zendesk settings, generated evidence, n8n credentials, operator-approval keys, or real customer content. Real provider keys should be exported only for `make real-prepare`; the helper stores them in Talon's encrypted local vault and does not write them into `.env`.
+
+
+## TokenEconomizer x Talon — real Claude Code before/after demo
+
+This optional case is **isolated** from the other Full Demo workflows. It does
+not modify the Talon source checkout or the existing generated fleet. It starts
+a loopback Talon gateway on port 18086 with its own AI-use-case identity and
+encrypted vault under the Git-ignored .state/tokeneconomizer-demo directory.
+
+It drives the **real Claude Code CLI** on two equivalent synthetic Python
+repositories: five learning sessions and five measured repair sessions without
+TokenEconomizer, then five learning and five measured sessions with Microsoft's
+TokenEconomizer plugin loaded through the Claude Code --plugin-dir flag.
+
+### Requirements
+
+- Talon CLI on PATH (no Talon source modification required).
+- Official Claude Code CLI on PATH, with non-interactive print mode and --plugin-dir.
+- Python 3.10+, Git and connectivity to the Anthropic API.
+- An Anthropic API key with active API billing, not only a Claude subscription.
+
+### Run
+
+    export ANTHROPIC_API_KEY='sk-ant-...'
+    make tokeneconomizer-validate       # credential-free fixture contract
+    make demo-tokeneconomizer           # real paid model calls through Talon
+    make present-tokeneconomizer        # replay measured table without new calls
+
+The run prints a before/after table for real provider cost, input and output
+tokens, cached-input tokens, runtime, independently graded Python unit tests,
+provider calls and signed Talon evidence. It also saves an audience-friendly
+HTML comparison under .state/tokeneconomizer-demo/<RUN_ID>/comparison.html,
+JSON data, and signed per-session Talon receipts under the same run directory.
+
+Five warmups per arm are excluded from the headline comparison, but their
+spend is recorded separately in the JSON. The sampled task count is small,
+so results are not a statistically powered measure of product savings. The
+result can be a negative cost reduction; none is assumed in advance.
+
+Each model call must have session-correlated, agent-attributed signed evidence
+that passes Talon's offline signature verification. The independent Python
+test outcome determines task correctness, not Claude's self-assessment.
+
+Tool pruning may modify only the synthetic repository's local Claude settings;
+the plugin is given isolated state and a five-session threshold. The operator's
+real upstream API key is stored in a local Talon encrypted vault, never passed
+to Claude Code, written to reports or committed to Git. The demonstration uses
+small bounded coding tasks and eight maximum agent turns per task; the configured
+Talon caps are not an exact experiment-total spend ceiling.
+
+This demo governs only the model traffic that actually crosses Talon. File
+edits, local shell/test execution and bypass traffic remain outside the Talon
+enforcement boundary.
