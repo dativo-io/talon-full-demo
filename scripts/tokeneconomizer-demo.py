@@ -20,7 +20,20 @@ ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / ".state" / "tokeneconomizer-demo"
 PORT = int(os.getenv("TE_DEMO_PORT", "18086"))
 MODEL = os.getenv("TE_DEMO_MODEL", "claude-sonnet-5")
-AGENT = "te-claude-code"
+ARM_BUDGET = 5.0
+ARM_AGENTS = {"baseline": "te-baseline", "after": "te-after"}
+# Deliberately allowlist subprocess environment so operator credentials never
+# leak to the coding agent, plugin hooks, or Talon server process.
+ENV_ALLOW = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TMPDIR",
+             "TEMP", "TMP", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "NO_COLOR",
+             "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "HTTP_PROXY", "HTTPS_PROXY",
+             "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+             "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS",
+             "SYSTEMROOT", "WINDIR")
+
+
+def safe_env():
+    return {key: os.environ[key] for key in ENV_ALLOW if key in os.environ}
 
 # Five learning sessions and five measurement sessions per arm.
 TASKS = [
@@ -38,9 +51,9 @@ TASKS = [
 ]
 
 
-def execute(args, *, env=None, cwd=None, check=True, timeout=120):
+def execute(args, *, env=None, cwd=None, check=True, timeout=120, stdin=None):
     proc = subprocess.run(args, env=env, cwd=cwd, capture_output=True,
-                          text=True, timeout=timeout)
+                          text=True, timeout=timeout, input=stdin)
     if check and proc.returncode:
         raise RuntimeError("Failed " + str(args[:3]) + ": " +
                            (proc.stderr or proc.stdout)[-700:])
@@ -100,51 +113,74 @@ def validate():
         html_report(sample, rows, html_path)
         assert "<table>" in html_path.read_text()
         assert "Provider cost (USD)" in html_path.read_text()
-    print("PASS: 10 independent initially failing fixtures and comparison UX; zero API calls.")
+    for arm in ARM_AGENTS:
+        policy = agent_policy(arm)
+        assert "daily: 5.00" in policy and "monthly: 5.00" in policy
+        assert "max_cost: 5.00" in policy
+        assert 'allowed_providers: ["anthropic"]' in policy
+        assert json.dumps(MODEL) in policy
+    assert "ANTHROPIC_API_KEY" not in safe_env()
+    assert "OPENAI_API_KEY" not in safe_env()
+    print("PASS: 10 failing fixtures, two distinct $5 Talon policies, "
+          "credential isolation, and comparison UX; zero API calls.")
 
 
-def keys():
-    file = STATE / "keys.json"
-    if file.exists():
-        if file.stat().st_mode & 0o077:
-            raise RuntimeError("Unsafe key permissions: chmod 600 " + str(file))
-        return json.loads(file.read_text())
-    values = {name: secrets.token_hex(32) for name in ("vault", "signing", "admin", "agent")}
-    private(file, json.dumps(values))
+def keys(run_id):
+    # Fresh credentials and data store every run, so previous runs do not
+    # consume either arm's $5 daily/monthly budget.
+    values = {name: secrets.token_hex(32) for name in
+              ("vault", "signing", "admin", "agent_baseline", "agent_after")}
+    private(STATE / run_id / "keys.json", json.dumps(values))
     return values
 
 
-def tenv(values):
-    env = os.environ.copy()
-    env.update(TALON_DATA_DIR=str(STATE / "talon-store"),
+def tenv(values, run_id):
+    env = safe_env()
+    config = STATE / run_id / "config"
+    env.update(TALON_DATA_DIR=str(STATE / run_id / "talon-store"),
                TALON_SECRETS_KEY=values["vault"],
                TALON_SIGNING_KEY=values["signing"],
                TALON_ADMIN_KEY=values["admin"],
-               TALON_DEFAULT_POLICY=str(STATE / "config" / "agent.talon.yaml"),
-               TALON_GATEWAY_CONFIG=str(STATE / "config" / "talon.config.yaml"))
+               TALON_GATEWAY_CONFIG=str(config / "talon.config.yaml"))
     return env
 
 
-def setup(values):
-    config = STATE / "config"
-    private(config / "agent.talon.yaml", """agent:
-  name: te-claude-code
+def agent_policy(arm):
+    agent = ARM_AGENTS[arm]
+    # Both warmup and measured requests consume this arm's Talon daily and
+    # monthly budget. Session limits are supplementary (one per CLI task).
+    return f"""agent:
+  name: {agent}
   tenant_id: demo
   version: "1.0.0"
   key:
-    secret_name: te-agent-secret
+    secret_name: {agent}-agent-secret
 policies:
   allowed_providers: ["anthropic"]
+  models:
+    allowed: [{json.dumps(MODEL)}]
   cost_limits:
-    per_request: 5.0
-    daily: 20.0
-    monthly: 100.0
+    per_request: 1.00
+    daily: {ARM_BUDGET:.2f}
+    monthly: {ARM_BUDGET:.2f}
   session_limits:
-    max_cost: 5.0
+    max_cost: {ARM_BUDGET:.2f}
   data_classification:
     input_scan: true
-""")
-    private(config / "talon.config.yaml", """gateway:
+    output_scan: true
+"""
+
+
+def setup(values, run_id):
+    config = STATE / run_id / "config"
+    for arm in ARM_AGENTS:
+        private(config / "agents" / arm / "agent.talon.yaml", agent_policy(arm))
+    # Fleet mode: two separate authenticated agents/budget ledgers.
+    # Warn-only PII scans observe synthetic repair prompts without altering
+    # them or blocking legitimate code/text in model responses.
+    private(config / "talon.config.yaml", f"""data_dir: {json.dumps(str(STATE / run_id / 'talon-store'))}
+agents_dir: "agents"
+gateway:
   enabled: true
   providers:
     anthropic:
@@ -156,16 +192,23 @@ policies:
     defaults:
       pii_action: warn
       response_pii_action: warn
+    constraints:
+      allowed_providers: ["anthropic"]
+    log_prompts: false
+    log_responses: false
+    scan_tool_content: evidence_only
 """)
-    env = tenv(values)
+    env = tenv(values, run_id)
+    # Secret via stdin, never argv. ACL allows only the two benchmark agents.
     execute(["talon", "secrets", "set", "te-provider-secret",
-             os.environ["ANTHROPIC_API_KEY"], "--tenant", "demo", "--agent", AGENT],
-            env=env)
-    execute(["talon", "secrets", "set", "te-agent-secret",
-             values["agent"], "--tenant", "demo", "--agent", AGENT], env=env)
-    execute(["talon", "validate", "--file",
-             str(config / "agent.talon.yaml")], env=env)
-
+             "--tenant", "demo", "--agent", ARM_AGENTS["baseline"],
+             "--agent", ARM_AGENTS["after"]],
+            env=env, stdin=os.environ["ANTHROPIC_API_KEY"], cwd=config)
+    for arm, agent in ARM_AGENTS.items():
+        execute(["talon", "secrets", "set", f"{agent}-agent-secret",
+                 "--tenant", "demo", "--agent", agent],
+                env=env, stdin=values["agent_" + arm], cwd=config)
+    execute(["talon", "validate", "--dir", "agents"], env=env, cwd=config)
 
 def health():
     try:
@@ -175,7 +218,7 @@ def health():
         return False
 
 
-def start_gateway(values):
+def start_gateway(values, run_id):
     if health():
         raise RuntimeError(f"Port {PORT} already hosts Talon; refusing to reuse it")
     try:
@@ -183,16 +226,16 @@ def start_gateway(values):
             raise RuntimeError(f"Port {PORT} is already occupied")
     except (urllib.error.URLError, TimeoutError):
         pass
-    log = (STATE / "gateway.log").open("w")
+    log = (STATE / run_id / "gateway.log").open("w")
     process = subprocess.Popen(
         ["talon", "serve", "--host", "127.0.0.1", "--port", str(PORT),
          "--gateway", "--gateway-config", str(STATE / "config" / "talon.config.yaml")],
-        cwd=STATE / "config", env=tenv(values),
+        cwd=STATE / run_id / "config", env=tenv(values, run_id),
         stdout=log, stderr=subprocess.STDOUT)
     for _ in range(100):
         if process.poll() is not None:
             log.close()
-            raise RuntimeError("Talon startup failed: see " + str(STATE / "gateway.log"))
+            raise RuntimeError("Talon startup failed: see " + str(STATE / run_id / "gateway.log"))
         if health():
             return process, log
         time.sleep(0.1)
@@ -214,7 +257,7 @@ def install_plugin():
     return plugin, commit
 
 
-def verified(session, env, destination):
+def verified(session, agent, env, destination):
     destination.mkdir(parents=True, exist_ok=True)
     signed = destination / "signed.json"
     execute(["talon", "audit", "export", "--session", session,
@@ -225,12 +268,17 @@ def verified(session, env, destination):
         raise RuntimeError("Signed evidence failed verification: " + session)
     records = json.loads(signed.read_text()).get("records", [])
     if not records or any(item.get("session_id") != session or
-                          item.get("agent_id") != AGENT for item in records):
+                          item.get("agent_id") != agent for item in records):
         raise RuntimeError("Missing/misattributed evidence: " + session)
     model_calls = [item for item in records if item.get("invocation_type") == "gateway"
                    and item.get("execution", {}).get("model_used")]
-    if not model_calls:
-        raise RuntimeError("No routed provider calls found: " + session)
+    budget_denied = any(
+        not item.get("policy_decision", {}).get("allowed", True)
+        and any("budget_exceeded" in str(reason) for reason in
+                (item.get("policy_decision", {}).get("reasons") or []))
+        for item in records)
+    if not model_calls and not budget_denied:
+        raise RuntimeError("No routed provider calls or budget denial found: " + session)
 
     def tokens(field):
         return sum(item.get("execution", {}).get("tokens", {}).get(field, 0) or 0
@@ -241,19 +289,16 @@ def verified(session, env, destination):
             "cost": sum(item.get("execution", {}).get("cost", 0) or 0
                         for item in model_calls),
             "calls": len(model_calls), "records": len(records),
+            "budget_denied": budget_denied,
             "denials": sum(not item.get("policy_decision", {}).get("allowed", True)
                            for item in records)}
 
 
 def one(arm, index, run_id, workspace, values, plugin):
     session = f"te-{run_id}-{arm}-{index}"
-    env = os.environ.copy()
-    # Never pass the actual upstream key to Claude: only Talon has the vaulted key.
-    for key in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN",
-                "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX"):
-        env.pop(key, None)
+    env = safe_env()  # exclude operator API, OAuth and cloud credentials
     env.update(
-        ANTHROPIC_AUTH_TOKEN=values["agent"],
+        ANTHROPIC_AUTH_TOKEN=values["agent_" + arm],
         ANTHROPIC_BASE_URL=f"http://127.0.0.1:{PORT}/v1/proxy/anthropic",
         ANTHROPIC_CUSTOM_HEADERS=("X-Talon-Session-ID: " + session +
                                   "\nX-Talon-Client: te-demo-claude"),
@@ -281,7 +326,7 @@ def one(arm, index, run_id, workspace, values, plugin):
                      "-s", "tests", "-p", f"test_case_{index}.py"],
                     cwd=workspace, timeout=15, check=False)
     destination = STATE / run_id / arm / f"task-{index:02d}"
-    metrics = verified(session, tenv(values), destination)
+    metrics = verified(session, ARM_AGENTS[arm], tenv(values, run_id), destination)
     metrics.update(task=index, warmup=index <= 5, passed=grade.returncode == 0,
                    cli_success=answer is not None and answer.returncode == 0,
                    duration_s=duration, session=session)
@@ -326,7 +371,13 @@ def table(report):
     print("-+-".join("-" * width for width in widths))
     for row in rows:
         print(layout(row))
-    print("Five warmup tasks per arm excluded. Real API spend; no mock.")
+    print(f"Talon budget: USD {report.get('budget_cap_usd_per_arm', ARM_BUDGET):.2f} "
+          "daily/monthly per arm, warmup INCLUDED in budget. "
+          "Admission estimates may differ from final billed costs.")
+    if report.get("arm_status"):
+        print("Arm completion:", report["arm_status"])
+    print("Five warmup tasks per arm excluded from measured comparison. "
+          "Costs are Talon pricing estimates from real provider usage.")
     return rows
 
 
@@ -353,12 +404,22 @@ independently verified Talon evidence. Tasks are independently graded by Python 
 <tr><th>Metric</th><th>Without plugin</th><th>With TokenEconomizer</th><th>Change</th>
 </tr></thead><tbody>ROWS</tbody></table></div>
 <div class="card"><h2>Method and boundaries</h2>
+<p>Each arm has its own authenticated Talon agent with a USD 5.00 daily and monthly
+budget, covering warmup AND measured tasks. The Talon ledger is new for every run.
+The local agent policy allows only the selected Anthropic model, and warn-only
+input/response PII scans observe without changing synthetic code.</p>
 <p>Five warmup sessions and five measured repairs per arm. Independent Claude profiles,
 Git workspaces and plugin state. The operator's Anthropic key is stored only in the local
 Talon encrypted vault, not passed to Claude Code. All model calls must have Talon evidence.</p>
+<p>Execution status: STATUS.</p>
 <p class="ok">Included calls have signed evidence.</p>
-<p>Small sample; not a statistical significance claim. Warmups incur real spend.
-Savings may be negative. Local file edits and test subprocesses are not Talon-governed actions.</p>
+<p>Small sample; not a statistical significance claim. Warmups incur real spend
+and are excluded only from measured comparison. Costs are Talon estimates based
+on provider usage, not final invoice totals. Policy admission estimates may
+understate one request's actual cost, so USD 5.00 is a preventive budget, not
+an absolute provider-billing ceiling. Budget exhaustion produces an incomplete
+comparison, not a savings claim. Local file edits and test subprocesses are
+not Talon-governed actions.</p>
 </div><div class="card"><h2>What TokenEconomizer actually did</h2>
 <p>Learned facts: FACTS · Proposed tool exclusions: PROPOSALS · Applied exclusions: PRUNED · Loop nudges: NUDGES.</p>
 <p>These are observed plugin events, not assumed feature activation. Zero means none observed.</p>
@@ -367,6 +428,7 @@ Savings may be negative. Local file edits and test subprocesses are not Talon-go
                     .replace("RUNID", report["run_id"])
                     .replace("MODEL", html.escape(report["model"]))
                     .replace("REV", report["tokeneconomizer_sha"][:12])
+                    .replace("STATUS", html.escape(str(report.get("arm_status", {}))))
                     .replace("FACTS", str(report.get("plugin_mechanisms_observed", {}).get("learned_facts", 0)))
                     .replace("PROPOSALS", str(report.get("plugin_mechanisms_observed", {}).get("proposed_tools", 0)))
                     .replace("PRUNED", str(report.get("plugin_mechanisms_observed", {}).get("pruned_tools", 0)))
@@ -413,10 +475,10 @@ def run():
     if "--plugin-dir" not in execute(["claude", "--help"], timeout=30).stdout:
         raise RuntimeError("Claude Code version does not advertise --plugin-dir")
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    values = keys()
-    setup(values)
+    values = keys(run_id)
+    setup(values, run_id)
     plugin, commit = install_plugin()
-    server, log = start_gateway(values)
+    server, log = start_gateway(values, run_id)
     arms = {}
     try:
         for arm in ("baseline", "after"):
@@ -424,8 +486,13 @@ def run():
             fixture(workspace)
             arms[arm] = []
             for index in range(1, 11):
-                arms[arm].append(one(arm, index, run_id, workspace, values,
-                                     plugin if arm == "after" else None))
+                result = one(arm, index, run_id, workspace, values,
+                             plugin if arm == "after" else None)
+                arms[arm].append(result)
+                if result["budget_denied"]:
+                    print(f"{arm}: Talon denied a request due to budget; "
+                          "stopping arm (no bypass).", flush=True)
+                    break
     finally:
         server.terminate()
         try:
@@ -437,7 +504,7 @@ def run():
     # comparison. Require actual TokenEconomizer hook state from this run.
     plugin_state = STATE / run_id / "plugin-after"
     observed_hooks = list(plugin_state.rglob("sessions/*.json"))
-    if len(observed_hooks) < 5:
+    if len(arms["after"]) == 10 and len(observed_hooks) < 5:
         raise RuntimeError("TokenEconomizer plugin was not observed in at least five sessions; "
                            "refusing to publish a false before/after result. Check "
                            + str(plugin_state))
@@ -445,6 +512,11 @@ def run():
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
         "token_economizer_hook_sessions": len(observed_hooks),
         "plugin_mechanisms_observed": observed_optimizations(plugin_state),
+        "budget_cap_usd_per_arm": ARM_BUDGET,
+        "arm_total_including_warmups": {a: total(rows) for a, rows in arms.items()},
+        "arm_status": {a: ("budget_exhausted" if any(r["budget_denied"] for r in rows)
+                           else "completed" if len(rows) == 10 else "incomplete")
+                       for a, rows in arms.items()},
         "baseline": total(arms["baseline"][5:]),
         "with_tokeneconomizer": total(arms["after"][5:]),
         "baseline_warmup": total(arms["baseline"][:5]),
