@@ -129,7 +129,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 	switch request.Method {
 	case "server/discover":
 		reply(w, request.ID, map[string]any{
-			"resultType":      "complete",
+			"resultType":        "complete",
 			"supportedVersions": []string{"2026-07-28"},
 			"capabilities":      map[string]any{"tools": map[string]any{}},
 			"_meta":             map[string]any{"io.modelcontextprotocol/serverInfo": map[string]string{"name": "talon-demo-release", "version": "1.0.0"}},
@@ -193,7 +193,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 		reply(w, request.ID, map[string]any{
 			"resultType": "complete",
 			"content":    []map[string]any{{"type": "text", "text": fmt.Sprintf("Synthetic %s completed; no external release action exists", params.Name)}},
-			"isError": false,
+			"isError":    false,
 		})
 	default:
 		rpcError(w, request.ID, -32601, "method not found")
