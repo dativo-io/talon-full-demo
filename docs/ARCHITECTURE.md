@@ -6,6 +6,10 @@ happens when Talon is unavailable, and which identity claims are *authenticated*
 versus merely *attributed*. Scope: what this repository actually implements and
 what remains an external gate (see `docs/BLOCKERS.md`).
 
+## Optional OpenShell enforcement boundary
+
+The OpenShell case (see [OPENSHELL_DEMO.md](OPENSHELL_DEMO.md)) uses an external sandbox supervisor attached to the existing Talon gateway. OpenShell owns containment and provider credentials; Talon owns policies, approvals, action dispatch and signed evidence. The adapter must not create another Talon process or a second evidence store. Imported runtime events are external assertions, not Talon-proven enforcement.
+
 ## Components and data flow
 
 ```

@@ -12,12 +12,15 @@ The buyer and technical views never use separate fixtures or presenter-authored 
 
 | Application case | Buyer view | Technical view | Re-present completed run |
 |---|---|---|---|
+| OpenShell sandboxed support (opt-in, integration gate pending) | `make demo-openshell-buyer` | `make demo-openshell-tech` | `make present-openshell-all` |
 | Customer-support gateway | `make demo-support-buyer` | `make demo-support-tech` | `make present-support-all` |
 | Zendesk adapter | `make demo-zendesk-buyer` | `make demo-zendesk-tech` | `make present-zendesk-all` |
 | GitHub Copilot CLI | `make demo-copilot-buyer` | `make demo-copilot-tech` | `make present-copilot-all` |
 | n8n quarterly workflow | `make demo-n8n-buyer` | `make demo-n8n-tech` | `make present-n8n-all` |
 | n8n vendor-contract review | `make demo-n8n-vendor-review-buyer` | `make demo-n8n-vendor-review-tech` | `make present-n8n-vendor-review-all` |
 | n8n customer-support resolution | `make demo-n8n-support-resolution-buyer` + explicit approval/rejection in shell 2 | `make demo-n8n-support-resolution-tech` + explicit approval/rejection in shell 2 | `make present-n8n-support-resolution-all` |
+
+The optional OpenShell case also uses `make real-prepare` / `real-start` / `real-status`, with `TALON_OPENSHELL_ENABLED=1`; its runtime and source packaging requirements are described in [OPENSHELL_DEMO.md](OPENSHELL_DEMO.md). Its approval is Talon's real Action Gateway approval, unlike the separate synthetic operator gate used by the n8n customer-support resolution case.
 
 All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first. Every n8n case additionally requires Docker. The quarterly and vendor-review cases require Anthropic; the support-resolution case requires OpenAI and a literal operator decision before it can complete.
 

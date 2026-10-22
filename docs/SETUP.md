@@ -271,6 +271,10 @@ talon audit verify --file .state/<session-id>.signed.json
 
 Provider routes, redaction, cost, policy decisions, identity, session attribution, and signatures must come from Talon output. Never replace native evidence with presenter-authored success text.
 
+## OpenShell opt-in case
+
+See [OPENSHELL_DEMO.md](OPENSHELL_DEMO.md). On supported Linux/Docker hosts, set `TALON_OPENSHELL_ENABLED=1` before the standard `make real-prepare` / `make real-start` / `make real-status` lifecycle. No OpenShell requirement is imposed on the other Full Demo cases.
+
 ## Security and truth boundaries
 
 - All data and tool effects are synthetic.

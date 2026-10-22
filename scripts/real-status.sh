@@ -48,6 +48,15 @@ else
   printf '– %-18s %s\n' "Copilot CLI" "not installed; run make copilot-install"
 fi
 
+if [[ "${TALON_OPENSHELL_ENABLED:-0}" == 1 ]]; then
+  if ! bash "$ROOT/scripts/real-openshell.sh" status; then
+    printf "%s\n" "✗ OpenShell case not ready"
+    status_rc=1
+  fi
+else
+  printf "%s\n" "– OpenShell case disabled (opt in before real-prepare)"
+fi
+
 if [[ -f "$READY_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$READY_FILE"

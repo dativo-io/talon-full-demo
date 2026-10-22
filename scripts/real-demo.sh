@@ -15,6 +15,9 @@ need() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
 load_env() {
   local external_openai="${OPENAI_API_KEY:-}"
   local external_anthropic="${ANTHROPIC_API_KEY:-}"
+  local external_openshell="${TALON_OPENSHELL_ENABLED:-}"
+  local external_openshell_runner="${TALON_OPENSHELL_SHOWCASE_RUNNER:-}"
+  local external_openshell_manifest="${TALON_OPENSHELL_RELEASE_MANIFEST:-}"
 
   if [[ ! -f "$ENV_FILE" ]]; then
     [[ ! -d "$STATE/talon" ]] || die ".env is missing but encrypted Talon state still exists. Remove .state and run again, or restore the matching .env."
@@ -28,6 +31,9 @@ load_env() {
   # operators keep real provider keys out of the repository-local file.
   [[ -n "$external_openai" ]] && export OPENAI_API_KEY="$external_openai"
   [[ -n "$external_anthropic" ]] && export ANTHROPIC_API_KEY="$external_anthropic"
+  [[ -n "$external_openshell" ]] && export TALON_OPENSHELL_ENABLED="$external_openshell"
+  [[ -n "$external_openshell_runner" ]] && export TALON_OPENSHELL_SHOWCASE_RUNNER="$external_openshell_runner"
+  [[ -n "$external_openshell_manifest" ]] && export TALON_OPENSHELL_RELEASE_MANIFEST="$external_openshell_manifest"
 
   # Optional provider variables are conditions, not the function result. Without
   # this explicit success, a missing Anthropic export returns status 1 and `set -e`
@@ -128,6 +134,11 @@ prepare() {
   TALON_REPO="$talon_repo" "$ROOT/scripts/bootstrap-talon-config.sh" >/dev/null
   export TALON_GATEWAY_CONFIG="$TALON_CONFIG"
 
+  # Extend shared config before the canonical fleet validation.
+  if [[ "${TALON_OPENSHELL_ENABLED:-0}" == 1 ]]; then
+    bash "$ROOT/scripts/real-openshell.sh" prepare
+  fi
+
   say "[2/4] Seeding Talon's local vault..."
   talon secrets set local-llama-demo-key not-a-real-key-local-demo \
     --tenant acme --agent customer-support >/dev/null
@@ -187,6 +198,9 @@ start() {
   "$ROOT/scripts/preflight.sh"
   "$ROOT/scripts/stop-components.sh" >/dev/null 2>&1 || true
   "$ROOT/scripts/start-components.sh"
+  if [[ "${TALON_OPENSHELL_ENABLED:-0}" == 1 ]]; then
+    bash "$ROOT/scripts/real-openshell.sh" start
+  fi
 
   say
   say "Everything is running. Next: make real-smoke"
@@ -331,6 +345,9 @@ status() {
 
 stop() {
   load_env
+  if [[ "${TALON_OPENSHELL_ENABLED:-0}" == 1 ]]; then
+    bash "$ROOT/scripts/real-openshell.sh" stop || echo "WARNING: OpenShell cleanup failed" >&2
+  fi
   "$ROOT/scripts/stop-components.sh" >/dev/null 2>&1 || true
   stop_pid talon-mcp-proxy "talon serve" || true
   stop_pid talon-gateway "talon serve" || true
