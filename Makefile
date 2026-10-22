@@ -306,3 +306,17 @@ bootstrap-config:
 
 preflight:
 	./scripts/preflight.sh
+
+
+# Real, credential-driven Claude Code x TokenEconomizer experiment.
+# Isolated: does not change Talon source or the running Full Demo fleet.
+.PHONY: tokeneconomizer-validate demo-tokeneconomizer present-tokeneconomizer
+
+tokeneconomizer-validate:
+	python3 scripts/tokeneconomizer-demo.py validate
+
+demo-tokeneconomizer:
+	python3 scripts/tokeneconomizer-demo.py run
+
+present-tokeneconomizer:
+	python3 scripts/tokeneconomizer-demo.py present
