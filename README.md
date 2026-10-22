@@ -363,15 +363,20 @@ TokenEconomizer plugin loaded through the Claude Code --plugin-dir flag.
 ### Run
 
     export ANTHROPIC_API_KEY='sk-ant-...'
-    make tokeneconomizer-validate       # credential-free fixture contract
-    make demo-tokeneconomizer           # real paid model calls through Talon
-    make present-tokeneconomizer        # replay measured table without new calls
+    make tokeneconomizer-validate       # credential-free: grader + evidence contracts
+    make tokeneconomizer-smoke          # one real task per arm, checks integration
+    make demo-tokeneconomizer           # full real comparison, subject to $5/arm policies
+    make present-tokeneconomizer        # replay the latest table without new API calls
 
 The run prints a before/after table for **Talon-estimated USD cost from real
 Anthropic usage**, input and output tokens, cached-input tokens, runtime,
-independently graded Python unit tests, provider calls and signed Talon evidence. It also saves an audience-friendly
+independently graded **sealed Python tests** (three input cases per function,
+executed outside Claude's editable workspace), provider calls, and signed
+Talon evidence. It also saves an audience-friendly
 HTML comparison under .state/tokeneconomizer-demo/<RUN_ID>/comparison.html,
 JSON data, and signed per-session Talon receipts under the same run directory.
+The report also separates cache-read and cache-write tokens and records
+the CLI versions used to reproduce it.
 
 **Talon cost policy: USD $5 per arm (USD $10 across the experiment).** Each arm
 uses its own Talon agent with `cost_limits.daily: 5.00` and
@@ -394,8 +399,14 @@ their Anthropic billing limits.
 
 Five warmups per arm are excluded from the headline comparison, but their
 spend is recorded separately in the JSON and counted against the $5 arm cap.
-The sampled task count is small,
-so results are not a statistically powered measure of product savings. The
+The sampled task count is small (five measured repairs per arm),
+so results are not a statistically powered measure of product savings.
+Runs that fail grading, contain a model/provider error, exhaust a budget, or
+fail to show actual TokenEconomizer hook/mechanism activity are
+**INCONCLUSIVE**: the report does not print a numeric savings percentage.
+The one-task smoke intentionally reports INCONCLUSIVE by design; it is a
+connectivity check, not a savings experiment. Partial reports remain available
+when an individual task errors after the gateway starts. The
 result can be a negative cost reduction; none is assumed in advance.
 
 Each model call must have session-correlated, agent-attributed signed evidence
@@ -403,7 +414,12 @@ that passes Talon's offline signature verification. The independent Python
 test outcome determines task correctness, not Claude's self-assessment.
 
 Tool pruning may modify only the synthetic repository's local Claude settings;
-the plugin is given isolated state and a five-session threshold. The operator's
+the plugin is given isolated state and a five-session threshold. The upstream
+TokenEconomizer revision is pinned to
+`0ce0e067b42b1dd5a5f5984275d07f8c7686c44a` so changes to its main
+branch cannot silently alter the experiment. Upstream notes that a recorded
+Claude Code tool catalog is important to make pruning effective; this pilot
+does **not** guarantee a measurable improvement on tiny synthetic tasks. The operator's
 real upstream API key is stored in a local Talon encrypted vault, never passed
 to Claude Code, written to reports or committed to Git. It is passed to Talon
 vault setup by stdin (not process arguments), and both Claude Code and Talon
