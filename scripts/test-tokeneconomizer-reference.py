@@ -369,6 +369,55 @@ class ReferencePilotTest(unittest.TestCase):
             self.assertIn("No model calls", txt)
             self.assertNotIn("2,000.0 effective tokens", txt)
 
+    def test_model_failure_classifies_errors_without_revealing_secrets(self):
+        examples = (
+            ({"error": {"message": "429 Too Many Requests sk-ant-test"}}, "rate_limit_429"),
+            ({"error": {"message": "overloaded_error status 529"}}, "upstream_overload_5xx"),
+            ({"message": "context window exceeded secret"}, "context_length"),
+            ({"error": {"message": "ECONNRESET secret"}}, "timeout_or_transport"),
+            ({"error": {"message": "unknown secret"}}, "unclassified"),
+        )
+        for event, expected in examples:
+            got = ref.classify_copilot_failure(event)
+            self.assertEqual(got, expected)
+            self.assertNotIn("secret", got)
+
+    def test_model_failure_diagnosis_is_metadata_only(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "reference-20261023T203253Z-5e50676f"
+            for arm, failed in (("baseline", False), ("trimech-web", True)):
+                run = (root / "official-results" / "copilot_webbench_sonnet5"
+                       / arm / "expressjs_s0" / "20261023T210000Z")
+                run.mkdir(parents=True)
+                (run / "row.json").write_text(json.dumps({
+                    "instance": "task-10", "resolved": not failed,
+                    "webbench_attempts": 2 if failed else 1,
+                    "webbench_answered_files": [[], []] if failed else [["a.js"]]}))
+                events = [
+                    {"type": "model.call_start", "data": {"secret": "HIDE"}},
+                    {"type": "tool.execution_start",
+                     "data": {"toolName": "view", "arguments": "SECRET"}},
+                ]
+                if failed:
+                    events += [
+                        {"type": "model.call_failure",
+                         "data": {"error": {"message": "429 Too Many Requests HIDE"}}},
+                        {"type": "session.error",
+                         "data": {"error": "429 HIDE"}}
+                    ]
+                (run / "transcript.jsonl").write_text(
+                    "\\n".join(json.dumps(x) for x in events) + "\\n")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                ref.diagnose_model_failures(str(root))
+            summary = out.getvalue()
+            self.assertIn("rate_limit_429", summary)
+            self.assertIn("model_failures=1", summary)
+            self.assertIn("session_errors=1", summary)
+            self.assertNotIn("HIDE", summary)
+            self.assertNotIn("SECRET", summary)
+            self.assertNotIn("a.js", summary)
+
     def test_recover_saved_signatures_separately_from_original_proof(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / "reference-20261023T203253Z-5e50676f"
