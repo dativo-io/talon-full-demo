@@ -328,23 +328,23 @@ tokeneconomizer-contract:
 tokeneconomizer-smoke: tokeneconomizer-contract
 	TE_DEMO_PROFILE=smoke TE_DEMO_TASK_LIMIT=1 bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run
 
-# Updated approval: USD 7.50 per arm inclusive of
+# Updated approval: USD 5.00 per arm inclusive of
 # all learning and measured requests. Preventive ADMISSION budget is not a
 # provider-invoice hard ceiling. The 24-ticket stream may end inconclusively.
 demo-tokeneconomizer: tokeneconomizer-contract
-	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=7.5 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
+	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=5.0 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
 
-# Strictly preserve USD 7.50 *total per arm across all THREE* independent
+# Strictly preserve USD 5.00 *total per arm across all THREE* independent
 # seeds. With fresh Talon stores, divide the envelope conservatively:
-# USD 2.50 each per seed x 3 = USD 7.50 per arm in admission budgets.
+# USD 1.66 each per seed x 3 = USD 4.98 per arm in admission budgets.
 # Limited budget may truncate a stream: never claim full paper replication.
 tokeneconomizer-study-3: tokeneconomizer-contract
-	@echo "STUDY: seed 0 (USD 2.50 per arm, 3-seed limit USD 7.50 per arm)"
-	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=2.50 TE_DEMO_SEED=0 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
-	@echo "STUDY: seed 1 (USD 2.50 per arm, 3-seed limit USD 7.50 per arm)"
-	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=2.50 TE_DEMO_SEED=1 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
-	@echo "STUDY: seed 2 (USD 2.50 per arm, 3-seed limit USD 7.50 per arm)"
-	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=2.50 TE_DEMO_SEED=2 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
+	@echo "STUDY: seed 0 (USD 1.66 per arm, 3-seed limit USD 5.00 per arm)"
+	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=1.66 TE_DEMO_SEED=0 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
+	@echo "STUDY: seed 1 (USD 1.66 per arm, 3-seed limit USD 5.00 per arm)"
+	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=1.66 TE_DEMO_SEED=1 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
+	@echo "STUDY: seed 2 (USD 1.66 per arm, 3-seed limit USD 5.00 per arm)"
+	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=1.66 TE_DEMO_SEED=2 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
 	python3 scripts/tokeneconomizer-study-aggregate.py
 
 present-tokeneconomizer:
