@@ -460,7 +460,11 @@ A **DEMONSTRATED** pilot requires all of the following:
    an actual SessionStart fact injection, an applied tool-deny rule loaded
    by the workspace, or a session-correlated loopguard nudge. Hook-file
    presence, an unconsumed learned fact, or an unapplied tool-pruning
-   *proposal* alone **does not qualify**.
+   *proposal* alone **does not qualify**. Before the plugin arm begins,
+   the demo performs TokenEconomizer's **documented tool-catalog refresh**
+   (`te --host claude toolprune refresh-catalog`), capturing Claude's
+   initialized tool list *before a model call*; a failed capture makes the
+   experiment incomplete rather than silently disabling pruning evidence.
 5. Measured Talon-estimated provider spend is lower in the plugin arm,
    **without sacrificing task correctness**. Warmup spend is also shown,
    separately, and still counts toward each arm's $5 Talon budget.
