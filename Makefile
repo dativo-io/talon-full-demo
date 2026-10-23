@@ -327,18 +327,20 @@ tokeneconomizer-contract:
 tokeneconomizer-smoke: tokeneconomizer-contract
 	TE_DEMO_PROFILE=smoke TE_DEMO_TASK_LIMIT=1 bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run
 
-# Bounded paid pilot: 24 linked repository tickets, 8 learn + 16 measured,
-# three available seeded orders. 15 USD per arm is an admission limit, NOT a
-# guaranteed provider-invoice ceiling. Requires explicit provider credentials.
+# Same budget as the original proof-of-concept: 5 USD per arm inclusive of
+# all learning and measured requests. Preventive ADMISSION budget is not a
+# provider-invoice hard ceiling. The 24-ticket stream may end inconclusively.
 demo-tokeneconomizer: tokeneconomizer-contract
-	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=15 bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run
+	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=5 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
 
-# Three independent, freshly initialized paid runs (up to 90 USD admission
-# budgets total); all-or-nothing shell chain, no unsafe concurrent runs.
+# Strictly preserve a 5 USD *total per arm across all THREE* independent
+# seeds. With fresh Talon stores, divide the envelope conservatively:
+# 1.66 USD each per seed x 3 = 4.98 USD per arm in admission budgets.
+# Limited budget may truncate a stream: never claim full paper replication.
 tokeneconomizer-study-3: tokeneconomizer-contract
 	@set -e; for seed in 0 1 2; do \
-	  echo "STUDY: seed $seed (new Talon ledger)"; \
-	  TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=15 TE_DEMO_SEED=$seed bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run; \
+	  echo "STUDY: seed $seed (USD 1.66 per arm, combined three-seed admission budget USD 4.98 per arm)"; \
+	  TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=1.66 TE_DEMO_SEED=$seed bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run; \
 	done
 	python3 scripts/tokeneconomizer-study-aggregate.py
 
