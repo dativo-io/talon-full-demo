@@ -362,6 +362,25 @@ TokenEconomizer plugin loaded through the Claude Code --plugin-dir flag.
 - Python 3.10+, Git and connectivity to the Anthropic API.
 - An Anthropic API key with active API billing, not only a Claude subscription.
 
+If Talon is not on your shell's `PATH`, the demo first tries the **existing**
+`scripts/with-talon.sh` resolver: `TALON_BIN`, the regular PATH,
+`~/go/bin/talon`, `~/.local/bin/talon`, a sibling
+`../talon/bin/talon` or `../talon/talon`, and a repository-managed running
+Talon process. It does **not** silently install a release or switch builds.
+
+For a clean Ubuntu host, install the exact reviewed Talon main commit (requires
+a compatible Go 1.26.10 toolchain):
+
+```bash
+go install github.com/dativo-io/talon/cmd/talon@cef6313c42a44ab9ab64de0e879147bf50370ea3
+export PATH="$(go env GOPATH)/bin:$PATH"
+talon --version
+```
+
+Or, when a binary already exists outside PATH, invoke
+`TALON_BIN=/absolute/path/to/talon make tokeneconomizer-smoke`. The keyless
+contract will reject incompatible binaries before any Anthropic spending.
+
 ### Compatibility and run
 
 The **credential-free real-Talon contract** is a separate CI job, not a mock
