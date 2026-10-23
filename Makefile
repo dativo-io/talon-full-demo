@@ -359,6 +359,11 @@ tokeneconomizer-reference-prepare:
 tokeneconomizer-reference-check:
 	python3 scripts/tokeneconomizer-reference.py check
 
+# Offline forensic summary of SAVED benchmark rows; requires no Talon or model keys.
+# Optional TE_REFERENCE_RUN_DIR=/path/to/reference-... selects an exact run.
+tokeneconomizer-reference-diagnose:
+	python3 scripts/tokeneconomizer-reference.py diagnose
+
 # Original Microsoft Web-Bench (not the synthetic 24-ticket/production-plugin
 # study). Plan and offline tests make NO model calls.
 tokeneconomizer-reference-plan:
