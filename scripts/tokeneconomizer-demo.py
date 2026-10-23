@@ -923,6 +923,11 @@ def run():
     print("Observed TokenEconomizer hook session files:", len(observed_hooks))
     print("Plugin mechanisms:", report["plugin_mechanisms_observed"])
     print("Optimizer effect observed:", effect_observed)
+    if PROFILE == "study" and not effect_observed:
+        print("DIAGNOSTIC: No recorded TokenEconomizer intervention. "
+              "Proposed tool removals and loaded hooks are NOT applied savings. "
+              "Confirm mechanism eligibility before spending on another seed.",
+              flush=True)
     print("HTML report:", destination / "comparison.html")
     print("Raw signed receipts:", destination)
     if run_error:
