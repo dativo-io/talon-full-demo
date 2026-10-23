@@ -406,7 +406,7 @@ class ReferencePilotTest(unittest.TestCase):
                          "data": {"error": "429 HIDE"}}
                     ]
                 (run / "transcript.jsonl").write_text(
-                    "\\n".join(json.dumps(x) for x in events) + "\\n")
+                    "\n".join(json.dumps(x) for x in events) + "\n")
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 ref.diagnose_model_failures(str(root))
