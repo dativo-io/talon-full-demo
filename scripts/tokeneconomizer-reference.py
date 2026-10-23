@@ -84,6 +84,7 @@ def prepare():
             raise RuntimeError("Missing " + executable + ". Install prerequisites and retry.")
     plugin, commit = demo.install_plugin()
     experiments = plugin.parent / "experiments"
+    build_env = demo.safe_env()  # never expose Anthropic/OpenAI keys to third-party build scripts
     print("Pinned Microsoft experiment code:", commit, flush=True)
     if not (checkout / ".git").is_dir():
         if checkout.exists():
@@ -91,19 +92,19 @@ def prepare():
         checkout.parent.mkdir(parents=True, exist_ok=True)
         print("Cloning original Web-Bench into", checkout, flush=True)
         subprocess.run(["git", "clone", "https://github.com/bytedance/web-bench.git",
-                        str(checkout)], check=True)
+                        str(checkout)], env=build_env, check=True)
     head = subprocess.run(["git", "-C", str(checkout), "rev-parse", "HEAD"],
-                          capture_output=True, text=True, check=True).stdout.strip()
+                          capture_output=True, text=True, env=build_env, check=True).stdout.strip()
     if head != WEBBENCH_SHA:
         dirty = subprocess.run(["git", "-C", str(checkout), "status", "--porcelain"],
-                               capture_output=True, text=True, check=True).stdout
+                               capture_output=True, text=True, env=build_env, check=True).stdout
         if dirty.strip():
             raise RuntimeError("Original Web-Bench checkout has local edits; refusing checkout " +
                                str(checkout))
         subprocess.run(["git", "-C", str(checkout), "fetch", "--depth", "1",
-                        "origin", WEBBENCH_SHA], check=True)
+                        "origin", WEBBENCH_SHA], env=build_env, check=True)
         subprocess.run(["git", "-C", str(checkout), "checkout", "--detach", WEBBENCH_SHA],
-                       check=True)
+                       env=build_env, check=True)
     print("Preparing only original expressjs project and official evaluator", flush=True)
     # A built evaluator can be reused. Always regenerate the task export from
     # original tasks.jsonl + Microsoft's committed workload identity manifest.
@@ -115,15 +116,15 @@ def prepare():
                      ["npx", "--yes", "@microsoft/rush", "build",
                       "--to", "@web-bench/eval", "--to", "@web-bench/expressjs"]):
             print(">", " ".join(args), flush=True)
-            subprocess.run(args, cwd=checkout, check=True)
+            subprocess.run(args, cwd=checkout, env=build_env, check=True)
     # Idempotent: a pre-existing evaluator build does not imply that this
     # machine has the project's pinned browser binary installed.
     args = ["npx", "playwright", "install", "chromium", "chromium-headless-shell"]
     print(">", " ".join(args), flush=True)
-    subprocess.run(args, cwd=projects / "expressjs", check=True)
+    subprocess.run(args, cwd=projects / "expressjs", env=build_env, check=True)
     rows = export_expressjs_tasks(projects, tasks, experiments)
     revision = subprocess.run(["git", "-C", str(checkout), "rev-parse", "HEAD"],
-                              capture_output=True, text=True, check=True).stdout.strip()
+                              capture_output=True, text=True, env=build_env, check=True).stdout.strip()
     print("Original Web-Bench source:", revision)
     print("Original", len(rows), "expressjs tasks exported:", tasks)
     print("Evaluator:", evaluator)
