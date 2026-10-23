@@ -306,3 +306,89 @@ bootstrap-config:
 
 preflight:
 	./scripts/preflight.sh
+
+
+# Real, credential-driven Claude Code x TokenEconomizer experiment.
+# Isolated: does not change Talon source or the running Full Demo fleet.
+.PHONY: tokeneconomizer-validate tokeneconomizer-contract tokeneconomizer-smoke demo-tokeneconomizer tokeneconomizer-study-3 present-tokeneconomizer tokeneconomizer-reference-plan tokeneconomizer-reference-prepare tokeneconomizer-reference-check tokeneconomizer-reference-run
+
+tokeneconomizer-validate:
+	python3 scripts/tokeneconomizer-demo.py validate
+	python3 scripts/test-tokeneconomizer-proof.py
+	python3 scripts/test-tokeneconomizer-study.py
+	python3 scripts/test-tokeneconomizer-budget.py
+	python3 scripts/test-tokeneconomizer-reference.py
+
+# Real Talon binary, local counted Anthropic-wire mock, no provider key or Claude CLI.
+# In CI install the pinned published Talon release; locally resolve the same binary.
+tokeneconomizer-contract:
+	bash ./scripts/with-talon.sh python3 scripts/test-tokeneconomizer-talon-contract.py
+
+# Use the same resolved Talon CLI for preflight and paid execution.
+# The wrapper finds TALON_BIN, PATH, user-local installs and sibling builds.
+tokeneconomizer-smoke: tokeneconomizer-contract
+	TE_DEMO_PROFILE=smoke TE_DEMO_TASK_LIMIT=1 bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run
+
+# Updated approval: USD 5.00 per arm inclusive of
+# all learning and measured requests. Preventive ADMISSION budget is not a
+# provider-invoice hard ceiling. The 24-ticket stream may end inconclusively.
+demo-tokeneconomizer: tokeneconomizer-contract
+	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=5.0 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
+
+# Strictly preserve USD 5.00 *total per arm across all THREE* independent
+# seeds. With fresh Talon stores, divide the envelope conservatively:
+# USD 1.66 each per seed x 3 = USD 4.98 per arm in admission budgets.
+# Limited budget may truncate a stream: never claim full paper replication.
+tokeneconomizer-study-3: tokeneconomizer-contract
+	@echo "STUDY: seed 0 (USD 1.66 per arm, 3-seed limit USD 5.00 per arm)"
+	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=1.66 TE_DEMO_SEED=0 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
+	@echo "STUDY: seed 1 (USD 1.66 per arm, 3-seed limit USD 5.00 per arm)"
+	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=1.66 TE_DEMO_SEED=1 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
+	@echo "STUDY: seed 2 (USD 1.66 per arm, 3-seed limit USD 5.00 per arm)"
+	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=1.66 TE_DEMO_SEED=2 bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-demo.py run
+	python3 scripts/tokeneconomizer-study-aggregate.py
+
+present-tokeneconomizer:
+	python3 scripts/tokeneconomizer-demo.py present
+
+# Explicitly non-billable bootstrap. Downloads untrusted open-source build
+# dependencies and Playwright Chromium, but never uses model credentials.
+tokeneconomizer-reference-prepare:
+	python3 -u scripts/tokeneconomizer-reference.py prepare
+
+tokeneconomizer-reference-check:
+	python3 scripts/tokeneconomizer-reference.py check
+
+# Offline forensic summary of SAVED benchmark rows; requires no Talon or model keys.
+# Optional TE_REFERENCE_RUN_DIR=/path/to/reference-... selects an exact run.
+tokeneconomizer-reference-diagnose:
+	python3 scripts/tokeneconomizer-reference.py diagnose
+
+# Censoring-aware, free paired task analysis; works even when reference-proof.json
+# was never written by the benchmark wrapper.
+tokeneconomizer-reference-analyze:
+	python3 scripts/tokeneconomizer-reference.py analyze
+
+# Recover/verify ORIGINAL locally stored Talon signed evidence from a stopped
+# reference benchmark. Uses the saved vault/signing keys; no API calls, agents,
+# provider keys, gateway startup, or fabricated reference-proof.json.
+# Requires TE_REFERENCE_RUN_DIR=/path/to/reference-... .
+tokeneconomizer-reference-recover:
+	bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-reference.py recover
+
+# No-cost, privacy-preserving analysis of Copilot model.call_failure and
+# session.error categories on task 10 in both reference arms.
+tokeneconomizer-reference-model-failures:
+	python3 scripts/tokeneconomizer-reference.py model-failures
+
+# Original Microsoft Web-Bench (not the synthetic 24-ticket/production-plugin
+# study). Plan and offline tests make NO model calls.
+tokeneconomizer-reference-plan:
+	python3 scripts/tokeneconomizer-reference.py plan
+	python3 scripts/test-tokeneconomizer-reference.py
+
+# Explicitly paid, only after operator prepares upstream Web-Bench projects,
+# task exports and an Anthropic API key. Script refuses missing
+# TE_REFERENCE_PAID_CONFIRM=YES and enforces $5 admission per Talon arm.
+tokeneconomizer-reference-run: tokeneconomizer-contract
+	bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-reference.py run
