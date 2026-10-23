@@ -4,7 +4,7 @@
 Uses the SAME two agent policies and signed-receipt parser as the paid demo,
 but a counted local Anthropic-wire fixture instead of Claude Code / Anthropic.
 Tests Talon's real startup, secret ACLs, fleet identities, table pricing,
-cross-session $5 agent budget, zero-dispatch denial and signed audit export.
+cross-session $7.50 agent budget, zero-dispatch denial and signed audit export.
 No real model calls, provider credentials or TokenEconomizer plugin required.
 """
 import contextlib
@@ -47,13 +47,13 @@ class Provider(http.server.BaseHTTPRequestHandler):
             self.send_error(400, "wrong provider route or model")
             return
         type(self).calls += 1
-        # Deliberately >$5 at the published table price, proving that the
+        # Deliberately >$7.50 at published table price, proving that the
         # budget is an admission cap, not an exact provider-invoice ceiling.
         response = {"id": "msg_talon_contract", "type": "message",
                     "role": "assistant", "model": MODEL,
                     "content": [{"type": "text", "text": "ok"}],
                     "stop_reason": "end_turn", "stop_sequence": None,
-                    "usage": {"input_tokens": 2000000, "output_tokens": 100}}
+                    "usage": {"input_tokens": 3000000, "output_tokens": 100}}
         data = json.dumps(response).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -222,7 +222,7 @@ gateway:
                     if Provider.calls != 2:
                         raise AssertionError(f"denials reached mock provider: {Provider.calls}")
                     print("PASS: Talon stable release " + RELEASE + " compatibility — two separately budgeted "
-                          "$5 agents; Anthropic-wire requests, priced usage, two preventive "
+                          "$7.50 agents; Anthropic-wire requests, priced usage, two preventive 
                           "denials (zero dispatch), verified signed evidence; no paid calls")
                 except Exception:
                     print(log_path.read_text()[-5000:], file=sys.stderr)
