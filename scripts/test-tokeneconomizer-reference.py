@@ -369,6 +369,59 @@ class ReferencePilotTest(unittest.TestCase):
             self.assertIn("No model calls", txt)
             self.assertNotIn("2,000.0 effective tokens", txt)
 
+    def test_recover_saved_signatures_separately_from_original_proof(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "reference-20261023T203253Z-5e50676f"
+            store = root / "talon-store"
+            store.mkdir(parents=True)
+            keys = {
+                "vault": "TEST-NOT-PRODUCTION", "signing": "test-s",
+                "admin": "test-a", "agent_baseline": "test-b",
+                "agent_after": "test-c"}
+            (root / "keys.json").write_text(json.dumps(keys))
+            with patch.object(ref.shutil, "which", return_value="/usr/bin/talon"):
+                def fake_audit(vals, rid, arm, out):
+                    self.assertEqual(rid, root.name)
+                    self.assertEqual(vals, keys)
+                    self.assertEqual(out, root / "recovered-evidence" / arm)
+                    return {"signed_records": 9, "provider_calls": 8,
+                            "talon_estimated_usd": 0.3, "denials": 1}
+                with patch.object(ref, "audit_agent", side_effect=fake_audit) as audit:
+                    buffer = io.StringIO()
+                    with contextlib.redirect_stdout(buffer):
+                        summary = ref.recover_evidence(str(root))
+                    self.assertEqual(audit.call_count, 2)
+            self.assertTrue(summary["evidence_complete"])
+            self.assertEqual(summary["signed_evidence"]["after"]["denials"], 1)
+            self.assertFalse((root / "reference-proof.json").exists())
+            path = root / "reference-recovered-evidence.json"
+            self.assertTrue(path.exists())
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertNotIn("TEST-NOT-PRODUCTION", path.read_text())
+            self.assertNotIn("TEST-NOT-PRODUCTION", buffer.getvalue())
+
+    def test_recover_partial_failure_does_not_certify_both_arms(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "reference-20261023T203253Z-5e50676f"
+            (root / "talon-store").mkdir(parents=True)
+            (root / "keys.json").write_text(json.dumps(
+                {k: "secret" for k in ("vault", "signing", "admin",
+                                       "agent_baseline", "agent_after")}))
+            def one_fails(vals, rid, arm, out):
+                if arm == "after":
+                    raise RuntimeError("No matching signed records")
+                return {"signed_records": 3, "provider_calls": 2,
+                        "talon_estimated_usd": 0.2, "denials": 0}
+            with patch.object(ref.shutil, "which", return_value="/usr/bin/talon"):
+                with patch.object(ref, "audit_agent", side_effect=one_fails):
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        with self.assertRaisesRegex(RuntimeError, "incomplete"):
+                            ref.recover_evidence(str(root))
+            result = json.loads((root / "reference-recovered-evidence.json").read_text())
+            self.assertFalse(result["evidence_complete"])
+            self.assertEqual(len(result["errors"]), 1)
+            self.assertFalse((root / "reference-proof.json").exists())
+
     def test_run_is_opt_in_before_any_dependencies_or_cost(self):
         with patch.dict(os.environ, {"TE_REFERENCE_PAID_CONFIRM": "",
                                      "TE_REFERENCE_FULL_STREAM_CONFIRM": "",
