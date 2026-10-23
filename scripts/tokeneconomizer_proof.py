@@ -18,7 +18,7 @@ def assess(report):
     statuses = report.get("arm_status") or {}
     interventions = report.get("plugin_mechanisms_observed") or {}
     signals = {k: int(interventions.get(k) or 0) for k in
-               ("learned_facts", "proposed_tools", "pruned_tools", "nudges")}
+               ("learned_facts", "session_injections", "proposed_tools", "pruned_tools", "nudges")}
     pairs = []
     for index in MEASURED:
         a = next((r for r in before if r.get("task") == index), None)
@@ -57,9 +57,16 @@ def assess(report):
                       release.splitlines()[0].strip() == "Talon " + release_expected)
     version = (report.get("tool_versions") or {}).get("claude_cli") or ""
     plugin_version = report.get("tokeneconomizer_sha") or ""
-    controls = bool(model and version and len(plugin_version) == 40 and
+    fingerprints = report.get("workload_sha256") or {}
+    same_input = (len(fingerprints.get("baseline", "")) == 64 and
+                  fingerprints.get("baseline") == fingerprints.get("after"))
+    controls = bool(model and version and len(plugin_version) == 40 and same_input and
                     report.get("comparison_policy") == "separate $5 Talon agents")
-    intervention = any(signals.values())
+    # A proposed deny list has *no runtime effect*, and rendered facts may
+    # only be prepared for the NEXT session. Count actual SessionStart
+    # injections, applied tool removals or delivered loopguard nudges.
+    intervention = any(signals[k] for k in
+                       ("session_injections", "pruned_tools", "nudges"))
     # A hook session record is evidence of loading, NOT of useful optimization.
     hooks = int(report.get("token_economizer_hook_sessions") or 0)
     activation = hooks >= 5 and intervention
@@ -70,7 +77,7 @@ def assess(report):
         {"id": "released_talon", "pass": release_ok,
          "detail": f"Recorded {release.splitlines()[0] if release else 'unknown'}; expected {release_expected or 'unknown'}"},
         {"id": "same_workload_and_model", "pass": controls and paired,
-         "detail": f"Model {model}; 5 paired measured tasks (IDs 6–10), one CLI version and pinned plugin"},
+         "detail": f"Model {model}; 5 paired measured tasks (IDs 6–10), equal starting-workspace SHA-256, one CLI version and pinned plugin"},
         {"id": "complete_two_arms", "pass": complete,
          "detail": f"Baseline {len(before)}/10, plugin {len(after)}/10; statuses {statuses}"},
         {"id": "signed_talon_receipts", "pass": signed,
@@ -82,7 +89,7 @@ def assess(report):
         {"id": "measured_cost_lower", "pass": lower and comparable,
          "detail": f"Baseline USD {x:.4f}; plugin USD {y:.4f}; difference USD {savings:.4f}"},
     ]
-    if not comparable or not release_ok:
+    if not comparable or not release_ok or not controls:
         verdict = "INCONCLUSIVE"
         headline = ("Not a complete, independently verified comparable run. "
                     "Do not claim TokenEconomizer savings.")
