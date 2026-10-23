@@ -434,6 +434,57 @@ After installing v1.15.3, **rerun the paid smoke** to confirm the *released*
 binary with your local Claude CLI and plugin. The keyless release contract
 alone does not validate plugin activation or meaningful compression.
 
+### What the proof report must establish
+
+The experiment now issues an explicit **DEMONSTRATED / NOT_DEMONSTRATED /
+INCONCLUSIVE** verdict, rather than treating a smaller dollar number as proof.
+Every real run writes `comparison.json`, `comparison.html`, **`proof.json`**
+and **`proof.md`** beside per-task `metrics.json` and verified
+`signed.json` receipts in
+`.state/tokeneconomizer-demo/<RUN_ID>/`. The HTML report starts with the
+proof verdict and a pass/fail table for every gate; `proof.md` includes
+task-by-task costs and relative links to signed receipts.
+
+A **DEMONSTRATED** pilot requires all of the following:
+
+1. Both independent agents complete **10 identical initial-workspace tasks**
+   (five warmups plus five measured repairs), using the same model and
+   Claude Code CLI, with matching starting-workspace SHA-256 digests.
+2. All **20** tasks pass independent **sealed** correctness grading and the
+   Claude CLI exits cleanly, with no provider error, budget denial or policy
+   denial. Every session has model calls attributed to the correct agent.
+3. All 20 signed Talon exports pass offline signature verification; the
+   reported **measured and full-arm** spend totals reconcile exactly to
+   the corresponding task-level, provider-priced USD evidence.
+4. The plugin has really **intervened during measured sessions (tasks 6–10)**:
+   an actual SessionStart fact injection, an applied tool-deny rule loaded
+   by the workspace, or a session-correlated loopguard nudge. Hook-file
+   presence, an unconsumed learned fact, or an unapplied tool-pruning
+   *proposal* alone **does not qualify**.
+5. Measured Talon-estimated provider spend is lower in the plugin arm,
+   **without sacrificing task correctness**. Warmup spend is also shown,
+   separately, and still counts toward each arm's $5 Talon budget.
+
+If both arms are valid but there is **no applied plugin intervention** or
+**no measured reduction**, the verdict is `NOT_DEMONSTRATED`. Missing
+receipts, mismatched tasks, budget exhaustion, failed grading, or smoke-only
+runs produce `INCONCLUSIVE` and must not be marketed as savings.
+
+This is a **bounded observational demo**, not a causal A/B experiment or a
+replication of the TokenEconomizer paper: the two arms run sequentially and
+the tasks are synthetic. Even a `DEMONSTRATED` result establishes only a
+measured association **in this run**, not that TokenEconomizer was the
+sole cause, that savings will generalize, or that Anthropic's invoice will
+match Talon's price-table estimates. Repeat on realistic codebases with
+multiple runs before making a generalized ROI claim.
+
+To inspect the proof without another paid call:
+
+```bash
+make present-tokeneconomizer
+cat ".state/tokeneconomizer-demo/$(cat .state/tokeneconomizer-demo/latest.txt)/proof.md"
+```
+
 The run prints a before/after table for **Talon-estimated USD cost from real
 Anthropic usage**, input and output tokens, cached-input tokens, runtime,
 independently graded **sealed Python tests** (three input cases per function,
