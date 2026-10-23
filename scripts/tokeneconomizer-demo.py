@@ -597,7 +597,18 @@ not Talon-governed actions.</p>
 
 def observed_optimizations(directory):
     """Read local plugin observations, without inventing any optimizations."""
-    result = {"learned_facts": 0, "proposed_tools": 0, "pruned_tools": 0, "nudges": 0}
+    result = {"learned_facts": 0, "session_injections": 0,
+              "proposed_tools": 0, "pruned_tools": 0, "nudges": 0}
+    # Unlike injection.json's rendered_ids (facts prepared for a future
+    # session), an actual session's injected_ids means the facts were sent
+    # to its context at SessionStart. This is the claim-worthy mechanism.
+    for f in directory.rglob("sessions/*.json"):
+        try:
+            session = json.loads(f.read_text())
+            if session.get("injected_chars", 0) > 0 and session.get("injected_ids"):
+                result["session_injections"] += 1
+        except (OSError, ValueError, TypeError):
+            pass
     for f in directory.rglob("injection.json"):
         try:
             result["learned_facts"] += len(json.loads(f.read_text()).get("rendered_ids") or [])
@@ -699,7 +710,9 @@ def run():
     plugin_state = STATE / run_id / "plugin-after"
     observed_hooks = list(plugin_state.rglob("sessions/*.json"))
     mechanisms = observed_optimizations(plugin_state)
-    effect_observed = len(observed_hooks) >= 5 and any(mechanisms.values())
+    effect_observed = (len(observed_hooks) >= 5 and
+                       any(mechanisms[k] for k in
+                           ("session_injections", "pruned_tools", "nudges")))
     report = {
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
         "talon_release": TALON_RELEASE,
