@@ -411,6 +411,41 @@ tool-pruning quiet-time delay had been forced to zero, and almost no
 micro-skill or loop-guard learning was possible. **Do not market
 those numbers as representative of the original research.**
 
+### Latest operator run: 24-ticket study (2026-10-23)
+
+The operator's completed seed-0 run `20261023T133101Z` is a **negative,
+non-activating production-plugin observation**, not evidence of paper
+replication. From the terminal log and its local `proof.md`:
+
+- Independently graded success: **24/24 baseline, 24/24 plugin**; zero
+  cumulative hidden regressions.
+- **Whole-stream** Talon-estimated cost: **USD 3.2904 baseline vs USD
+  3.3560 plugin** (**+1.99%**). The last 16 tickets alone cost USD
+  2.1674 vs USD 2.1083, but that excludes the expensive learning phase.
+- **119 vs 113** provider calls, with matching verified Talon signed
+  evidence counts, according to the saved local proof.
+- The plugin recorded **24 hook sessions, 11 proposed tool removals,
+  zero applied removals, zero injected micro-skills and zero nudges**.
+  Hook execution and proposals are not optimizer actions. The short
+  study did not establish that the production quiet-time pruning
+  mechanism had an opportunity to activate.
+
+**Important budget exception:** This historical run was configured with
+**USD 7.50 per arm**, conflicting with the agreed USD 5.00 admission
+ceiling. Its *actual Talon-estimated spend* was below USD 5.00 per arm,
+but that does not retroactively fix the configured prevention rule.
+The runner, Make targets, tests and proof evaluator now enforce the
+correct USD 5.00-per-arm ceiling. Old local evidence is preserved as
+recorded, not relabeled as a compliant run. The logs and signed receipts
+remain local to the operator; the terminal summary alone is not an
+independently published evidence package.
+
+**Next experiment gate:** First establish an observable mechanism
+(injection, applied tool pruning or loop nudge) in a genuinely eligible
+workload. Repeating short default-plugin runs with zero interventions
+would only measure sampling variation, not TokenEconomizer effectiveness.
+Do not automatically start the three-seed paid run before this gate.
+
 The revised default study uses a persistent Python service repository
 with **24 incremental tickets** spanning normalization, routing, data
 policy and usage billing. Each ticket requires navigating issue
@@ -499,14 +534,18 @@ The study yields **INCONCLUSIVE** when paired task identities,
 identical initial repo hashes, high effort, CLI/provider/model metadata,
 signature verification, spent-cost reconciliation, or completion fail.
 **QUALITY_REGRESSION** means outcomes or previously working tickets got worse;
-**NOT_DEMONSTRATED** means no complete-stream cost benefit;
+**NO_OPTIMIZER_INTERVENTION** means no mechanism acted and cost was not
+lower; **NOT_DEMONSTRATED** means an intervention occurred but the
+whole stream was not cheaper;
 **LOWER_COST_UNATTRIBUTED** means lower spending without a demonstrated
 plugin intervention; **PRELIMINARY_SAVINGS** means one observed run was cheaper,
 the plugin acted, and graded completions were preserved.
 None of these constitutes paper replication or causal evidence.
 
 The optional three-seed aggregate compares independently initialized
-runs without dropping losing seeds, and requires the **same demo git revision,
+runs without dropping losing seeds. It also rejects a cumulative
+admission allocation greater than USD 5.00 **per arm across all three
+seeds**, and requires the **same demo git revision,
 Claude Code version and plugin/model config** for all three seeds. It produces
 `.state/tokeneconomizer-demo/study-aggregate.md` and
 `study-aggregate.json`. A repeated direction across three seeds
