@@ -111,9 +111,19 @@ class StudyProofTests(unittest.TestCase):
         reports=[fake(seed) for seed in range(3)]
         for r in reports:
             r["proof"]=self.proof(r)
+        # Tampering with a summary without editing signed task accounting
+        # is never a valid way to create an apparently good or bad seed.
         reports[1]["proof"]["cost"]["whole_stream_plugin_usd"]=3.1
-        a=aggregate(reports)
-        self.assertEqual(a["status"],"MIXED_DIRECTION")
+        self.assertEqual(aggregate(reports)["status"],"INCONCLUSIVE")
+        # Genuine one-seed regression: update every underlying task cost,
+        # both aggregates and its separately recomputed proof.
+        r=reports[1]
+        for task in r["tasks"]["after"]:
+            task["cost"]=0.12
+        r["with_tokeneconomizer"]["cost"]=1.92
+        r["arm_total_including_warmups"]["after"]["cost"]=2.88
+        r["proof"]=self.proof(r)
+        self.assertEqual(aggregate(reports)["status"],"MIXED_DIRECTION")
 
 if __name__=="__main__":
     unittest.main()
