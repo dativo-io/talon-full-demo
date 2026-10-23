@@ -1,106 +1,69 @@
 # Original TokenEconomizer Web-Bench mini-pilot through Talon
 
-**Implementation status:** opt-in runner added. No paid benchmark execution or live signed evidence has been produced by this change.
+**Status:** self-service setup and keyless validation implemented. The paid benchmark has **not** been run by ChatGPT. Earlier output showing missing `TE_REFERENCE_PROJECTS` is a setup-only failure, not a Talon fault.
 
-## Experiment design
+## Quick setup on Ubuntu
 
-This is separate from the 24-ticket synthetic/production-plugin study. It invokes the original Microsoft experimental harness and Web-Bench grader without patching either.
+On the `feature/tokeneconomizer-claude-comparison` branch of `talon-full-demo`:
+
+```bash
+git pull --ff-only
+make tokeneconomizer-reference-plan         # free, explains the experiment
+make tokeneconomizer-reference-prepare      # no model calls, but clones/builds open-source code and downloads browser binaries
+make tokeneconomizer-reference-check        # free, validates original Web-Bench project, evaluator and task order
+make tokeneconomizer-validate               # free, local regression tests
+make tokeneconomizer-contract               # free, live Talon gateway against a local mock
+```
+
+The **prepare** target downloads Microsoft TokenEconomizer at the reviewed pinned revision, clones ByteDance Web-Bench, runs Rush install/build **for only `@web-bench/eval` and `@web-bench/expressjs`**, installs the Playwright Chromium browser for the project's pinned version, and exports all **20 original** expressjs tasks into a single-project task list. The paid runner uses only the first six by default (one to eight supported). Original source descriptions, task order, experiment controller and evaluator stay unchanged. The export is a data-only projection of Microsoft's `workloads/webbench.json` + Web-Bench's `projects/expressjs/tasks.jsonl`; no tasks are invented or rewritten.
+
+The default paths live in Git-ignored demo state, so **no `TE_REFERENCE_PROJECTS` or `TE_REFERENCE_TASKS` exports are needed**:
+
+- Projects: `.state/tokeneconomizer-demo/reference-web-bench/projects`
+- Export: `.state/tokeneconomizer-demo/reference-webbench-tasks.json`
+
+If you already have a built Web-Bench checkout, set `TE_REFERENCE_PROJECTS` and `TE_REFERENCE_TASKS` to reuse it. `prepare` will not overwrite a checkout that is not a Git clone and skips rebuilding when the official evaluator is already built.
+
+Ubuntu prerequisites: Python 3.10+, Git, Node.js/npm/npx, a compatible Copilot CLI and Talon v1.15.3. Preparing dependencies executes the normal external Rush installation/build scripts; review external packages as you would for any downloaded open-source project. On a 2-vCPU, 8-GB server, dependency installation and compilation may be resource-intensive. It does not charge the Anthropic provider.
+
+## Deliberately paid experiment
+
+Only after the keyless preparation and contract pass:
+
+```bash
+export ANTHROPIC_API_KEY='...'
+TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run
+```
+
+The real Anthropic key is sent to Talon's encrypted vault through stdin, not to the Copilot CLI. Copilot CLI uses two isolated BYOK identities to talk to Talon, which enforces independent **$5 estimated admission caps** for baseline and experimental arms. No provider calls happen unless the `TE_REFERENCE_PAID_CONFIRM=YES` environment variable is explicitly present.
+
+**These are admission-estimate budgets, not hard provider invoice ceilings.** Set an account-side Anthropic usage limit if you need a hard spending control. The reference harness may make billed preflight calls, which count in Talon's signed cost ledger and the $5 admission budgets.
+
+## What this measures
 
 | Dimension | Choice |
 |---|---|
-| Microsoft revision | 0ce0e067b42b1dd5a5f5984275d07f8c7686c44a |
-| Workload | Official Web-Bench, expressjs, first 6 sequential tasks (1–8 supported) |
-| Arms | baseline vs trimech-web experimental controller |
-| Agent | Copilot CLI with Anthropic BYOK, claude-sonnet-5, high effort |
-| Model path | Copilot BYOK -> Talon v1.15.3 -> Anthropic |
-| Admission budget | $5 baseline + $5 experimental; all calls included |
-| Proof | Original graded tasks and full signed Talon export for both agents |
-| Statistical strength | One seed, descriptive pilot only |
+| Microsoft revision | `0ce0e067b42b1dd5a5f5984275d07f8c7686c44a` |
+| Workload | Original Web-Bench expressjs tasks 1–6; sequential |
+| Arms | Original `baseline` vs experimental `trimech-web` |
+| Agent/model | Copilot CLI BYOK, `claude-sonnet-5`, high effort |
+| Network path | Copilot BYOK → Talon v1.15.3 → Anthropic |
+| Budgets | $5 admission per arm, signed record export of ALL agent sessions |
+| Scope | One seed; observational only |
 
-The original Claude Code experiment runner **hardcodes direct Anthropic
-routing** and deliberately ignores ANTHROPIC_BASE_URL. The original Copilot
-runner supports BYOK, so its base URL and generated Talon agent token can be
-set without modifying Microsoft's experimental source.
+The original Claude Code experiment runner hardcodes Anthropic routing and ignores `ANTHROPIC_BASE_URL`, so this experiment deliberately uses Copilot's BYOK transport rather than bypassing Talon.
 
-The optimizer can issue its own Anthropic Messages requests. Those use the
-same configured BYOK base URL and agent token; evidence is exported by **Talon
-agent**, not a single Copilot session, so sidecalls are not excluded from costs.
+**Important limitation:** When the original Web-Bench evaluator is asked to grade fewer than its full 20-task project, it switches to development mode with Playwright timeouts of 2 seconds instead of 30 seconds. We preserve the upstream evaluator behavior and disclose this limitation. Correctness numbers cannot be compared directly with the full published benchmark.
 
-**Grading caveat:** the original Web-Bench evaluator automatically switches to
-development mode when the task range is truncated. This tightens Playwright
-timeouts from 30 seconds to 2 seconds. Keep that upstream behavior unchanged,
-but do **not** compare mini-pilot pass rates directly with full paper results.
+The benchmark writes results to a new, ignored `.state/tokeneconomizer-demo/reference-<timestamp>-<nonce>/` directory:
 
-## Free preparation
+- `reference-proof.json`: summary, task identities, verified evidence, result status
+- `official-results/`: original Microsoft graded rows/transcripts
+- `baseline/signed.json` and `after/signed.json`: Talon signed evidence for every agent session
+- `baseline/harness.log`, `after/harness.log`: upstream logs
 
-From the talon-full-demo checkout:
+The result is `INCONCLUSIVE` if task grading or signed evidence is incomplete or model/pricing facts cannot be verified. Even a completed one-seed run is only `ONE_SEED_OBSERVATIONAL_ONLY`. We must inspect the original intervention telemetry before making an optimizer-effect claim.
 
-    make tokeneconomizer-reference-plan
-    make tokeneconomizer-validate
-    make tokeneconomizer-contract
+**Boundaries:** this is the research **experimental controller**, not the installable TokenEconomizer plugin; do not pool results with the existing synthetic 24-ticket pilot. The demo makes no Talon OSS changes and does not govern local file or shell operations. The original controller and evaluator are unmodified.
 
-The plan and tests perform zero provider calls.
-
-## Web-Bench prerequisites
-
-Prepare the Microsoft harness at the revision above in
-.state/tokeneconomizer-demo/TokenEconomizer (the paid runner can clone and pin
-it automatically), plus the official bytedance/web-bench repository. Follow
-the upstream documentation at:
-
-https://github.com/microsoft/TokenEconomizer/blob/main/experiments/README.md
-
-That guide explains the Node/rush Web-Bench build, pinned Playwright browser,
-and task export. The necessary exported paths are:
-
-- TE_REFERENCE_PROJECTS: absolute canonical path to web-bench/projects
-- TE_REFERENCE_TASKS: path to the exported webbench_tasks.json
-
-The runner checks that the expressjs project exists, the official evaluator
-has been built, and the first task IDs exactly match the frozen benchmark
-task order. Missing prerequisites are reported **before** any model call.
-
-## Explicitly paid run
-
-Set the variables below in your terminal (replace paths and provide your own
-provider credential):
-
-    export TE_REFERENCE_PROJECTS="$HOME/te_data/web-bench/projects"
-    export TE_REFERENCE_TASKS="$HOME/te_data/webbench_tasks.json"
-    export TE_REFERENCE_TASK_LIMIT=6
-    export ANTHROPIC_API_KEY='...'
-    TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run
-
-No external model call is made without the confirmation variable. The actual
-Anthropic key is installed into Talon's encrypted vault through stdin and is
-not forwarded to the Copilot process. The Copilot process receives only the
-generated Talon identity and the local Talon BYOK URL.
-
-The official harness performs billable preflight model checks before tasks;
-they count toward the **same Talon $5 admission budgets** and signed exports.
-The $5 figures are estimate-based admission ceilings, **not guaranteed
-provider-invoice limits**. Set a provider-account usage limit if required.
-
-Each run uses a fresh Talon data store and saves artifacts under Git-ignored
-.state/tokeneconomizer-demo/reference-<timestamp>-<nonce>/:
-
-- reference-proof.json: workload, original rows, signed costs and caveats
-- official-results/: original Microsoft per-task rows and transcripts
-- baseline/signed.json and after/signed.json: verifiable Talon evidence
-- baseline/harness.log and after/harness.log: reference execution logs
-
-A run is INCONCLUSIVE on missing or invalid signed evidence, incomplete task
-execution, unexpected provider model/pricing, missing original task identities
-or official harness errors. When both arms complete, the verdict is still
-ONE_SEED_OBSERVATIONAL_ONLY. A savings or causality claim additionally
-requires the original controller's mechanism traces, per-task correctness
-and multiple independent seeds.
-
-## Boundaries
-
-- No modifications to Talon OSS or the released Talon gateway.
-- No modifications to Microsoft's experimental controller, task definitions
-  or grader.
-- Not a test of the installable TokenEconomizer plugin.
-- Never pool these costs or correctness metrics with the synthetic pilot.
-- Talon governs model traffic, not local agent file/shell execution.
+See Microsoft's [official experimental setup](https://github.com/microsoft/TokenEconomizer/blob/main/experiments/README.md) for more details.
