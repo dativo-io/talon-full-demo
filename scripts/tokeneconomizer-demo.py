@@ -18,13 +18,21 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tokeneconomizer_proof import assess, markdown as proof_markdown, html_section as proof_html
+from tokeneconomizer_proof import assess as assess_smoke, markdown as smoke_markdown, html_section as smoke_html
+from tokeneconomizer_study_proof import assess as assess_study, markdown as study_markdown, html_section as study_html
+from tokeneconomizer_workload import (write_repo as write_study_repo, digest as study_digest,
+                                    grade as study_grade, order as study_order,
+                                    validate as validate_study, WARMUP as STUDY_WARMUP,
+                                    TASK_COUNT as STUDY_COUNT, DESIGN as STUDY_DESIGN)
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / ".state" / "tokeneconomizer-demo"
 PORT = int(os.getenv("TE_DEMO_PORT", "18086"))
 MODEL = os.getenv("TE_DEMO_MODEL", "claude-sonnet-5")
-ARM_BUDGET = 5.0
+ARM_BUDGET = float(os.getenv("TE_DEMO_ARM_BUDGET", "5.0"))
+PROFILE = os.getenv("TE_DEMO_PROFILE", "smoke")
+SEED = int(os.getenv("TE_DEMO_SEED", "0"))
+PRUNING_MODE = os.getenv("TE_DEMO_PRUNING_MODE", "default")
 TALON_RELEASE = (ROOT / "config" / "tokeneconomizer-talon-release.txt").read_text().strip()
 # Reviewed upstream revision; intentionally not a floating checkout.
 TOKENECONOMIZER_COMMIT = "0ce0e067b42b1dd5a5f5984275d07f8c7686c44a"
@@ -150,6 +158,7 @@ def workload_fingerprint(workspace):
 
 
 def validate():
+    validate_study()
     import tempfile
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "fixture"
@@ -496,7 +505,7 @@ def plugin_session_signals(state, answer):
     return result
 
 
-def one(arm, index, run_id, workspace, values, plugin):
+def one(arm, index, run_id, workspace, values, plugin, issue_id=None):
     session = f"te-{run_id}-{arm}-{index}"
     env = safe_env()  # exclude operator API, OAuth and cloud credentials
     env.update(
@@ -507,14 +516,27 @@ def one(arm, index, run_id, workspace, values, plugin):
         CLAUDE_CONFIG_DIR=str(STATE / run_id / ("claude-" + arm)),
         TOKENECONOMIZER_HOME=str(STATE / run_id / ("plugin-" + arm)),
         CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1",
-        TE_PAID="false", TE_TOOLPRUNE="auto", TE_TOOLPRUNE_EVIDENCE="5",
-        TE_TOOLPRUNE_QUIET_MINUTES="0")
-    prompt = (f"Fix ONLY src/case_{index}.py so the test passes. Run "
-              f"python3 -m unittest discover -s tests -p test_case_{index}.py. "
-              "Do not use network, install software, or modify any other files. "
-              "Conclude with a one-sentence summary.")
+        TE_PAID="false")
+    if PRUNING_MODE == "accelerated" and plugin:
+        # Deliberate diagnostic ablation, NEVER a production-default claim.
+        env["TE_TOOLPRUNE_QUIET_MINUTES"] = "0"
+    if PROFILE == "study":
+        prompt = (
+            f"Implement issue {issue_id} in issues/{issue_id}.md in this existing "
+            "service repository. Read the repository README and test conventions, "
+            "find the relevant rule and API wiring, and run the issue test. "
+            "Preserve solutions from earlier tickets. Do not change issues, tests, "
+            "or install packages; no network calls. Summarize what you changed.")
+        turns, timeout = "24", 900
+    else:
+        prompt = (f"Fix ONLY src/case_{index}.py so the test passes. Run "
+                  f"python3 -m unittest discover -s tests -p test_case_{index}.py. "
+                  "Do not use network, install software, or modify any other files. "
+                  "Conclude with a one-sentence summary.")
+        turns, timeout = "8", 240
     args = ["claude", "-p", prompt, "--model", MODEL, "--output-format", "json",
-            "--max-turns", "8", "--permission-mode", "acceptEdits",
+            "--effort", "high", "--max-turns", turns,
+            "--permission-mode", "acceptEdits",
             "--allowedTools", "Read", "Edit", "Write", "Bash(python3 *)"]
     if plugin:
         args += ["--plugin-dir", str(plugin)]
@@ -522,16 +544,16 @@ def one(arm, index, run_id, workspace, values, plugin):
     applied_tools = plugin_pruned_tools(workspace, plugin_state) if plugin else []
     started = time.monotonic()
     try:
-        answer = execute(args, cwd=workspace, env=env, timeout=240, check=False)
+        answer = execute(args, cwd=workspace, env=env, timeout=timeout, check=False)
     except subprocess.TimeoutExpired:
         answer = None
     duration = round(time.monotonic() - started, 2)
-    grade_passed = independent_grade(workspace, index)
+    grade_passed = (study_grade(workspace, issue_id) if PROFILE == "study"\n                    else independent_grade(workspace, index))
     destination = STATE / run_id / arm / f"task-{index:02d}"
     metrics = verified(session, ARM_AGENTS[arm], tenv(values, run_id), destination)
     signed = destination / "signed.json"
     session_signals = plugin_session_signals(plugin_state, answer) if plugin else {}
-    metrics.update(task=index, warmup=index <= 5, passed=grade_passed,
+    metrics.update(task=index, issue_id=issue_id, warmup=index <= (STUDY_WARMUP if PROFILE == "study" else 5), passed=grade_passed,
                    plugin_pruned_tools=applied_tools,
                    **session_signals,
                    cli_success=answer is not None and answer.returncode == 0,
@@ -542,7 +564,7 @@ def one(arm, index, run_id, workspace, values, plugin):
     private(destination / "metrics.json", json.dumps(metrics, indent=2))
     if answer:
         private(destination / "claude.json", answer.stdout)
-    print(f"{arm:>8} {index:02d} {'warmup' if index<=5 else 'measure':7} "
+    print(f"{arm:>8} {index:02d} {'learn' if metrics['warmup'] else 'measure':7} "
           f"{'PASS' if metrics['passed'] else 'FAIL'}  "
           f"USD {metrics['cost']:.4f}  {metrics['tokens_in']} input  {duration:.1f}s",
           flush=True)
@@ -573,6 +595,7 @@ def table(report):
     proof = report.get("proof") or {}
     complete = bool(proof.get("comparison_valid"))
     intervened = bool(proof.get("plugin_activation_observed"))
+    budget = float(report.get("budget_cap_usd_per_arm") or ARM_BUDGET)
     # Print raw observed amounts in every run, but a percentage needs
     # comparable signed evidence AND an applied optimization. Otherwise it
     # looks like a causal claim on an unverified warmup fluctuation.
@@ -591,8 +614,8 @@ def table(report):
         rows.insert(1, ("Full-arm cost incl. warmups (USD)",
                         f"USD {x:.4f}", f"USD {y:.4f}", delta))
         rows.insert(2, ("Talon budget utilization",
-                        f"{100*x/ARM_BUDGET:.1f}%",
-                        f"{100*y/ARM_BUDGET:.1f}%", delta_unproven if not complete or not intervened else "—"))
+                        f"{100*x/budget:.1f}%",
+                        f"{100*y/budget:.1f}%", delta_unproven if not complete or not intervened else "—"))
     widths = [max(map(lambda line: len(str(line[i])),
                   [("Metric", "Before", "After", "Change")] + rows)) for i in range(4)]
     layout = lambda line: " | ".join(str(line[i]).ljust(widths[i]) for i in range(4))
@@ -607,12 +630,16 @@ def table(report):
         print("Arm completion:", report["arm_status"])
     for arm, summary in report.get("arm_total_including_warmups", {}).items():
         print(f"{arm}: USD {summary['cost']:.4f} estimated total "
-              f"(warmups and measured, limit USD {ARM_BUDGET:.2f})")
+              f"(warmups and measured, limit USD {budget:.2f})")
     if not complete:
         print("INCONCLUSIVE: one or both arms failed to complete successfully "
               "or the optimizer effect was not observed. Do not claim savings.")
-    print("Five warmup tasks per arm excluded from measured comparison. "
-          "Costs are Talon pricing estimates from real provider usage.")
+    if report.get("profile") == "study":
+        print("Headline study metric is WHOLE-STREAM cost and graded success rate, "
+              "including eight learning tickets. Last 16 are diagnostic only.")
+    else:
+        print("Five warmup tasks per arm excluded from measured comparison. "
+              "Costs are Talon pricing estimates from real provider usage.")
     return rows
 
 
@@ -660,7 +687,10 @@ not Talon-governed actions.</p>
 <p>Learned facts: FACTS · Proposed tool exclusions: PROPOSALS · Applied exclusions: PRUNED · Loop nudges: NUDGES.</p>
 <p>These are observed plugin events, not assumed feature activation. Zero means none observed.</p>
 </div><p class="label">Run RUNID · model MODEL · TokenEconomizer REV</p></div></html>"""
-    path.write_text(document.replace("PROOF_SECTION", proof_html(report.get("proof") or assess(report)))
+    section = (study_html(report.get("proof") or assess_study(report))
+               if report.get("profile") == "study"
+               else smoke_html(report.get("proof") or assess_smoke(report)))
+    path.write_text(document.replace("PROOF_SECTION", section)
                     .replace("ROWS", row_html)
                     .replace("RUNID", report["run_id"])
                     .replace("MODEL", html.escape(report["model"]))
@@ -718,6 +748,14 @@ def observed_optimizations(directory):
 
 
 def run():
+    if PROFILE not in ("smoke", "study"):
+        raise RuntimeError("TE_DEMO_PROFILE must be smoke or study")
+    if PRUNING_MODE not in ("default", "accelerated"):
+        raise RuntimeError("TE_DEMO_PRUNING_MODE must be default or accelerated")
+    if not (ARM_BUDGET > 0 and ARM_BUDGET <= 100):
+        raise RuntimeError("TE_DEMO_ARM_BUDGET must be in (0,100] USD")
+    if PROFILE == "study" and SEED not in (0,1,2):
+        raise RuntimeError("TE_DEMO_SEED must be 0, 1 or 2")
     if MODEL not in SUPPORTED_PRICED_MODELS:
         raise RuntimeError(f"Model {MODEL!r} is not in the verified Talon USD "
                            "pricing allowlist; refusing unpriced budget experiment.")
@@ -739,9 +777,11 @@ def run():
             TALON_RELEASE + " and put $(go env GOPATH)/bin on PATH.")
     if "--plugin-dir" not in execute(["claude", "--help"], timeout=30).stdout:
         raise RuntimeError("Claude Code version does not advertise --plugin-dir")
-    task_limit = int(os.getenv("TE_DEMO_TASK_LIMIT", "10"))
-    if task_limit not in (1, 10):
-        raise RuntimeError("TE_DEMO_TASK_LIMIT must be 1 (smoke) or 10 (comparison)")
+    task_limit = int(os.getenv("TE_DEMO_TASK_LIMIT",
+                               str(STUDY_COUNT if PROFILE == "study" else 10)))
+    if task_limit not in ((STUDY_COUNT,) if PROFILE == "study" else (1, 10)):
+        raise RuntimeError("Study requires all 24 tickets; smoke allows 1 or 10")
+    stream = study_order(SEED) if PROFILE == "study" else []
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     values = keys(run_id)
     setup(values, run_id)
@@ -758,10 +798,15 @@ def run():
     catalog = {"status": "not_attempted"}
     run_error = ""
     try:
-        for arm in ("baseline", "after"):
+        arms_order = ("baseline", "after") if PROFILE == "smoke" or SEED % 2 == 0 else ("after", "baseline")
+        for arm in arms_order:
             workspace = STATE / run_id / ("workspace-" + arm)
-            fixture(workspace)
-            workload_digests[arm] = workload_fingerprint(workspace)
+            if PROFILE == "study":
+                write_study_repo(workspace)
+                workload_digests[arm] = study_digest(workspace)
+            else:
+                fixture(workspace)
+                workload_digests[arm] = workload_fingerprint(workspace)
             if arm == "after":
                 try:
                     catalog = capture_tool_catalog(workspace, plugin, values, run_id)
@@ -773,8 +818,9 @@ def run():
                     break
             for index in range(1, task_limit + 1):
                 try:
+                    issue_id = stream[index-1]["id"] if PROFILE == "study" else None
                     result = one(arm, index, run_id, workspace, values,
-                                 plugin if arm == "after" else None)
+                                 plugin if arm == "after" else None, issue_id)
                 except Exception as exc:
                     # Preserve all completed task receipts and report the
                     # interrupted/failed experiment instead of losing the run.
@@ -805,11 +851,17 @@ def run():
                            ("session_injections", "pruned_tools", "nudges")))
     report = {
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
+        "profile": PROFILE, "seed": SEED, "task_order": [t["id"] for t in stream],
+        "workload_design": STUDY_DESIGN if PROFILE == "study" else "single-function-smoke",
+        "warmup_count": STUDY_WARMUP if PROFILE == "study" else 5,
+        "reasoning_effort": "high",
+        "pruning_mode": PRUNING_MODE,
+        "token_economizer_config": "defaults-no-paid-helpers" if PRUNING_MODE == "default" else "accelerated-pruning-ablation",
         "talon_release": TALON_RELEASE,
         "workload_sha256": workload_digests,
         "tokeneconomizer_catalog": catalog,
         "task_limit": task_limit, "run_error": run_error,
-        "tool_versions": versions, "comparison_policy": "separate $5 Talon agents",
+        "tool_versions": versions, "comparison_policy": "separate governed Talon agents",
         "token_economizer_hook_sessions": len(observed_hooks),
         "plugin_mechanisms_observed": mechanisms,
         "optimizer_effect_observed": effect_observed,
@@ -817,23 +869,24 @@ def run():
         "arm_total_including_warmups": {a: total(rows) for a, rows in arms.items()},
         "arm_status": {a: ("budget_exhausted" if any(r["budget_denied"] for r in rows)
                            else "smoke_only" if task_limit == 1 and len(rows) == 1
-                           else "completed" if len(rows) == 10 and
-                             all(r["passed"] and r["cli_success"] and
-                                 r["provider_errors"] == 0 for r in rows)
-                           else "completed_with_failures" if len(rows) == 10
+                           else "completed" if len(rows) == task_limit and
+                             all(r["cli_success"] and r["provider_errors"] == 0 for r in rows)
+                           else "completed_with_failures" if len(rows) == task_limit
                            else "incomplete")
                        for a, rows in arms.items()},
-        "baseline": total(arms["baseline"][5:]),
-        "with_tokeneconomizer": total(arms["after"][5:]),
-        "baseline_warmup": total(arms["baseline"][:5]),
-        "tokeneconomizer_warmup": total(arms["after"][:5]),
+        "baseline": total(arms["baseline"][STUDY_WARMUP if PROFILE == "study" else 5:]),
+        "with_tokeneconomizer": total(arms["after"][STUDY_WARMUP if PROFILE == "study" else 5:]),
+        "baseline_warmup": total(arms["baseline"][:STUDY_WARMUP if PROFILE == "study" else 5]),
+        "tokeneconomizer_warmup": total(arms["after"][:STUDY_WARMUP if PROFILE == "study" else 5]),
         "tasks": arms, "source": "Live Anthropic through Talon signed evidence",
     }
     destination = STATE / run_id
-    report["proof"] = assess(report)
+    report["proof"] = assess_study(report) if PROFILE == "study" else assess_smoke(report)
     private(destination / "comparison.json", json.dumps(report, indent=2))
     private(destination / "proof.json", json.dumps(report["proof"], indent=2))
-    private(destination / "proof.md", proof_markdown(report["proof"], report))
+    private(destination / "proof.md",
+            study_markdown(report["proof"], report) if PROFILE == "study"
+            else smoke_markdown(report["proof"], report))
     private(STATE / "latest.txt", run_id)
     rows = table(report)
     html_report(report, rows, destination / "comparison.html")
