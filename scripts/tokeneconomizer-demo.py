@@ -505,7 +505,7 @@ def plugin_session_signals(state, answer):
     return result
 
 
-def one(arm, index, run_id, workspace, values, plugin, issue_id=None):
+def one(arm, index, run_id, workspace, values, plugin, issue_id=None, previously_passing=()):
     session = f"te-{run_id}-{arm}-{index}"
     env = safe_env()  # exclude operator API, OAuth and cloud credentials
     env.update(
@@ -550,11 +550,16 @@ def one(arm, index, run_id, workspace, values, plugin, issue_id=None):
     duration = round(time.monotonic() - started, 2)
     grade_passed = (study_grade(workspace, issue_id) if PROFILE == "study"
                     else independent_grade(workspace, index))
+    # The last task passing is not sufficient: a later edit must not destroy
+    # previously resolved functionality in this persistent repository.
+    regression_free = (all(study_grade(workspace, old_id) for old_id in previously_passing)
+                       if PROFILE == "study" else True)
     destination = STATE / run_id / arm / f"task-{index:02d}"
     metrics = verified(session, ARM_AGENTS[arm], tenv(values, run_id), destination)
     signed = destination / "signed.json"
     session_signals = plugin_session_signals(plugin_state, answer) if plugin else {}
-    metrics.update(task=index, issue_id=issue_id, warmup=index <= (STUDY_WARMUP if PROFILE == "study" else 5), passed=grade_passed,
+    metrics.update(task=index, issue_id=issue_id, warmup=index <= (STUDY_WARMUP if PROFILE == "study" else 5),
+                   passed=grade_passed, regression_free=regression_free,
                    plugin_pruned_tools=applied_tools,
                    **session_signals,
                    cli_success=answer is not None and answer.returncode == 0,
@@ -822,8 +827,11 @@ def run():
             for index in range(1, task_limit + 1):
                 try:
                     issue_id = stream[index-1]["id"] if PROFILE == "study" else None
+                    previously_passing = [r["issue_id"] for r in arms[arm] if
+                                          r.get("passed") and r.get("regression_free")]
                     result = one(arm, index, run_id, workspace, values,
-                                 plugin if arm == "after" else None, issue_id)
+                                 plugin if arm == "after" else None,
+                                 issue_id, previously_passing)
                 except Exception as exc:
                     # Preserve all completed task receipts and report the
                     # interrupted/failed experiment instead of losing the run.
@@ -854,6 +862,7 @@ def run():
                            ("session_injections", "pruned_tools", "nudges")))
     report = {
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
+        "demo_revision": execute(["git", "rev-parse", "HEAD"], cwd=ROOT).stdout.strip(),
         "profile": PROFILE, "seed": SEED, "task_order": [t["id"] for t in stream],
         "workload_design": STUDY_DESIGN if PROFILE == "study" else "single-function-smoke",
         "warmup_count": STUDY_WARMUP if PROFILE == "study" else 5,
