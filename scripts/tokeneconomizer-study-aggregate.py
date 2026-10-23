@@ -19,11 +19,15 @@ def aggregate(reports):
                       and (r.get("proof") or {}) == reassess(r)
                       and (r.get("proof") or {}).get("verdict") in (
                           "PRELIMINARY_SAVINGS", "LOWER_COST_UNATTRIBUTED",
-                          "NOT_DEMONSTRATED") for r in reports)
+                          "NOT_DEMONSTRATED", "NO_OPTIMIZER_INTERVENTION") for r in reports)
                   and all(len({json.dumps(r.get(k),sort_keys=True) for r in reports})==1
                           for k in attrs)
                   and len({(r.get("tool_versions") or {}).get("claude_cli")
-                           for r in reports}) == 1)
+                           for r in reports}) == 1
+                  # Each independently initialized ledger is bounded locally,
+                  # but the cross-seed experiment must also honor USD 5/arm TOTAL.
+                  and 0 < sum(float(r.get("budget_cap_usd_per_arm") or 0)
+                              for r in reports) <= 5.0)
     stats=[]
     for r in sorted(reports,key=lambda x:x["seed"]):
         p=r.get("proof") or {}
@@ -48,6 +52,9 @@ def aggregate(reports):
                          for r in reports)
     if not good:
         status="INCONCLUSIVE"
+    elif not any((r.get("proof") or {}).get("plugin_activation_observed")
+                 for r in reports) and cost_b >= cost_a:
+        status="NO_OPTIMIZER_INTERVENTION"
     elif all_lower and cost_b < cost_a:
         status=("REPEATED_DIRECTIONAL_SAVINGS" if mechanisms_all
                 else "REPEATED_LOWER_COST_UNATTRIBUTED")
