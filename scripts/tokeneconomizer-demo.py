@@ -427,6 +427,50 @@ def verified(session, agent, env, destination):
     return summarize_session_records(json.loads(signed.read_text()).get("records", []),
                                      session, agent)
 
+def plugin_pruned_tools(workspace, state):
+    """Only count rules the plugin recorded AND Claude will actually read."""
+    settings = workspace / ".claude" / "settings.local.json"
+    try:
+        if not settings.is_file():
+            return []
+        denied = set(json.loads(settings.read_text()).get("permissions", {}).get("deny") or [])
+        if not denied:
+            return []
+        for file in state.rglob("untool_applied.json"):
+            doc = json.loads(file.read_text())
+            mine = (doc.get("by_path") or {}).get(str(settings.resolve())) or []
+            actual = denied.intersection(mine)
+            if actual:
+                return sorted(actual)
+    except (ValueError, OSError, TypeError):
+        pass
+    return []
+
+
+def plugin_session_signals(state, answer):
+    """Read what an actual Claude session received; not a pending proposal."""
+    result = {"plugin_injected_facts": 0, "plugin_nudges": 0,
+              "plugin_session_recorded": False}
+    if answer is None:
+        return result
+    try:
+        sid = json.loads(answer.stdout).get("session_id")
+        if not isinstance(sid, str) or not sid or len(sid) > 128:
+            return result
+        for file in state.rglob("sessions/*.json"):
+            if file.stem != sid:
+                continue
+            doc = json.loads(file.read_text())
+            result["plugin_session_recorded"] = True
+            if int(doc.get("injected_chars") or 0) > 0:
+                result["plugin_injected_facts"] = len(doc.get("injected_ids") or [])
+            result["plugin_nudges"] = int(doc.get("nudges") or 0)
+            return result
+    except (ValueError, OSError, TypeError):
+        pass
+    return result
+
+
 def one(arm, index, run_id, workspace, values, plugin):
     session = f"te-{run_id}-{arm}-{index}"
     env = safe_env()  # exclude operator API, OAuth and cloud credentials
@@ -449,6 +493,8 @@ def one(arm, index, run_id, workspace, values, plugin):
             "--allowedTools", "Read", "Edit", "Write", "Bash(python3 *)"]
     if plugin:
         args += ["--plugin-dir", str(plugin)]
+    plugin_state = STATE / run_id / "plugin-after"
+    applied_tools = plugin_pruned_tools(workspace, plugin_state) if plugin else []
     started = time.monotonic()
     try:
         answer = execute(args, cwd=workspace, env=env, timeout=240, check=False)
@@ -459,7 +505,10 @@ def one(arm, index, run_id, workspace, values, plugin):
     destination = STATE / run_id / arm / f"task-{index:02d}"
     metrics = verified(session, ARM_AGENTS[arm], tenv(values, run_id), destination)
     signed = destination / "signed.json"
+    session_signals = plugin_session_signals(plugin_state, answer) if plugin else {}
     metrics.update(task=index, warmup=index <= 5, passed=grade_passed,
+                   plugin_pruned_tools=applied_tools,
+                   **session_signals,
                    cli_success=answer is not None and answer.returncode == 0,
                    duration_s=duration, session=session,
                    signed_evidence_verified=True,
