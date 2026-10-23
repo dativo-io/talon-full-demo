@@ -314,6 +314,7 @@ preflight:
 
 tokeneconomizer-validate:
 	python3 scripts/tokeneconomizer-demo.py validate
+	python3 scripts/test-tokeneconomizer-proof.py
 
 # Real Talon binary, local counted Anthropic-wire mock, no provider key or Claude CLI.
 # In CI install Talon from the reviewed main SHA; locally use talon on PATH.
