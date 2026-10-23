@@ -163,6 +163,28 @@ class ReferencePilotTest(unittest.TestCase):
             self.assertIn("PASS: local Playwright browser launch", output.getvalue())
             self.assertFalse(call.call_args.kwargs["check"])
 
+    def test_transcript_activity_uses_executions_not_streaming_chunks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "transcript.jsonl"
+            events = (
+                [{"type": "model.call_start"}] * 2
+                + [{"type": "assistant.tool_call_delta",
+                    "data": {"toolName": "view", "arguments": "secret"}}] * 200
+                + [{"type": "tool.execution_start",
+                    "data": {"toolName": "view", "arguments": "do-not-print"}},
+                   {"type": "tool.execution_complete", "data": {"output": "secret"}},
+                   {"type": "tool.execution_start",
+                    "data": {"toolName": "bash", "arguments": "secret"}},
+                   {"type": "tool.execution_complete", "data": {"output": "secret"}}])
+            trace.write_text("\\n".join(json.dumps(x) for x in events) + "\\n")
+            summary = ref.transcript_activity(trace)
+            self.assertEqual(summary["model_calls"], 2)
+            self.assertEqual(summary["tool_execution_started"], 2)
+            self.assertEqual(summary["tool_execution_completed"], 2)
+            self.assertEqual(summary["executed_tools"], {"bash": 1, "view": 1})
+            self.assertNotIn("secret", str(summary))
+            self.assertIsNone(ref.transcript_activity(Path(directory) / "missing"))
+
     def test_offline_diagnosis_distinguishes_unreached_from_attempted(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
