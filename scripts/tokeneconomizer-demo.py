@@ -760,8 +760,11 @@ def run():
         raise RuntimeError("TE_DEMO_PROFILE must be smoke or study")
     if PRUNING_MODE not in ("default", "accelerated"):
         raise RuntimeError("TE_DEMO_PRUNING_MODE must be default or accelerated")
-    if not (ARM_BUDGET > 0 and ARM_BUDGET <= 100):
-        raise RuntimeError("TE_DEMO_ARM_BUDGET must be in (0,100] USD")
+    # This is a deliberately low-cost PRODUCT demo, not a paid research
+    # sweep. Never let a direct Python invocation override the agreed $5
+    # admission budget per arm. Three-seed Make target splits it further.
+    if not (0 < ARM_BUDGET <= 5.0):
+        raise RuntimeError("TE_DEMO_ARM_BUDGET must be > 0 and <= USD 5 per arm")
     if PROFILE == "study" and SEED not in (0,1,2):
         raise RuntimeError("TE_DEMO_SEED must be 0, 1 or 2")
     if MODEL not in SUPPORTED_PRICED_MODELS:
@@ -791,8 +794,15 @@ def run():
         raise RuntimeError("Study requires all 24 tickets; smoke allows 1 or 10")
     stream = study_order(SEED) if PROFILE == "study" else []
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    print(f"TokenEconomizer {PROFILE}: seed={SEED}, {task_limit} tasks/arm, "
+          f"USD {ARM_BUDGET:.2f} per-arm Talon admission budgets; "
+          "learning counts against both budgets.", flush=True)
+    print("NOTE: Talon limits request admission by estimates; provider billing "
+          "can exceed these amounts. An interrupted study is INCONCLUSIVE.", flush=True)
+    print("Preparing isolated identities, provider vault and gateway...", flush=True)
     values = keys(run_id)
     setup(values, run_id)
+    print("Preparing reviewed TokenEconomizer checkout...", flush=True)
     plugin, commit = install_plugin()
     versions = {}
     for command, label in ((["claude", "--version"], "claude_cli"),
@@ -800,7 +810,9 @@ def run():
                            (["git", "--version"], "git")):
         version = execute(command, check=False, timeout=15)
         versions[label] = (version.stdout or version.stderr).strip()[:200]
+    print("Starting isolated Talon gateway...", flush=True)
     server, log = start_gateway(values, run_id)
+    print("Gateway healthy; starting billable Claude Code experiment.", flush=True)
     arms = {arm: [] for arm in ARM_AGENTS}
     workload_digests = {}
     catalog = {"status": "not_attempted"}
@@ -808,6 +820,8 @@ def run():
     try:
         arms_order = ("baseline", "after") if PROFILE == "smoke" or SEED % 2 == 0 else ("after", "baseline")
         for arm in arms_order:
+            print(f"START ARM {arm}: up to {task_limit} tasks, budget USD {ARM_BUDGET:.2f}; "
+                  "tool and model costs count toward this arm.", flush=True)
             workspace = STATE / run_id / ("workspace-" + arm)
             if PROFILE == "study":
                 write_study_repo(workspace)
