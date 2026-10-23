@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from tokeneconomizer_study_proof import assess as reassess
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / ".state" / "tokeneconomizer-demo"
@@ -13,7 +14,8 @@ def aggregate(reports):
     attrs = ("profile", "model", "tokeneconomizer_sha", "talon_release",
              "workload_design", "pruning_mode", "reasoning_effort")
     controlled = (all(r.get("profile")=="study" and r.get("pruning_mode")=="default"
-                      and (r.get("proof") or {}).get("comparison_valid") for r in reports)
+                      and (r.get("proof") or {}).get("comparison_valid")
+                      and (r.get("proof") or {}) == reassess(r) for r in reports)
                   and all(len({json.dumps(r.get(k),sort_keys=True) for r in reports})==1
                           for k in attrs))
     stats=[]
