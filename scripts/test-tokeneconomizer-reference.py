@@ -96,6 +96,21 @@ class ReferencePilotTest(unittest.TestCase):
             self.assertEqual(projects, ref.DEFAULT_WEBBENCH / "projects")
             self.assertEqual(tasks, ref.DEFAULT_EXPORT)
 
+    def test_prepare_gives_clear_node_prerequisite_before_download(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            with patch.object(ref, "reference_paths",
+                              return_value=(path / "web-bench" / "projects",
+                                            path / "tasks.json")):
+                with patch.object(ref.shutil, "which", return_value=None):
+                    with self.assertRaisesRegex(RuntimeError, "Node.js 22"):
+                        ref.prepare()
+                with patch.object(ref.shutil, "which", return_value="/usr/bin/node"):
+                    with patch.object(ref.subprocess, "run",
+                                      return_value=type("Version", (), {"stdout": "v18.20.1"})()):
+                        with self.assertRaisesRegex(RuntimeError, "requires Node.js 22"):
+                            ref.prepare()
+
     def test_run_is_opt_in_before_any_dependencies_or_cost(self):
         with patch.dict(os.environ, {"TE_REFERENCE_PAID_CONFIRM": "",
                                      "ANTHROPIC_API_KEY": "not-used"}):
