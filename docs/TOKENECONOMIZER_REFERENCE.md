@@ -193,6 +193,19 @@ results for errors or absent paths, along with the agent's final message.
 Do not infer a Talon policy denial, broken collector, or read-only tool policy
 without evidence.
 
+A later probe of the local transcript found `session.tools_updated`
+containing **only** the `model` field, so an empty `Declared tools`
+list from that probe is **not** evidence of missing edit tools. In the
+baseline arm, naïve text searches found `no such file` and
+`permission denied` in tool results, but those strings could be
+quoted output rather than actual execution failures. The free
+`diagnose` command now distinguishes explicit structured tool-failure
+flags from result text, reports event field names and states whether
+any tool catalog was exposed. It never prints tool arguments or model
+answers. The precise blocker remains why neither arm generated a
+workspace edit; inspect the final assistant messages and original
+tool results *locally* before repeating a paid run.
+
 **Next decision:** do not spend on another run until runtime tool availability
 and workspace accessibility have been inspected. A repaired browser alone does
 not guarantee a meaningful coding-agent benchmark.
