@@ -68,6 +68,44 @@ class ReferencePilotTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "completed home routes"):
                 ref.initial_state_preflight(projects, task_ids)
 
+    def test_full_stream_arm_timeout_is_bounded(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(ref.arm_timeout_seconds(), 14400)
+        for invalid in ("0", "3599", "14401", "inf", "bad"):
+            with patch.dict(os.environ, {"TE_REFERENCE_ARM_TIMEOUT_S": invalid}):
+                with self.assertRaises(RuntimeError):
+                    ref.arm_timeout_seconds()
+        with patch.dict(os.environ, {"TE_REFERENCE_ARM_TIMEOUT_S": "3600"}):
+            self.assertEqual(ref.arm_timeout_seconds(), 3600)
+
+    def test_full_stream_live_log_and_group_cleanup_are_local_only(self):
+        from subprocess import TimeoutExpired
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            live_log = root / "harness.log"
+            proc = type("FakeProcess", (), {"pid": 4242,
+                                            "wait": lambda self, timeout: 0})()
+            with patch.object(ref.subprocess, "Popen", return_value=proc) as start:
+                self.assertEqual(ref.execute_official_arm({"PATH": "/usr/bin"}, root,
+                                                           live_log), 0)
+            self.assertEqual(start.call_args.kwargs["start_new_session"], True)
+            self.assertTrue(live_log.exists())
+            self.assertEqual(live_log.stat().st_mode & 0o777, 0o600)
+            count = []
+            def fake_wait(timeout):
+                count.append(timeout)
+                if len(count) == 1:
+                    raise TimeoutExpired("bash", timeout)
+                return -15
+            proc.wait = fake_wait
+            with patch.object(ref.subprocess, "Popen", return_value=proc):
+                with patch.object(ref.os, "killpg") as kill:
+                    with self.assertRaisesRegex(RuntimeError, "Terminated process group"):
+                        ref.execute_official_arm({"PATH": "/usr/bin"}, root,
+                                                 live_log)
+            kill.assert_called_once_with(4242, ref.signal.SIGTERM)
+            self.assertEqual(count[1], 15)
+
     def test_agent_env_never_exposes_provider_key(self):
         values = {"agent_baseline": "talon-test-agent-secret",
                   "agent_after": "second-test-agent-secret"}
