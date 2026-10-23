@@ -369,6 +369,13 @@ tokeneconomizer-reference-diagnose:
 tokeneconomizer-reference-analyze:
 	python3 scripts/tokeneconomizer-reference.py analyze
 
+# Recover/verify ORIGINAL locally stored Talon signed evidence from a stopped
+# reference benchmark. Uses the saved vault/signing keys; no API calls, agents,
+# provider keys, gateway startup, or fabricated reference-proof.json.
+# Requires TE_REFERENCE_RUN_DIR=/path/to/reference-... .
+tokeneconomizer-reference-recover:
+	python3 scripts/tokeneconomizer-reference.py recover
+
 # Original Microsoft Web-Bench (not the synthetic 24-ticket/production-plugin
 # study). Plan and offline tests make NO model calls.
 tokeneconomizer-reference-plan:
