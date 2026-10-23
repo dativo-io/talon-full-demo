@@ -1,6 +1,6 @@
 # Original TokenEconomizer Web-Bench mini-pilot through Talon
 
-**Status:** self-service setup and keyless validation implemented. The operator's first paid Web-Bench pilot (2026-10-23; expressjs first six tasks, seed 0) produced complete signed Talon model evidence but both arms resolved **0 tasks**. The benchmark is therefore **inconclusive for effectiveness**. It is NOT evidence that the optimizer helps, nor evidence that it makes tasks worse. Talon's local v1.15.3 contract passed.
+**Status:** the operator's first paid Web-Bench pilot (2026-10-23; expressjs first six tasks, seed 0) produced complete signed Talon model evidence, but both arms stopped after task 1 failed twice. The **root cause was a host dependency**, not task correctness: Playwright's Chromium executable could not load `libatk-1.0.so.0` (exit 127). Five later task rows per arm were `unreached` placeholders. Optimizer effectiveness remains **unmeasured**; the local Talon v1.15.3 contract passed. The free `prepare`/`check` and paid `run` paths now require a local browser launch/close smoke test, preventing a repeat of this avoidable spend.
 
 ## Ubuntu host prerequisites
 
@@ -74,17 +74,37 @@ sudo apt-get update
 sudo apt-get install -y git curl build-essential python3 pkg-config
 ```
 
-If Playwright subsequently complains about missing **system libraries**, use
-the Playwright-provided dependency installer (review the package changes):
+### Required browser smoke test: do not pay for broken Chromium
+
+The first paid attempt failed because Playwright downloaded Chromium but Ubuntu
+could not start it: `libatk-1.0.so.0: cannot open shared object file` (exit
+127). On both arms, **only task 1 was attempted (twice)**; the other five rows
+were not real task executions. The original Web-Bench grader was unable to
+launch its browser, so zero task successes are **not** evidence about the
+agent's coding quality or TokenEconomizer's effectiveness.
+
+The demo now runs an **actual local Chromium launch/close** through the exact
+project's installed `@playwright/test` before considering a host ready.
+Both `make tokeneconomizer-reference-prepare` and
+`make tokeneconomizer-reference-check` validate the browser; so does the
+paid runner **before starting Talon and before any model calls**.
+
+If that smoke test reports missing **system libraries**, use the Playwright
+system-dependency installer (review its package changes):
 
 ```bash
 cd ~/src/talon-full-demo/.state/tokeneconomizer-demo/reference-web-bench/projects/expressjs
 npx playwright install-deps chromium
 cd ~/src/talon-full-demo
+make tokeneconomizer-reference-check   # MUST print PASS: local Playwright browser launch
 ```
 
-The optional Playwright command may require elevated permissions for apt
-packages; it is **not** necessary unless the browser-dependency check fails.
+`npx playwright install-deps chromium` may use `sudo` internally to install
+Ubuntu packages. It installs operating-system libraries, **not** model or
+provider packages, and makes no Anthropic API calls. Do not rerun the paid
+experiment until the local launch passes. If problems persist, inspect missing
+shared libraries with `ldd "$HOME/.cache/ms-playwright/chromium_headless_shell-1200/chrome-headless-shell-linux64/chrome-headless-shell" | grep 'not found'`
+(the path is for the pinned Playwright browser from the operator log).
 The setup runs upstream build scripts and downloads binaries but **never
 uses the Anthropic model API**.
 
@@ -139,10 +159,13 @@ not dump raw prompts, API keys, or logs. Inspect the failing task's
 `evaluator.log`, `row.json`, `run_config.json` and agent transcript
 before sharing logs publicly; these may contain workspace code/prompts.
 
-Possible causes include actual unsolved task requirements, incorrect
-workspace changes, evaluator/browser problems, or excessively strict
-partial-stream Playwright timeouts. Do **not** assume any particular cause
-without reading that saved evidence.
+The first failure is now **explained** by the evaluator log:
+Chromium could not load `libatk-1.0.so.0`. The experimental
+`webbench_answered_files` field was also `[[], []]` on task 1; after fixing
+Chromium, check whether the agent produces and submits changed files, rather
+than attributing that observation to the browser error. The partial-stream
+Playwright 2-second timeout limitation remains and should not be conflated
+with the missing-library failure.
 
 ### Next experiment: preserve the paper's evaluation unit
 
