@@ -354,13 +354,17 @@ TokenEconomizer plugin, and it does not replace the 24-ticket synthetic study.
 - **Pinned CLI prerequisite:** install standalone `copilot` v`1.0.84-7` (`curl -fsSL https://gh.io/copilot-install | VERSION=1.0.84-7 PREFIX="$HOME/.local" bash`) and ensure `$HOME/.local/bin` is on `PATH`. `gh` alone does not satisfy this requirement.
 - **Keyless data setup:** `make tokeneconomizer-reference-prepare` (downloads/builds upstream benchmark, but no provider calls)
 - **No-spend readiness:** `make tokeneconomizer-reference-check`
+- **No-spend diagnosis of existing runs:** `make tokeneconomizer-reference-diagnose` (or set `TE_REFERENCE_RUN_DIR=...`)
 - **Paid only with explicit opt-in:** `TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run`
 - **Full setup and methodology:** [Original Web-Bench pilot](docs/TOKENECONOMIZER_REFERENCE.md).
 
 The mini-pilot's shortened task sequence changes the upstream evaluator to
 stricter development-mode timeouts, so it is not directly comparable to full
-paper grading. Implementation is committed, but **no real run has yet been
-performed**, and no savings or positive evidence are claimed.
+paper grading. **The first real operator run on 2026-10-23 resolved 0 tasks in both arms**;
+the comparison script hit a zero-median division error. Talon signed-cost
+attribution worked, but optimizer effectiveness is **unproven and inconclusive**.
+Diagnose which tasks were actually attempted before paying for a full-stream run.
+See the [original benchmark postmortem](docs/TOKENECONOMIZER_REFERENCE.md#diagnose-a-saved-reference-run-before-paying-for-another-one).
 
 
 
