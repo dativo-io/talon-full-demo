@@ -356,7 +356,7 @@ controller or its 277-task SWE-Bench results.
 | `make tokeneconomizer-contract` | Verify released Talon gateway, budgets, Anthropic wire and signed evidence against local mock | Gateway mock | No |
 | `make tokeneconomizer-smoke` | Ensure Claude Code, plugin and Talon can complete one real coding task in each arm | Original simple fixture | **Yes** |
 | `make demo-tokeneconomizer` | Study actual plugin effectiveness across a persistent repository stream | **24 linked tickets per arm**, seed 0 | **Yes** |
-| `make tokeneconomizer-study-3` | Three independently seeded 24-ticket streams with **USD 2.50/arm per seed**; may stop before all tickets | Up to 144 paid task attempts, **never guaranteed to finish** | **Yes** |
+| `make tokeneconomizer-study-3` | Three independently seeded 24-ticket streams with **USD 1.66/arm per seed**; may stop before all tickets | Up to 144 paid task attempts, **never guaranteed to finish** | **Yes** |
 | `make present-tokeneconomizer` | Read the most recent report without paying again | Existing saved evidence | No |
 
 The original one-task smoke remains a connectivity check. Do not use its
@@ -381,7 +381,7 @@ make tokeneconomizer-validate
 make tokeneconomizer-contract
 export ANTHROPIC_API_KEY='sk-ant-...'
 make tokeneconomizer-smoke
-make demo-tokeneconomizer        # $7.50 per arm; billable; may end early at budget limit
+make demo-tokeneconomizer        # $5.00 per arm; billable; may end early at budget limit
 make present-tokeneconomizer     # free; replays latest saved evidence
 ```
 
@@ -455,17 +455,17 @@ accept its result as a normal-configuration savings claim.
 
 ### Study budgets and costs
 
-**All paid demo modes honor the approved USD 7.50 baseline / USD 7.50 plugin
+**All paid demo modes honor the agreed USD 5.00 baseline / USD 5.00 plugin
 Talon admission-policy ceiling.** Both the one-task smoke and the
-24-ticket comparison use a fresh Talon store with **USD 7.50 daily/monthly
+24-ticket comparison use a fresh Talon store with **USD 5.00 daily/monthly
 per agent**, and all learning and measured sessions consume that same
-arm's allowance. The runner **rejects a budget greater than USD 7.50**
+arm's allowance. The runner **rejects a budget greater than USD 5.00**
 even when invoked directly rather than through Make.
 
-The optional three-seed study uses **USD 2.50 per arm per seed**
-(three fresh Talon stores × USD 2.50 = **USD 7.50 per arm across
-the entire three-seed invocation**, USD 15.00 combined). It does not
-give each seed a new USD 7.50 allowance. It cannot guarantee completing
+The optional three-seed study uses **USD 1.66 per arm per seed**
+(three fresh Talon stores × USD 1.66 = **USD 4.98 per arm across
+the entire three-seed invocation**, USD 9.96 combined). It does not
+give each seed a new USD 5.00 allowance. It cannot guarantee completing
 24 issues in each seed under this budget. The study preserves partial
 task evidence and reports **INCONCLUSIVE** if a limit prevents a
 comparable full run; do not interpret a truncated comparison as
