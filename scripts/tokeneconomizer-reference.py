@@ -27,6 +27,8 @@ spec.loader.exec_module(demo)
 MODEL = "claude-sonnet-5"
 MAX_TASKS = 8
 DEFAULT_TASKS = 6
+# Reviewed original Web-Bench source revision, not a moving main branch.
+WEBBENCH_SHA = "7b31ca2b786eef120dd49ce63dd03d0c0006046d"
 ARMS = (("baseline", "baseline"), ("after", "trimech-web"))
 # The Web-Bench checkout is kept under the demo's already git-ignored state.
 # No dependency is downloaded by 'plan' or the offline validator.
@@ -90,6 +92,18 @@ def prepare():
         print("Cloning original Web-Bench into", checkout, flush=True)
         subprocess.run(["git", "clone", "https://github.com/bytedance/web-bench.git",
                         str(checkout)], check=True)
+    head = subprocess.run(["git", "-C", str(checkout), "rev-parse", "HEAD"],
+                          capture_output=True, text=True, check=True).stdout.strip()
+    if head != WEBBENCH_SHA:
+        dirty = subprocess.run(["git", "-C", str(checkout), "status", "--porcelain"],
+                               capture_output=True, text=True, check=True).stdout
+        if dirty.strip():
+            raise RuntimeError("Original Web-Bench checkout has local edits; refusing checkout " +
+                               str(checkout))
+        subprocess.run(["git", "-C", str(checkout), "fetch", "--depth", "1",
+                        "origin", WEBBENCH_SHA], check=True)
+        subprocess.run(["git", "-C", str(checkout), "checkout", "--detach", WEBBENCH_SHA],
+                       check=True)
     print("Preparing only original expressjs project and official evaluator", flush=True)
     # A built evaluator can be reused. Always regenerate the task export from
     # original tasks.jsonl + Microsoft's committed workload identity manifest.
@@ -145,6 +159,13 @@ def inputs():
                            ". Run make tokeneconomizer-reference-prepare (no API calls).")
     if not (projects / "expressjs").is_dir():
         raise RuntimeError("Web-Bench expressjs project missing from TE_REFERENCE_PROJECTS")
+    # Do not accept a different moving Web-Bench revision as the same benchmark.
+    if (projects.parent / ".git").is_dir():
+        actual = subprocess.run(["git", "-C", str(projects.parent), "rev-parse", "HEAD"],
+                                capture_output=True, text=True, check=True).stdout.strip()
+        if actual != WEBBENCH_SHA:
+            raise RuntimeError("Original Web-Bench revision mismatch: " + actual +
+                               ". Run make tokeneconomizer-reference-prepare.")
     evaluator = projects.parent / "apps" / "eval" / "dist" / "index.js"
     if not evaluator.is_file():
         raise RuntimeError("Official Web-Bench evaluator is not built: " + str(evaluator))
@@ -340,6 +361,7 @@ def run():
     report = {
         "run_id": run_id, "workload": "original Web-Bench expressjs first tasks",
         "origin": "microsoft/TokenEconomizer", "upstream_sha": commit,
+        "webbench_sha": WEBBENCH_SHA,
         "model": MODEL, "agent": "copilot CLI BYOK", "seed": 0,
         "task_ids": expected, "budget_admission_per_arm_usd": 5.0,
         "strict_provider_invoice_ceiling": False,
