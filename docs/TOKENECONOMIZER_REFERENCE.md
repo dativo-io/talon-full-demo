@@ -260,8 +260,17 @@ TE_REFERENCE_RUN_DIR=".state/tokeneconomizer-demo/reference-20261023T203253Z-5e5
 The local-only command compares original task-10 `model.call_failure` and
 `session.error` events across both arms. It prints coarse categories
 (rate limits, authentication, overload, context length, network/timeout,
-bad requests or unclassified), counts and error-event **field names**, but
-never the raw error payload. It also confirms actual edit-tool activity
+bad requests or unclassified), counts grouped **separately by event type**
+and error-event **field names**, but never the raw error payload.
+The first local run found **12 model-call failures and 2 session errors**
+but classified all 14 events as `unclassified`. This was a **diagnostic
+schema bug**: Copilot CLI 1.0.84-7 reports diagnostic content under
+`errorMessage`, `errorType`, and `failureKind`, while our initial
+classifier only inspected `error`, `message`, etc. The updated
+classifier explicitly handles the observed fields. Error-event counts
+can double-report one underlying incident (a failed model call can
+cause a later session error), so 14 events is **not** 14 independent
+HTTP failures. It also confirms actual edit-tool activity
 and per-attempt debug-log usage block counts. If events are
 `unclassified`, inspect the raw error fields locally and share **only a
 redacted error code and safe summary**. Do not repeat the paid study
