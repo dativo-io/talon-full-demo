@@ -341,6 +341,25 @@ Never commit provider keys, Talon keys, Zendesk settings, generated evidence, n8
 
 ## TokenEconomizer × Talon — real coding-agent cost study
 
+### NEW: original Microsoft benchmark mini-pilot
+
+A separate, opt-in mode invokes Microsoft's **unmodified experimental Web-Bench
+harness** (baseline vs `trimech-web`, real `expressjs` tasks) using Copilot CLI
+Anthropic BYOK routed **through Talon**. Both arms have separate $5 admission
+limits and verified signed cost exports. This is **not** the installable
+TokenEconomizer plugin, and it does not replace the 24-ticket synthetic study.
+
+- **No spend:** `make tokeneconomizer-reference-plan`
+- **Paid only with explicit opt-in:** `TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run`
+- **Full setup and methodology:** [Original Web-Bench pilot](docs/TOKENECONOMIZER_REFERENCE.md).
+
+The mini-pilot's shortened task sequence changes the upstream evaluator to
+stricter development-mode timeouts, so it is not directly comparable to full
+paper grading. Implementation is committed, but **no real run has yet been
+performed**, and no savings or positive evidence are claimed.
+
+
+
 This optional demo uses **real Claude Code → Talon v1.15.3 → Anthropic
 requests**, separate governed agent identities, a Talon vault, per-session
 signed receipts and independent correctness grading. All state lives in the
