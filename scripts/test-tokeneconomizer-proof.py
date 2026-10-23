@@ -64,8 +64,17 @@ class ProofVerdictTests(unittest.TestCase):
 
     def test_no_savings_even_with_plugin_intervention(self):
         report = sample()
+        for row in report["tasks"]["after"]:
+            if row["task"] >= 6:
+                row["cost"] = 0.032
         report["with_tokeneconomizer"]["cost"] = 0.160
+        report["arm_total_including_warmups"]["after"]["cost"] = 0.260
         self.assertEqual(assess(report)["verdict"], "NOT_DEMONSTRATED")
+
+    def test_totals_must_reconcile_to_signed_receipts(self):
+        report = sample()
+        report["baseline"]["cost"] = 0.250   # doubled on paper; receipts did not change
+        self.assertEqual(assess(report)["verdict"], "INCONCLUSIVE")
 
     def test_unmatched_workspaces_fail_claim(self):
         report = sample()
