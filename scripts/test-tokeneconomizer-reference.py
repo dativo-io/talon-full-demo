@@ -66,6 +66,36 @@ class ReferencePilotTest(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     ref.inputs()
 
+    def test_one_project_export_preserves_upstream_order_and_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            projects = base / "web-bench" / "projects"
+            (projects / "expressjs").mkdir(parents=True)
+            experiments = base / "upstream" / "experiments"
+            (experiments / "workloads").mkdir(parents=True)
+            manifest = {"groups": {"expressjs": [f"task-{i}" for i in range(1, 21)]}}
+            (experiments / "workloads" / "webbench.json").write_text(json.dumps(manifest))
+            task_file = projects / "expressjs" / "tasks.jsonl"
+            task_file.write_text("".join(json.dumps({"id": f"task-{i}",
+                                                     "description": f"Original task {i}"}) +
+                                         "\\n" for i in range(1, 21)))
+            output = base / "benchmark_tasks.json"
+            rows = ref.export_expressjs_tasks(projects, output, experiments)
+            self.assertEqual(len(rows), 20)
+            self.assertEqual([r["instance_id"] for r in rows],
+                             [f"task-{i}" for i in range(1, 21)])
+            self.assertEqual(rows[5]["problem_statement"], "Original task 6")
+            self.assertEqual(json.loads(output.read_text()), rows)
+            task_file.write_text('{"id": "task-1", "description": "missing rest"}\\n')
+            with self.assertRaisesRegex(RuntimeError, "differs from official"):
+                ref.export_expressjs_tasks(projects, output, experiments)
+
+    def test_default_paths_need_no_manual_exports(self):
+        with patch.dict(os.environ, {}, clear=True):
+            projects, tasks = ref.reference_paths()
+            self.assertEqual(projects, ref.DEFAULT_WEBBENCH / "projects")
+            self.assertEqual(tasks, ref.DEFAULT_EXPORT)
+
     def test_run_is_opt_in_before_any_dependencies_or_cost(self):
         with patch.dict(os.environ, {"TE_REFERENCE_PAID_CONFIRM": "",
                                      "ANTHROPIC_API_KEY": "not-used"}):
