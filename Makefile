@@ -310,24 +310,36 @@ preflight:
 
 # Real, credential-driven Claude Code x TokenEconomizer experiment.
 # Isolated: does not change Talon source or the running Full Demo fleet.
-.PHONY: tokeneconomizer-validate tokeneconomizer-contract tokeneconomizer-smoke demo-tokeneconomizer present-tokeneconomizer
+.PHONY: tokeneconomizer-validate tokeneconomizer-contract tokeneconomizer-smoke demo-tokeneconomizer tokeneconomizer-study-3 present-tokeneconomizer
 
 tokeneconomizer-validate:
 	python3 scripts/tokeneconomizer-demo.py validate
 	python3 scripts/test-tokeneconomizer-proof.py
 
 # Real Talon binary, local counted Anthropic-wire mock, no provider key or Claude CLI.
-# In CI install Talon from the reviewed main SHA; locally use talon on PATH.
+# In CI install the pinned published Talon release; locally resolve the same binary.
 tokeneconomizer-contract:
 	bash ./scripts/with-talon.sh python3 scripts/test-tokeneconomizer-talon-contract.py
 
 # Use the same resolved Talon CLI for preflight and paid execution.
 # The wrapper finds TALON_BIN, PATH, user-local installs and sibling builds.
 tokeneconomizer-smoke: tokeneconomizer-contract
-	TE_DEMO_TASK_LIMIT=1 bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run
+	TE_DEMO_PROFILE=smoke TE_DEMO_TASK_LIMIT=1 bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run
 
+# Bounded paid pilot: 24 linked repository tickets, 8 learn + 16 measured,
+# three available seeded orders. 15 USD per arm is an admission limit, NOT a
+# guaranteed provider-invoice ceiling. Requires explicit provider credentials.
 demo-tokeneconomizer: tokeneconomizer-contract
-	bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run
+	TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=15 bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run
+
+# Three independent, freshly initialized paid runs (up to 90 USD admission
+# budgets total); all-or-nothing shell chain, no unsafe concurrent runs.
+tokeneconomizer-study-3: tokeneconomizer-contract
+	@set -e; for seed in 0 1 2; do \
+	  echo "STUDY: seed $seed (new Talon ledger)"; \
+	  TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=15 TE_DEMO_SEED=$seed bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run; \
+	done
+	python3 scripts/tokeneconomizer-study-aggregate.py
 
 present-tokeneconomizer:
 	python3 scripts/tokeneconomizer-demo.py present
