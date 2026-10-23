@@ -35,6 +35,36 @@ or source `"$HOME/.nvm/nvm.sh"` as shown above. **Do not use
 `sudo make tokeneconomizer-reference-prepare`**: it would run as root,
 bypassing your per-user nvm installation and creating root-owned files.
 
+### Install the pinned GitHub Copilot CLI (separate from `gh`)
+
+The **reference** run uses the standalone `copilot` executable, **not** `gh`
+and not the old `gh copilot` extension. Microsoft's pinned
+`experiments/README.md` uses **Copilot CLI `1.0.84-7`**. This specific
+version avoids silently changing the benchmark runner across attempts.
+Install it as your normal Ubuntu user, not with `sudo`:
+
+```bash
+curl -fsSL https://gh.io/copilot-install | VERSION=1.0.84-7 PREFIX="$HOME/.local" bash
+export PATH="$HOME/.local/bin:$PATH"
+command -v copilot             # expect $HOME/.local/bin/copilot
+copilot --version             # no provider call
+```
+
+GitHub's [official installer](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli)
+supports both `VERSION` and `PREFIX` and installs to
+`$HOME/.local/bin` for non-root users. Review the installer before running
+it on a production host. If the binary exists but is not found, run
+`export PATH="$HOME/.local/bin:$PATH"` (and add that line to your shell's
+startup configuration for future SSH sessions). No GitHub login is required
+**for the benchmark's Anthropic BYOK routing**; the CLI still must install
+and launch successfully.
+
+**Required, free preflight:** after installation, run
+`make tokeneconomizer-reference-check` again. It verifies the original
+task definitions, built evaluator, Copilot executable and its version
+without authentication or provider calls. The script prints a warning if
+the detected CLI version differs from the one the paper pinned.
+
 The benchmark also needs Git, Python 3.10+, a C/C++ build toolchain (for
 native Node dependencies), and the system libraries required by Playwright
 Chromium. On Ubuntu, install common build prerequisites if they are absent:
@@ -80,7 +110,7 @@ The default paths live in Git-ignored demo state, so **no `TE_REFERENCE_PROJECTS
 
 If you already have a built Web-Bench checkout, set `TE_REFERENCE_PROJECTS` and `TE_REFERENCE_TASKS` to reuse it. `prepare` will not overwrite a checkout that is not a Git clone and skips rebuilding when the official evaluator is already built.
 
-Ubuntu prerequisites: Python 3.10+, Git, Node.js/npm/npx, a compatible Copilot CLI and Talon v1.15.3. Preparing dependencies executes the normal external Rush installation/build scripts; review external packages as you would for any downloaded open-source project. On a 2-vCPU, 8-GB server, dependency installation and compilation may be resource-intensive. It does not charge the Anthropic provider.
+Ubuntu prerequisites: Python 3.10+, Git, Node.js/npm/npx, pinned Copilot CLI 1.0.84-7 and Talon v1.15.3. Preparing dependencies executes the normal external Rush installation/build scripts; review external packages as you would for any downloaded open-source project. On a 2-vCPU, 8-GB server, dependency installation and compilation may be resource-intensive. It does not charge the Anthropic provider.
 
 ## Deliberately paid experiment
 
