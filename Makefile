@@ -310,13 +310,14 @@ preflight:
 
 # Real, credential-driven Claude Code x TokenEconomizer experiment.
 # Isolated: does not change Talon source or the running Full Demo fleet.
-.PHONY: tokeneconomizer-validate tokeneconomizer-contract tokeneconomizer-smoke demo-tokeneconomizer tokeneconomizer-study-3 present-tokeneconomizer
+.PHONY: tokeneconomizer-validate tokeneconomizer-contract tokeneconomizer-smoke demo-tokeneconomizer tokeneconomizer-study-3 present-tokeneconomizer tokeneconomizer-reference-plan tokeneconomizer-reference-run
 
 tokeneconomizer-validate:
 	python3 scripts/tokeneconomizer-demo.py validate
 	python3 scripts/test-tokeneconomizer-proof.py
 	python3 scripts/test-tokeneconomizer-study.py
 	python3 scripts/test-tokeneconomizer-budget.py
+	python3 scripts/test-tokeneconomizer-reference.py
 
 # Real Talon binary, local counted Anthropic-wire mock, no provider key or Claude CLI.
 # In CI install the pinned published Talon release; locally resolve the same binary.
@@ -349,3 +350,15 @@ tokeneconomizer-study-3: tokeneconomizer-contract
 
 present-tokeneconomizer:
 	python3 scripts/tokeneconomizer-demo.py present
+
+# Original Microsoft Web-Bench (not the synthetic 24-ticket/production-plugin
+# study). Plan and offline tests make NO model calls.
+tokeneconomizer-reference-plan:
+	python3 scripts/tokeneconomizer-reference.py plan
+	python3 scripts/test-tokeneconomizer-reference.py
+
+# Explicitly paid, only after operator prepares upstream Web-Bench projects,
+# task exports and an Anthropic API key. Script refuses missing
+# TE_REFERENCE_PAID_CONFIRM=YES and enforces $5 admission per Talon arm.
+tokeneconomizer-reference-run: tokeneconomizer-contract
+	bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-reference.py run
