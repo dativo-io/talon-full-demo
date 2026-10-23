@@ -378,8 +378,11 @@ Locally run `make tokeneconomizer-contract` with a Talon binary built from
 that same main revision on PATH. This validates the gateway/CLI boundary
 without spending money. CI's fixed commit is a reproducibility fixture;
 when upgrading to a newer Talon main, update the fixture SHA and rerun it
-before claiming compatibility. The real Claude Code/TokenEconomizer plugin
-integration **still needs the paid smoke**.
+before claiming compatibility. The `tokeneconomizer-smoke` and `demo-tokeneconomizer` Make targets
+**run this keyless contract automatically first** against the Talon binary
+actually on PATH, refusing paid execution if the real gateway/evidence/budget
+contract fails. The real Claude Code/TokenEconomizer plugin integration
+**still needs the paid smoke**.
 
     make tokeneconomizer-validate       # offline fixture and report invariants
     make tokeneconomizer-contract       # real Talon gateway / mock Anthropic / $5 denial / signed evidence
