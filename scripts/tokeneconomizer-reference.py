@@ -10,6 +10,7 @@ No provider calls without an explicit TE_REFERENCE_PAID_CONFIRM=YES.
 import importlib.util
 import json
 import os
+import signal
 import shutil
 import subprocess
 import sys
@@ -27,6 +28,7 @@ spec.loader.exec_module(demo)
 MODEL = "claude-sonnet-5"
 FULL_PROJECT_TASKS = 20
 MAX_ARM_BUDGET_USD = 25.0
+DEFAULT_ARM_TIMEOUT_S = 14400   # full 20-task stream
 # Reviewed original Web-Bench source revision, not a moving main branch.
 WEBBENCH_SHA = "7b31ca2b786eef120dd49ce63dd03d0c0006046d"
 COPILOT_REFERENCE_VERSION = "1.0.84-7"
@@ -262,6 +264,42 @@ def reference_budget():
             "Higher budget requires TE_REFERENCE_HIGHER_BUDGET_CONFIRM=YES "
             "as well as the existing paid confirmation. No paid calls made.")
     return round(usd, 2)
+
+
+def arm_timeout_seconds():
+    """Bounded per-arm wall-clock limit; not a provider spending cap."""
+    raw = os.getenv("TE_REFERENCE_ARM_TIMEOUT_S", str(DEFAULT_ARM_TIMEOUT_S))
+    try:
+        seconds = int(raw)
+    except ValueError:
+        raise RuntimeError("Invalid TE_REFERENCE_ARM_TIMEOUT_S: " + repr(raw))
+    if not 3600 <= seconds <= DEFAULT_ARM_TIMEOUT_S:
+        raise RuntimeError("TE_REFERENCE_ARM_TIMEOUT_S must be 3600..14400 seconds")
+    return seconds
+
+
+def execute_official_arm(env, experiments, log_path):
+    """Live log + group-aware timeout (never orphan billable agent children)."""
+    demo.private(log_path, "")
+    limit = arm_timeout_seconds()
+    print("Original harness live log:", log_path, "| timeout", limit, "s", flush=True)
+    with log_path.open("w") as logfile:
+        proc = subprocess.Popen(
+            ["bash", "scripts/launch/main_sweep.sh"],
+            cwd=experiments, env=env, stdout=logfile,
+            stderr=subprocess.STDOUT, start_new_session=True)
+        try:
+            return proc.wait(timeout=limit)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGTERM)
+            try:
+                proc.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                os.killpg(proc.pid, signal.SIGKILL)
+                proc.wait(timeout=15)
+            raise RuntimeError(
+                f"Full-project benchmark exceeded {limit}s per-arm deadline. "
+                f"Terminated process group to stop further spending; log: {log_path}")
 
 
 def initial_state_preflight(projects, task_ids):
@@ -570,6 +608,7 @@ def plan():
     print("Official evaluator: expressjs | ALL", task_limit(), "tasks | production grader | seed 0")
     print("Arms: baseline vs trimech-web | Copilot CLI BYOK -> Talon -> Anthropic")
     print("Each arm: independent USD 5.00 default estimated admission budget;")
+    print("Per-arm runtime max:", arm_timeout_seconds(), "s (not a provider spending cap)")
     print("explicitly opt into a higher amount (max USD 25/arm), if needed.")
     print("Partial benchmark forbidden: Web-Bench treats startTask as GOLD src/ calibration.")
     print("Only 1 seed: no statistical, causal or paper-replication claim.")
@@ -596,6 +635,7 @@ def run():
             "run requires TE_REFERENCE_FULL_STREAM_CONFIRM=YES and explicit "
             "TE_REFERENCE_PAID_CONFIRM=YES. No paid calls made.")
     budget = reference_budget()
+    arm_timeout_seconds()
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise RuntimeError("ANTHROPIC_API_KEY is required only for Talon's vault setup")
     if demo.MODEL != MODEL:
@@ -649,19 +689,16 @@ def run():
                 raise RuntimeError("Reference arm planning failed; see " + str(output / "plan.log"))
             print("START", name, "|", len(expected), "official tasks | $",
                   f"{budget:.2f}", " Talon estimated admission policy", flush=True)
-            process = demo.execute(["bash", "scripts/launch/main_sweep.sh"],
-                                   env=env, cwd=experiments, check=False,
-                                   timeout=3600)
-            demo.private(output / "harness.log", process.stdout + "\n" + process.stderr)
+            arm_exit = execute_official_arm(env, experiments, output / "harness.log")
             observations[arm] = {"official_arm": name,
-                                 "exit_code": process.returncode,
+                                 "exit_code": arm_exit,
                                  "tasks": official_rows(results, name)}
             try:
                 observations[arm]["talon"] = audit_agent(values, run_id, arm, output)
             except Exception as e:
                 observations[arm]["audit_error"] = str(e)
                 errors.append(arm + " audit: " + str(e))
-            if process.returncode:
+            if arm_exit:
                 errors.append(arm + " official harness nonzero exit")
                 break
             if list(observations[arm]["tasks"]) != expected:
