@@ -161,9 +161,22 @@ before sharing logs publicly; these may contain workspace code/prompts.
 
 The first failure is now **explained** by the evaluator log:
 Chromium could not load `libatk-1.0.so.0`. The experimental
-`webbench_answered_files` field was also `[[], []]` on task 1; after fixing
-Chromium, check whether the agent produces and submits changed files, rather
-than attributing that observation to the browser error. The partial-stream
+`webbench_answered_files` field was also `[[], []]` on task 1. A subsequent
+operator-provided transcript **event-type-only summary** showed 15 model calls,
+22 actual `view` tool executions and 3 actual `bash` executions in the
+experimental arm; it did NOT contain evidence of a dedicated file-editing tool
+execution. (Its 984 streamed `assistant.tool_call_delta` events are fragments,
+not 984 tool executions.) The `bash` calls may have modified files; the
+sanitized tool-name summary does not say what commands or outcomes occurred.
+
+`make tokeneconomizer-reference-diagnose` now reads the saved local
+transcript and prints **executed tool counts and per-attempt changed-file
+submission counts** alongside the grader facts, without printing any prompt,
+tool command, arguments or response. Diagnose the old run after updating the
+branch; then inspect the **three Bash command outcomes** locally to distinguish
+"agent didn't change files" from "agent wrote files outside the evaluator's
+scratch workspace" or "collector excluded edits". None of these can be
+concluded from tool names alone. The partial-stream
 Playwright 2-second timeout limitation remains and should not be conflated
 with the missing-library failure.
 
