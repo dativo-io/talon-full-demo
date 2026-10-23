@@ -28,6 +28,103 @@ MODEL = "claude-sonnet-5"
 MAX_TASKS = 8
 DEFAULT_TASKS = 6
 ARMS = (("baseline", "baseline"), ("after", "trimech-web"))
+# The Web-Bench checkout is kept under the demo's already git-ignored state.
+# No dependency is downloaded by 'plan' or the offline validator.
+DEFAULT_WEBBENCH = demo.STATE / "reference-web-bench"
+DEFAULT_EXPORT = demo.STATE / "reference-webbench-tasks.json"
+
+
+def reference_paths():
+    projects = Path(os.getenv("TE_REFERENCE_PROJECTS", str(DEFAULT_WEBBENCH / "projects"))).expanduser()
+    tasks = Path(os.getenv("TE_REFERENCE_TASKS", str(DEFAULT_EXPORT))).expanduser()
+    return projects, tasks
+
+
+def export_expressjs_tasks(projects, tasks, experiments):
+    """Original task texts and exact original upstream order; one project only.
+
+    The upstream exporter requires tasks.jsonl for ALL benchmark projects.
+    Instead restrict its data-only projection to the expressjs project while
+    leaving the controller, original task IDs and official grader unchanged.
+    """
+    manifest = json.loads((experiments / "workloads" / "webbench.json").read_text())
+    canonical_ids = manifest["groups"]["expressjs"]
+    task_source = projects / "expressjs" / "tasks.jsonl"
+    if not task_source.is_file():
+        raise RuntimeError("Original Web-Bench task definitions missing: " + str(task_source))
+    originals = {}
+    for line in task_source.read_text().splitlines():
+        if line.strip():
+            item = json.loads(line)
+            if item["id"] in originals:
+                raise RuntimeError("Duplicate original Web-Bench task ID: " + item["id"])
+            originals[item["id"]] = item
+    missing = [identity for identity in canonical_ids if identity not in originals]
+    if missing or len(canonical_ids) != 20:
+        raise RuntimeError("expressjs source differs from official Microsoft workload: " + str(missing))
+    rows = [{"instance_id": identity, "problem_statement": originals[identity].get("description", ""),
+             "repo": "expressjs"} for identity in canonical_ids]
+    if any(not row["problem_statement"].strip() for row in rows):
+        raise RuntimeError("Official Web-Bench task description is missing")
+    tasks.parent.mkdir(parents=True, exist_ok=True)
+    tasks.write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n")
+    return rows
+
+
+def prepare():
+    """Explicit, keyless dependency setup; builds only expressjs and evaluator."""
+    projects, tasks = reference_paths()
+    checkout = projects.parent
+    if projects.is_symlink() or checkout.is_symlink() or tasks.is_symlink():
+        raise RuntimeError("Web-Bench checkout and export must not use symlinks")
+    for executable in ("git", "node", "npm", "npx", "python3"):
+        if not shutil.which(executable):
+            raise RuntimeError("Missing " + executable + ". Install prerequisites and retry.")
+    plugin, commit = demo.install_plugin()
+    experiments = plugin.parent / "experiments"
+    print("Pinned Microsoft experiment code:", commit, flush=True)
+    if not (checkout / ".git").is_dir():
+        if checkout.exists():
+            raise RuntimeError("Path exists but is not a Web-Bench checkout: " + str(checkout))
+        checkout.parent.mkdir(parents=True, exist_ok=True)
+        print("Cloning original Web-Bench into", checkout, flush=True)
+        subprocess.run(["git", "clone", "https://github.com/bytedance/web-bench.git",
+                        str(checkout)], check=True)
+    print("Preparing only original expressjs project and official evaluator", flush=True)
+    # A built evaluator can be reused. Always regenerate the task export from
+    # original tasks.jsonl + Microsoft's committed workload identity manifest.
+    evaluator = checkout / "apps" / "eval" / "dist" / "index.js"
+    if not evaluator.is_file():
+        # 'rush install' uses the project's rush.json and pnpm lockfile.
+        # npx avoids assuming global npm install permissions on the host.
+        for args in (["npx", "--yes", "@microsoft/rush", "install"],
+                     ["npx", "--yes", "@microsoft/rush", "build",
+                      "--to", "@web-bench/eval", "--to", "@web-bench/expressjs"]):
+            print(">", " ".join(args), flush=True)
+            subprocess.run(args, cwd=checkout, check=True)
+        # Use the project's pinned @playwright/test version, not a
+        # global playwright install with a potentially incompatible browser.
+        args = ["npx", "playwright", "install", "chromium", "chromium-headless-shell"]
+        print(">", " ".join(args), flush=True)
+        subprocess.run(args, cwd=projects / "expressjs", check=True)
+    rows = export_expressjs_tasks(projects, tasks, experiments)
+    revision = subprocess.run(["git", "-C", str(checkout), "rev-parse", "HEAD"],
+                              capture_output=True, text=True, check=True).stdout.strip()
+    print("Original Web-Bench source:", revision)
+    print("Original", len(rows), "expressjs tasks exported:", tasks)
+    print("Evaluator:", evaluator)
+    print("No model calls were made. Next: make tokeneconomizer-reference-check", flush=True)
+
+
+def check():
+    projects, tasks, selected = inputs()
+    _, commit = demo.install_plugin()
+    print("PASS: original Web-Bench evaluator, source task order and", len(selected),
+          "selected tasks verified; Microsoft harness pinned to", commit)
+    print("Projects:", projects)
+    print("Export:", tasks)
+    print("No model calls were made.")
+
 
 
 def task_limit():
@@ -39,12 +136,13 @@ def task_limit():
 
 def inputs():
     """Full path validation before creating credentials or starting Talon."""
-    projects = Path(os.getenv("TE_REFERENCE_PROJECTS", "")).expanduser()
-    tasks = Path(os.getenv("TE_REFERENCE_TASKS", "")).expanduser()
-    if not os.getenv("TE_REFERENCE_PROJECTS") or not projects.is_dir():
-        raise RuntimeError("Set TE_REFERENCE_PROJECTS to the built Web-Bench projects directory")
-    if not os.getenv("TE_REFERENCE_TASKS") or not tasks.is_file():
-        raise RuntimeError("Set TE_REFERENCE_TASKS to the official exported webbench_tasks.json")
+    projects, tasks = reference_paths()
+    if not projects.is_dir():
+        raise RuntimeError("Web-Bench projects are missing: " + str(projects) +
+                           ". Run make tokeneconomizer-reference-prepare (no API calls).")
+    if not tasks.is_file():
+        raise RuntimeError("Original Web-Bench task export is missing: " + str(tasks) +
+                           ". Run make tokeneconomizer-reference-prepare (no API calls).")
     if not (projects / "expressjs").is_dir():
         raise RuntimeError("Web-Bench expressjs project missing from TE_REFERENCE_PROJECTS")
     evaluator = projects.parent / "apps" / "eval" / "dist" / "index.js"
@@ -154,9 +252,12 @@ def plan():
     print("Each arm: independent $5.00 admission cap; up to $10.00 combined.")
     print("Pilot subset switches official Web-Bench evaluator to stricter development timeouts.")
     print("Only 1 seed: no statistical, causal or paper-replication claim.")
-    print("No API calls performed. To run: provision official Web-Bench projects/task exports,")
-    print("set TE_REFERENCE_PROJECTS, TE_REFERENCE_TASKS and ANTHROPIC_API_KEY, then")
-    print("TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run")
+    print("No API calls performed. One-command benchmark setup:")
+    print("  make tokeneconomizer-reference-prepare   # source/dependency downloads; NO paid calls")
+    print("  make tokeneconomizer-reference-check     # original evaluator/task order; NO paid calls")
+    print("Then export ANTHROPIC_API_KEY (used only in Talon's vault) and run:")
+    print("  TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run")
+    print("Default paths:", reference_paths())
     print("Billing may exceed Talon's estimate-based admission limits: set a provider-side limit.")
 
 
@@ -279,10 +380,14 @@ def main():
     try:
         if action == "plan":
             plan()
+        elif action == "prepare":
+            prepare()
+        elif action == "check":
+            check()
         elif action == "run":
             run()
         else:
-            raise RuntimeError("Use plan or run")
+            raise RuntimeError("Use plan, prepare, check, or run")
     except Exception as exc:
         print("ERROR:", exc, file=sys.stderr)
         sys.exit(1)
