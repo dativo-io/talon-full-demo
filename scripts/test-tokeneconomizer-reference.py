@@ -111,6 +111,26 @@ class ReferencePilotTest(unittest.TestCase):
                         with self.assertRaisesRegex(RuntimeError, "requires Node.js 22"):
                             ref.prepare()
 
+    def test_copilot_preflight_missing_binary_is_keyless(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(ref.Path, "home", return_value=Path(directory)):
+                with patch.object(ref.shutil, "which", return_value=None):
+                    with self.assertRaisesRegex(RuntimeError, "1.0.84-7"):
+                        ref.copilot_preflight()
+            # Only local path lookup happened, never a provider call.
+
+    def test_copilot_preflight_reports_original_version(self):
+        mock_version = type("Version", (), {
+            "returncode": 0, "stdout": "GitHub Copilot CLI 1.0.84-7\\n",
+            "stderr": ""})()
+        with patch.object(ref.shutil, "which", return_value="/tmp/copilot"):
+            with patch.object(ref.subprocess, "run", return_value=mock_version) as proc:
+                result = ref.copilot_preflight()
+        self.assertEqual(result["binary"], "/tmp/copilot")
+        self.assertIn("1.0.84-7", result["version"])
+        self.assertEqual(proc.call_args.kwargs["env"], ref.demo.safe_env())
+        self.assertEqual(proc.call_args.args[0], ["/tmp/copilot", "--version"])
+
     def test_run_is_opt_in_before_any_dependencies_or_cost(self):
         with patch.dict(os.environ, {"TE_REFERENCE_PAID_CONFIRM": "",
                                      "ANTHROPIC_API_KEY": "not-used"}):
