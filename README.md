@@ -355,15 +355,35 @@ TokenEconomizer plugin loaded through the Claude Code --plugin-dir flag.
 
 ### Requirements
 
-- Talon CLI on PATH (no Talon source modification required).
+- Talon CLI built from the **merged budget-governance main** (PR #508), not an
+  older binary/release. For an explicitly reviewed source revision, use
+  `cef6313c42a44ab9ab64de0e879147bf50370ea3` (Go 1.26.10).
 - Official Claude Code CLI on PATH, with non-interactive print mode and --plugin-dir.
 - Python 3.10+, Git and connectivity to the Anthropic API.
 - An Anthropic API key with active API billing, not only a Claude subscription.
 
-### Run
+### Compatibility and run
 
+The **credential-free real-Talon contract** is a separate CI job, not a mock
+replacement for Talon. It builds the above merged `main` revision, starts
+the real Talon gateway with a local Anthropic-wire mock (no external key or
+Claude CLI), reuses the two exact demo agent policies, confirms pricing of
+`claude-sonnet-5`, verifies cross-session agent budget denials before
+provider dispatch, and verifies the signed receipt exports. The mock
+deliberately bills one huge response above $5 to demonstrate **estimate
+overshoot**: Talon prevents further admission, but cannot stop billing
+within an already-admitted request.
+
+Locally run `make tokeneconomizer-contract` with a Talon binary built from
+that same main revision on PATH. This validates the gateway/CLI boundary
+without spending money. CI's fixed commit is a reproducibility fixture;
+when upgrading to a newer Talon main, update the fixture SHA and rerun it
+before claiming compatibility. The real Claude Code/TokenEconomizer plugin
+integration **still needs the paid smoke**.
+
+    make tokeneconomizer-validate       # offline fixture and report invariants
+    make tokeneconomizer-contract       # real Talon gateway / mock Anthropic / $5 denial / signed evidence
     export ANTHROPIC_API_KEY='sk-ant-...'
-    make tokeneconomizer-validate       # credential-free: grader + evidence contracts
     make tokeneconomizer-smoke          # one real task per arm, checks integration
     make demo-tokeneconomizer           # full real comparison, subject to $5/arm policies
     make present-tokeneconomizer        # replay the latest table without new API calls
