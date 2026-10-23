@@ -320,10 +320,11 @@ tokeneconomizer-validate:
 tokeneconomizer-contract:
 	python3 scripts/test-tokeneconomizer-talon-contract.py
 
-tokeneconomizer-smoke:
+# Always verify the actual Talon binary on PATH BEFORE spending on Anthropic.
+tokeneconomizer-smoke: tokeneconomizer-contract
 	TE_DEMO_TASK_LIMIT=1 python3 scripts/tokeneconomizer-demo.py run
 
-demo-tokeneconomizer:
+demo-tokeneconomizer: tokeneconomizer-contract
 	python3 scripts/tokeneconomizer-demo.py run
 
 present-tokeneconomizer:
