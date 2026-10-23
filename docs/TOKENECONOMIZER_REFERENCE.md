@@ -221,6 +221,43 @@ investigate the wrapper process/logs before assuming costs or
 policy denials. **Do not fund another run until the terminal failure
 and evidence-export states are resolved.**
 
+## Offline Talon evidence recovery after an interrupted wrapper
+
+When the original Microsoft harness finishes but `reference-proof.json` is absent,
+check that the wrapper process is no longer running. The original Python runner
+normally writes the proof even after ordinary grading/audit failures, so a missing
+proof can indicate abrupt interruption. A baseline `signed.json` without an
+experimental `signed.json` does **not** prove missing model calls or bypass:
+the wrapper may simply have stopped before exporting the second arm.
+
+The run saves private `keys.json`, immutable benchmark results, and a local
+`talon-store`. These can be used to re-export and cryptographically verify
+BOTH identities' original Talon evidence **without restarting any model calls,
+Talon gateway, optimizer, or Web-Bench evaluator**:
+
+```bash
+TE_REFERENCE_RUN_DIR=".state/tokeneconomizer-demo/reference-20261023T203253Z-5e50676f" \
+  make tokeneconomizer-reference-recover
+```
+
+The command writes **new** private receipts to `recovered-evidence/baseline/signed.json`
+and `recovered-evidence/after/signed.json`, plus
+`reference-recovered-evidence.json` showing signed record counts,
+model-call counts, Talon priced USD estimates, explicit policy-denial counts,
+and attempted/resolved task counts. It **does not overwrite** any original
+`baseline/signed.json` or `after/signed.json`, and it **never fabricates**
+`reference-proof.json`, an upstream completed-task verdict, or a token-savings
+claim. The command fails closed if the keys/store are missing, signatures do
+not verify or either arm cannot be audited. Review receipts privately;
+they can include metadata about requests. Do **not** paste `keys.json` or
+raw signed receipts into chat.
+
+If the new recovered report shows denials, inspect their verified
+`policy_decision` reasons *locally*, then correlate to task-10/task-15
+evaluator failures before concluding whether the stream was censored by
+Talon budget policy. A missing proof is not evidence of any specific
+budget enforcement or optimizer-induced correctness failure.
+
 ## Deliberately paid experiment
 
 Only after the keyless preflight passes **and the full-stream costs have been approved**:
