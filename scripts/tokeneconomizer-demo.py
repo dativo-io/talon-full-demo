@@ -668,11 +668,11 @@ PROOF_SECTION
 <tr><th>Metric</th><th>Without plugin</th><th>With TokenEconomizer</th><th>Change</th>
 </tr></thead><tbody>ROWS</tbody></table></div>
 <div class="card"><h2>Method and boundaries</h2>
-<p>Each arm has its own authenticated Talon agent with a USD 5.00 daily and monthly
+<p>Each arm has its own authenticated Talon agent with a USD BUDGET daily and monthly
 budget, covering warmup AND measured tasks. The Talon ledger is new for every run.
 The local agent policy allows only the selected Anthropic model, and warn-only
 input/response PII scans observe without changing synthetic code.</p>
-<p>Five warmup sessions and five measured repairs per arm. Independent Claude profiles,
+<p>WORKLOAD_DESC. Independent Claude profiles,
 Git workspaces and plugin state. The operator's Anthropic key is stored only in the local
 Talon encrypted vault, not passed to Claude Code. All model calls must have Talon evidence.</p>
 <p>Execution status: STATUS. Optimizer effect: ACTIVATION.</p>
@@ -691,7 +691,9 @@ not Talon-governed actions.</p>
     section = (study_html(report.get("proof") or assess_study(report))
                if report.get("profile") == "study"
                else smoke_html(report.get("proof") or assess_smoke(report)))
-    path.write_text(document.replace("PROOF_SECTION", section)
+    path.write_text(document.replace("BUDGET", f"{report.get('budget_cap_usd_per_arm', ARM_BUDGET):.2f}")
+                    .replace("WORKLOAD_DESC", ("Eight learning and 16 measured repository tickets per arm" if report.get("profile") == "study" else "Five warmup sessions and five measured repairs per arm"))
+                    .replace("PROOF_SECTION", section)
                     .replace("ROWS", row_html)
                     .replace("RUNID", report["run_id"])
                     .replace("MODEL", html.escape(report["model"]))
@@ -862,7 +864,8 @@ def run():
         "workload_sha256": workload_digests,
         "tokeneconomizer_catalog": catalog,
         "task_limit": task_limit, "run_error": run_error,
-        "tool_versions": versions, "comparison_policy": "separate governed Talon agents",
+        "tool_versions": versions, "comparison_policy": ("separate governed Talon agents" if PROFILE == "study"
+                              else "separate $5 Talon agents"),
         "token_economizer_hook_sessions": len(observed_hooks),
         "plugin_mechanisms_observed": mechanisms,
         "optimizer_effect_observed": effect_observed,
