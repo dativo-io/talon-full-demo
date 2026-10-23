@@ -408,6 +408,8 @@ descriptions and test conventions and modifying the shared domain
 implementation **and** public service registry. Visible tests are
 available in the checkout; hidden acceptance tests run in a fresh,
 separate grader directory so editing visible tests cannot fake success.
+After every ticket, the grader **also re-runs all previously successful
+hidden ticket checks** to detect regressions of existing features.
 Fixes accumulate in each arm's repository over the entire stream.
 Three seeded orders keep task pairs aligned while varying experience
 and alternating which arm executes first.
@@ -417,7 +419,8 @@ later trajectory. **The headline cost always includes ALL 24 paid
 tickets per arm**, including learning. The late-phase figure is
 diagnostic, not a cherry-picked replacement for acquisition costs.
 The report shows correctness (resolved tickets), full-stream USD,
-USD/resolved ticket, cache reads/writes, per-ticket signed evidence,
+USD/resolved ticket, cache reads/writes, the **pricing decomposition**
+of cache reads versus expensive cache writes, per-ticket signed evidence,
 and cumulative break-even. Explicit **high** reasoning effort,
 up to **24 turns** and bounded **900-second** task execution are used,
 not the prior eight-turn quick-fix configuration.
@@ -436,7 +439,7 @@ intervention. When none occurs, **we report that honestly**.
 
 To investigate cache-prefix invalidation explicitly, a separately
 labeled accelerated ablation is available via
-`TE_DEMO_PRUNING_MODE=accelerated` with direct Python invocation. That
+`TE_DEMO_PRUNING_MODE=accelerated` with `TE_DEMO_PRUNING_MODE=accelerated make demo-tokeneconomizer`. That
 is **not** the default and the production-default evaluator does not
 accept its result as a normal-configuration savings claim.
 
@@ -472,13 +475,16 @@ Every run saves:
 The study yields **INCONCLUSIVE** when paired task identities,
 identical initial repo hashes, high effort, CLI/provider/model metadata,
 signature verification, spent-cost reconciliation, or completion fail.
-**QUALITY_REGRESSION** means outcomes got worse; **NOT_DEMONSTRATED**
-means no complete-stream cost benefit; **PRELIMINARY_SAVINGS** means
-one observed run was cheaper without reducing graded completions.
+**QUALITY_REGRESSION** means outcomes or previously working tickets got worse;
+**NOT_DEMONSTRATED** means no complete-stream cost benefit;
+**LOWER_COST_UNATTRIBUTED** means lower spending without a demonstrated
+plugin intervention; **PRELIMINARY_SAVINGS** means one observed run was cheaper,
+the plugin acted, and graded completions were preserved.
 None of these constitutes paper replication or causal evidence.
 
 The optional three-seed aggregate compares independently initialized
-runs without dropping losing seeds. It produces
+runs without dropping losing seeds, and requires the **same demo git revision,
+Claude Code version and plugin/model config** for all three seeds. It produces
 `.state/tokeneconomizer-demo/study-aggregate.md` and
 `study-aggregate.json`. A repeated direction across three seeds
 still supports only a **bounded, synthetic, observational claim**,
