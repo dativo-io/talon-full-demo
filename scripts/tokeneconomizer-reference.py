@@ -603,6 +603,9 @@ def run():
     # The budget is only consumed inside this benchmark subprocess; no
     # modification to Talon OSS or to the synthetic fixture study.
     demo.ARM_BUDGET = budget
+    # Reject invalid partial streams before touching filesystem, binaries,
+    # gateway credentials or API traffic. This is a methodology fail-closed gate.
+    task_limit()
     projects, tasks, expected = inputs()
     playwright_preflight(projects)
     initial_state_preflight(projects, expected)
