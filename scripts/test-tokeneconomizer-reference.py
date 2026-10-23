@@ -185,6 +185,39 @@ class ReferencePilotTest(unittest.TestCase):
             self.assertNotIn("secret", str(summary))
             self.assertIsNone(ref.transcript_activity(Path(directory) / "missing"))
 
+    def test_tool_update_without_catalog_and_text_errors_do_not_imply_missing_tools(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "trace.jsonl"
+            events = [
+                {"type": "session.tools_updated", "data": {"model": "claude-sonnet-5"}},
+                {"type": "tool.execution_start", "data": {"toolName": "view"}},
+                {"type": "tool.execution_complete", "data": {
+                    "result": "notes mention permission denied and no such file"}},
+                {"type": "assistant.message", "data": {"content": "No edits made"}},
+            ]
+            trace.write_text("\n".join(json.dumps(e) for e in events) + "\n")
+            summary = ref.transcript_activity(trace)
+            self.assertEqual(summary["tool_update_fields"], ["model"])
+            self.assertFalse(summary["tool_catalog_exposed"])
+            self.assertEqual(summary["explicit_tool_failures"], {})
+            self.assertEqual(summary["assistant_messages_with_content"], 1)
+            self.assertNotIn("permission denied", str(summary))
+
+    def test_tool_explicit_failed_status_is_counted_without_result_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "trace.jsonl"
+            events = [
+                {"type": "tool.execution_complete", "data": {
+                    "isError": True, "output": "secret"}},
+                {"type": "tool.execution_complete", "data": {
+                    "exitCode": 127, "output": "secret"}},
+            ]
+            trace.write_text("\n".join(json.dumps(e) for e in events) + "\n")
+            summary = ref.transcript_activity(trace)
+            self.assertEqual(summary["explicit_tool_failures"],
+                             {"is_error": 1, "exit_code_nonzero": 1})
+            self.assertNotIn("secret", str(summary))
+
     def test_offline_diagnosis_distinguishes_unreached_from_attempted(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
