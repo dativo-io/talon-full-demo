@@ -2,6 +2,63 @@
 
 **Status:** self-service setup and keyless validation implemented. The paid benchmark has **not** been run by ChatGPT. Earlier output showing missing `TE_REFERENCE_PROJECTS` is a setup-only failure, not a Talon fault.
 
+## Ubuntu host prerequisites
+
+**Web-Bench requires Node.js 22 or newer.** Its pinned `rush.json` declares
+`nodeSupportedVersionRange: ">=22.0.0"`. Run the version checks first:
+
+```bash
+node --version
+npm --version
+npx --version
+```
+
+If `node: command not found`, install Node.js **22** using
+[nvm](https://github.com/nvm-sh/nvm) (a per-user installation, no `sudo`
+needed). The commands below use a pinned nvm installer; review third-party
+install scripts before running them on a server.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+export NVM_DIR="$HOME/.nvm"
+. "$NVM_DIR/nvm.sh"
+nvm install 22
+nvm alias default 22
+nvm use 22
+node --version        # expect v22.x.x
+npm --version
+npx --version
+```
+
+If you reconnect over SSH and `node` is missing again, open a login shell
+or source `"$HOME/.nvm/nvm.sh"` as shown above. **Do not use
+`sudo make tokeneconomizer-reference-prepare`**: it would run as root,
+bypassing your per-user nvm installation and creating root-owned files.
+
+The benchmark also needs Git, Python 3.10+, a C/C++ build toolchain (for
+native Node dependencies), and the system libraries required by Playwright
+Chromium. On Ubuntu, install common build prerequisites if they are absent:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git curl build-essential python3 pkg-config
+```
+
+If Playwright subsequently complains about missing **system libraries**, use
+the Playwright-provided dependency installer (review the package changes):
+
+```bash
+cd ~/src/talon-full-demo/.state/tokeneconomizer-demo/reference-web-bench/projects/expressjs
+sudo env "PATH=$PATH" "$(command -v node)" --version  # optional diagnostics; no install
+npx playwright install-deps chromium
+cd ~/src/talon-full-demo
+```
+
+The optional Playwright command may require elevated permissions for apt
+packages; it is **not** necessary unless the browser-dependency check fails.
+The setup runs upstream build scripts and downloads binaries but **never
+uses the Anthropic model API**.
+
 ## Quick setup on Ubuntu
 
 On the `feature/tokeneconomizer-claude-comparison` branch of `talon-full-demo`:
