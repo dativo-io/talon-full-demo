@@ -376,6 +376,16 @@ class ReferencePilotTest(unittest.TestCase):
             ({"message": "context window exceeded secret"}, "context_length"),
             ({"error": {"message": "ECONNRESET secret"}}, "timeout_or_transport"),
             ({"error": {"message": "unknown secret"}}, "unclassified"),
+            ({"errorMessage": "429 Too Many Requests SECRET",
+              "errorType": "ApiError", "failureKind": "modelCall"}, "rate_limit_429"),
+            ({"errorType": "ServiceUnavailableError",
+              "failureKind": "requestFailed"}, "upstream_overload_5xx"),
+            ({"errorMessage": "input exceeds context window SECRET",
+              "apiEndpoint": "http://private"}, "context_length"),
+            ({"errorMessage": "Error: request failed with status 400"},
+             "bad_request_400"),
+            ({"failureKind": "requestFailed", "errorType": "unfamiliar_error"},
+             "unclassified"),
         )
         for event, expected in examples:
             got = ref.classify_copilot_failure(event)
@@ -401,9 +411,11 @@ class ReferencePilotTest(unittest.TestCase):
                 if failed:
                     events += [
                         {"type": "model.call_failure",
-                         "data": {"error": {"message": "429 Too Many Requests HIDE"}}},
+                         "data": {"errorMessage": "429 Too Many Requests HIDE",
+                                  "errorType": "ApiError",
+                                  "failureKind": "modelCall"}},
                         {"type": "session.error",
-                         "data": {"error": "429 HIDE"}}
+                         "data": {"errorMessage": "429 HIDE"}}
                     ]
                 (run / "transcript.jsonl").write_text(
                     "\n".join(json.dumps(x) for x in events) + "\n")
@@ -412,6 +424,8 @@ class ReferencePilotTest(unittest.TestCase):
                 ref.diagnose_model_failures(str(root))
             summary = out.getvalue()
             self.assertIn("rate_limit_429", summary)
+            self.assertIn("model.call_failure categories", summary)
+            self.assertIn("session.error categories", summary)
             self.assertIn("model_failures=1", summary)
             self.assertIn("session_errors=1", summary)
             self.assertNotIn("HIDE", summary)
