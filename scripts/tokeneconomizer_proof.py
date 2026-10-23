@@ -164,9 +164,9 @@ def markdown(proof, report):
         f"**Verdict: {proof['verdict']}**",
         "",
         proof["headline"], "",
-        f"Run: \`{report.get('run_id', '?')}\` · Talon: \`{report.get('talon_release', '?')}\` "
-        f"· Model: \`{report.get('model', '?')}\` · TokenEconomizer: "
-        f"\`{report.get('tokeneconomizer_sha', '?')[:12]}\`", "",
+        f"Run: `{report.get('run_id', '?')}` · Talon: `{report.get('talon_release', '?')}` "
+        f"· Model: `{report.get('model', '?')}` · TokenEconomizer: "
+        f"`{report.get('tokeneconomizer_sha', '?')[:12]}`", "",
         "## Evidence gates", "",
         "| Gate | Result | What the record establishes |",
         "|---|---|---|",
@@ -200,11 +200,11 @@ def markdown(proof, report):
         lines.append(f"| {p['task']} | {a} | {b} | "
                      f"{'yes' if p['baseline_passed'] and p['after_passed'] else 'no'} | {rec} |")
     lines.extend(["", "## Reproduction and verification", "",
-                  "Receipts are stored at relative paths above; each task has \`metrics.json\` "
-                  "including \`receipt_sha256\`. Talon has already run "
-                  "\`audit verify --file signed.json\` for each recorded task.",
-                  "Re-run \`make present-tokeneconomizer\` in the same private run directory "
-                  "for the stored report. Re-run \`make demo-tokeneconomizer\` "
+                  "Receipts are stored at relative paths above; each task has `metrics.json` "
+                  "including `receipt_sha256`. Talon has already run "
+                  "`audit verify --file signed.json` for each recorded task.",
+                  "Re-run `make present-tokeneconomizer` in the same private run directory "
+                  "for the stored report. Re-run `make demo-tokeneconomizer` "
                   "for another experiment (real paid provider calls).",
                   "", "## Limits on the claim", ""])
     lines.extend(f"- {line}" for line in proof["limits"])
