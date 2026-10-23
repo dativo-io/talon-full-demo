@@ -59,6 +59,22 @@ def assess(report):
     quality = passed_a >= 12 and passed_b >= passed_a and regression_failures == 0
     full_a, full_b = _total(a,"cost"), _total(b,"cost")
     cheaper = full_a > 0 and full_b < full_a
+    # Token count is not cost. Rate breakdown is model-specific, and only
+    # available for the exact Sonnet 5 catalog entry reviewed in Talon v1.15.3.
+    rates = ({"tokens_in":3.0,"tokens_out":15.0,
+              "cached":0.3,"cache_write":3.75}
+             if report.get("model") == "claude-sonnet-5" else {})
+    token_economics = {
+        key:{"baseline_tokens":int(_total(a,key)),
+             "plugin_tokens":int(_total(b,key)),
+             "delta_tokens":int(_total(b,key)-_total(a,key)),
+             "estimated_delta_usd":round(
+                 (_total(b,key)-_total(a,key))*rates[key]/1_000_000,7)
+                 if key in rates else None}
+        for key in ("tokens_in","tokens_out","cached","cache_write")}
+    rate_explanation = ("Talon v1.15.3 claude-sonnet-5 USD per million tokens: "
+                        "input 3, output 15, cache-read 0.30, cache-write 3.75"
+                        if rates else "This selected model has no verified USD rate decomposition")
     interventions = [
         {"task":r.get("task"), "issue_id":r.get("issue_id"),
          "injected_facts":int(r.get("plugin_injected_facts") or 0),
@@ -121,6 +137,7 @@ def assess(report):
         "verdict":verdict,"headline":title,"checks":checks,
         "comparison_valid":compatible,"plugin_activation_observed":activated,
         "paired_tasks":pairs,"measured_interventions":interventions,
+        "token_economics":token_economics,"pricing_explanation":rate_explanation,
         "pilot":True,"seed":report.get("seed"), "pruning_mode":report.get("pruning_mode"),
         "correctness":{"baseline_passed":passed_a,"plugin_passed":passed_b,
                        "baseline_total":len(a),"plugin_total":len(b)},
@@ -155,7 +172,16 @@ def markdown(proof, report):
            f"| Total Talon-estimated USD | ${proof['cost']['whole_stream_baseline_usd']:.4f} | ${proof['cost']['whole_stream_plugin_usd']:.4f} |",
            f"| USD per resolved ticket | {proof['cost']['baseline_usd_per_pass']} | {proof['cost']['plugin_usd_per_pass']} |",
            f"| Late 16 tickets USD (diagnostic only) | ${proof['cost']['measured_baseline_usd']:.4f} | ${proof['cost']['measured_plugin_usd']:.4f} |",
-           "", "## Claim gates", "", "| Evidence gate | Result | Basis |", "|---|---|---|"]
+           "", "## Why token counts and cost differ", "",
+           proof["pricing_explanation"], "",
+           "| Token category | Baseline | Plugin | Delta | USD impact |",
+           "|---|---:|---:|---:|---:|"]
+    for key, v in proof["token_economics"].items():
+        usd = ("N/A" if v["estimated_delta_usd"] is None
+               else f"${v['estimated_delta_usd']:+.5f}")
+        lines.append(f"| {key} | {v['baseline_tokens']:,} | {v['plugin_tokens']:,} | "
+                     f"{v['delta_tokens']:+,} | {usd} |")
+    lines += ["", "## Claim gates", "", "| Evidence gate | Result | Basis |", "|---|---|---|"]
     for c in proof["checks"]:
         lines.append(f"| {c['id']} | {'PASS' if c['pass'] else 'NOT MET'} | {c['detail'].replace('|','/')} |")
     lines += ["","## Paired task costs and cumulative break-even","","| # | Ticket | Phase | Baseline USD | Plugin USD | Cumulative saving USD | Pass both | Receipts |",
