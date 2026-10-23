@@ -27,7 +27,7 @@ def sample():
         "tool_versions": {"talon_cli": "Talon v1.15.3\nGo: go1.26.10",
                           "claude_cli": "2.1.300"},
         "model": "claude-sonnet-5", "tokeneconomizer_sha": "0" * 40,
-        "comparison_policy": "separate $5 Talon agents",
+        "comparison_policy": "separate $7.50 Talon agents",
         "workload_sha256": {"baseline": "a" * 64, "after": "a" * 64},
         "task_limit": 10, "run_error": "", "tasks": arms,
         "arm_status": {"baseline": "completed", "after": "completed"},
