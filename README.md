@@ -350,6 +350,8 @@ limits and verified signed cost exports. This is **not** the installable
 TokenEconomizer plugin, and it does not replace the 24-ticket synthetic study.
 
 - **No spend:** `make tokeneconomizer-reference-plan`
+- **Keyless data setup:** `make tokeneconomizer-reference-prepare` (downloads/builds upstream benchmark, but no provider calls)
+- **No-spend readiness:** `make tokeneconomizer-reference-check`
 - **Paid only with explicit opt-in:** `TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run`
 - **Full setup and methodology:** [Original Web-Bench pilot](docs/TOKENECONOMIZER_REFERENCE.md).
 
