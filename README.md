@@ -356,7 +356,7 @@ controller or its 277-task SWE-Bench results.
 | `make tokeneconomizer-contract` | Verify released Talon gateway, budgets, Anthropic wire and signed evidence against local mock | Gateway mock | No |
 | `make tokeneconomizer-smoke` | Ensure Claude Code, plugin and Talon can complete one real coding task in each arm | Original simple fixture | **Yes** |
 | `make demo-tokeneconomizer` | Study actual plugin effectiveness across a persistent repository stream | **24 linked tickets per arm**, seed 0 | **Yes** |
-| `make tokeneconomizer-study-3` | Repeat 24-ticket study with independent state/seeds 0, 1 and 2, alternate arm order, aggregate **all** seeds | **144 total paid tasks** | **Yes** |
+| `make tokeneconomizer-study-3` | Three independently seeded 24-ticket streams with **USD 1.66/arm per seed**; may stop before all tickets | Up to 144 paid task attempts, **never guaranteed to finish** | **Yes** |
 | `make present-tokeneconomizer` | Read the most recent report without paying again | Existing saved evidence | No |
 
 The original one-task smoke remains a connectivity check. Do not use its
@@ -381,13 +381,23 @@ make tokeneconomizer-validate
 make tokeneconomizer-contract
 export ANTHROPIC_API_KEY='sk-ant-...'
 make tokeneconomizer-smoke
-make demo-tokeneconomizer
-make present-tokeneconomizer
+make demo-tokeneconomizer        # $5 per arm; billable; may end early at budget limit
+make present-tokeneconomizer     # free; replays latest saved evidence
 ```
 
 If Talon is not on PATH, set `TALON_BIN=/absolute/path/to/talon`
 for the Make targets. `scripts/with-talon.sh` also resolves common local
 install locations.
+
+If your terminal prints only `PASS: Talon stable release v1.15.3
+compatibility`, that confirms **only the keyless contract**. The paid
+runner starts *after* that; it prints its mode, task count, per-arm
+budget, setup milestones and task-level cost as it progresses. If the
+shell prompt has not returned, the paid run may still be executing.
+`make present-tokeneconomizer` opens the latest saved run, not an
+in-progress run. To run these commands conditionally, use
+`make demo-tokeneconomizer && make present-tokeneconomizer` rather
+than assuming a passed contract proves the paid benchmark completed.
 
 ### Why the study changed
 
@@ -439,21 +449,34 @@ intervention. When none occurs, **we report that honestly**.
 
 To investigate cache-prefix invalidation explicitly, a separately
 labeled accelerated ablation is available via
-`TE_DEMO_PRUNING_MODE=accelerated` with `TE_DEMO_PRUNING_MODE=accelerated make demo-tokeneconomizer`. That
+`TE_DEMO_PRUNING_MODE=accelerated make demo-tokeneconomizer`. That
 is **not** the default and the production-default evaluator does not
 accept its result as a normal-configuration savings claim.
 
 ### Study budgets and costs
 
-The one-task smoke and keyless Talon compatibility contract retain
-the original **USD 5 daily/monthly per agent** policy. The extended
-24-ticket study has a distinct fresh **USD 15 daily/monthly per arm**
-admission budget (**USD 30 across one run**). A three-seed sequence has
-three independent stores (**USD 90 in aggregate admission budgets**).
-These are **estimation-based preventive admission policies, NOT
-guaranteed hard limits on final provider invoices**; a request can
-consume more than the estimate. Real incurred costs may be lower or
-higher than the budgets. Keep Anthropic account-side billing safeguards.
+**All paid demo modes honor the agreed USD 5 baseline / USD 5 plugin
+Talon admission-policy ceiling.** Both the one-task smoke and the
+24-ticket comparison use a fresh Talon store with **USD 5 daily/monthly
+per agent**, and all learning and measured sessions consume that same
+arm's allowance. The runner **rejects a budget greater than USD 5**
+even when invoked directly rather than through Make.
+
+The optional three-seed study uses **USD 1.66 per arm per seed**
+(three fresh Talon stores × USD 1.66 = **USD 4.98 per arm across
+the entire three-seed invocation**, USD 9.96 combined). It does not
+give each seed a new USD 5 allowance. It cannot guarantee completing
+24 issues in each seed under this budget. The study preserves partial
+task evidence and reports **INCONCLUSIVE** if a limit prevents a
+comparable full run; do not interpret a truncated comparison as
+TokenEconomizer succeeding or failing.
+
+**These are Talon estimation-based admission-policy ceilings, not
+guaranteed hard limits on Anthropic invoices.** A permitted request can
+cost more than its admission estimate, so actual provider billing may
+overshoot. Keep an Anthropic account-side usage limit or billing alert
+if a strict externally billed amount is required. The keyless contract
+and offline proof checks make no billable provider calls.
 
 Talon enforces model/provider and agent budget rules on gateway traffic;
 Claude Code's local file and shell actions are not governed by Talon.
