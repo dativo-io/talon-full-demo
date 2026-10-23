@@ -329,6 +329,9 @@ def transcript_activity(path):
     """
     from collections import Counter
     counts, executions = Counter(), Counter()
+    completion_fields, explicit_failures = set(), Counter()
+    tool_update_fields, tool_catalog_exposed = set(), False
+    agent_messages_with_content = 0
     if not path.is_file():
         return None
     with path.open(encoding="utf-8", errors="replace") as stream:
@@ -341,10 +344,18 @@ def transcript_activity(path):
                 continue
             kind = event.get("type")
             counts[kind] += 1
+            data = event.get("data")
+            if not isinstance(data, dict):
+                data = {}
+            if kind == "session.tools_updated":
+                tool_update_fields.update(k for k in data.keys() if isinstance(k, str))
+                # An event carrying only {'model': ...} is NOT evidence the
+                # CLI had zero tools. It exposes no catalog at all.
+                if isinstance(data.get("tools"), list):
+                    tool_catalog_exposed = True
+            if kind == "assistant.message" and data.get("content"):
+                agent_messages_with_content += 1
             if kind == "tool.execution_start":
-                data = event.get("data")
-                if not isinstance(data, dict):
-                    data = {}
                 name = data.get("toolName") or data.get("tool") or data.get("name")
                 if not isinstance(name, str):
                     name = "unknown"
@@ -352,10 +363,28 @@ def transcript_activity(path):
                 # data/arguments/results are copied into the displayed output.
                 name = name[:60]
                 executions[name] += 1
+            if kind == "tool.execution_complete":
+                completion_fields.update(k for k in data.keys() if isinstance(k, str))
+                # Count only explicit structured failure indicators. Never
+                # regex-match arbitrary result text: a successful tool can
+                # quote "permission denied" or "no such file".
+                if data.get("isError") is True or data.get("is_error") is True:
+                    explicit_failures["is_error"] += 1
+                elif data.get("success") is False:
+                    explicit_failures["success_false"] += 1
+                elif isinstance(data.get("exitCode"), int) and data["exitCode"] != 0:
+                    explicit_failures["exit_code_nonzero"] += 1
+                elif data.get("status") in ("error", "failed", "failure"):
+                    explicit_failures["status_failed"] += 1
     return {"model_calls": counts["model.call_start"],
             "tool_execution_started": counts["tool.execution_start"],
             "tool_execution_completed": counts["tool.execution_complete"],
-            "executed_tools": dict(sorted(executions.items()))}
+            "executed_tools": dict(sorted(executions.items())),
+            "tool_update_fields": sorted(tool_update_fields),
+            "tool_catalog_exposed": tool_catalog_exposed,
+            "tool_completion_fields": sorted(completion_fields),
+            "explicit_tool_failures": dict(sorted(explicit_failures.items())),
+            "assistant_messages_with_content": agent_messages_with_content}
 
 
 def diagnose(run_location=None):
