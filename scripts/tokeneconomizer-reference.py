@@ -727,7 +727,11 @@ def classify_copilot_failure(data):
     parts = []
     # Only failure-event diagnostic fields, never model prompts, outputs,
     # tool arguments, headers or arbitrary transcripts.
-    for name in ("error", "message", "reason", "code", "status", "statusCode",
+    # Copilot CLI 1.0.84-7 reports failures via errorMessage/errorType/
+    # failureKind (observed on task-10 model.call_failure and session.error).
+    # Omitting those fields misclassified every one of the 14 events.
+    for name in ("errorMessage", "errorType", "failureKind", "error",
+                 "message", "reason", "code", "status", "statusCode",
                  "status_code", "details", "cause", "type"):
         value = data.get(name)
         if value is not None:
@@ -738,7 +742,9 @@ def classify_copilot_failure(data):
                             r"(?<![0-9])429(?![0-9])")),
         ("credit_or_quota", (r"insufficient.?credit", r"credit balance",
                              r"billing", r"quota.?exceed", r"spending.?limit")),
-        ("upstream_overload_5xx", (r"overload", r"(?<![0-9])50[0234](?![0-9])",
+        ("upstream_overload_5xx", (r"overload", r"service.?unavailable",
+                                   r"bad gateway", r"gateway.?timeout",
+                                   r"(?<![0-9])50[0234](?![0-9])",
                                    r"(?<![0-9])529(?![0-9])")),
         ("authentication_401_403", (r"unauthoriz", r"authenticat", r"forbidden",
                                      r"(?<![0-9])40[13](?![0-9])")),
@@ -749,7 +755,10 @@ def classify_copilot_failure(data):
                                    r"econnrefused", r"fetch failed", r"network",
                                    r"connection.?reset", r"connection.?closed")),
         ("bad_request_400", (r"bad request", r"invalid.?request",
+                              r"invalid.?argument", r"malformed",
                               r"(?<![0-9])400(?![0-9])")),
+        ("model_unavailable_404", (r"model.?not.?found", r"model.?unavailable",
+                                   r"(?<![0-9])404(?![0-9])")),
         ("cancelled", (r"cancelled", r"canceled", r"aborted")),
     )
     for group, patterns in groups:
@@ -782,7 +791,9 @@ def diagnose_model_failures(run_location=None):
             print(arm, "task-10 missing")
             continue
         folder, row = match[-1]
-        types, categories, tools, failures = Counter(), Counter(), Counter(), Counter()
+        types, categories, tools = Counter(), Counter(), Counter()
+        categories_by_event = {"model.call_failure": Counter(),
+                               "session.error": Counter()}
         fields, terminal = set(), Counter()
         path = folder / "transcript.jsonl"
         if path.is_file():
@@ -800,21 +811,26 @@ def diagnose_model_failures(run_location=None):
                     if not isinstance(data, dict):
                         data = {}
                     if kind in ("model.call_failure", "session.error"):
-                        failures[kind] += 1
                         fields.update(str(k)[:70] for k in data)
-                        categories[classify_copilot_failure(data)] += 1
+                        category = classify_copilot_failure(data)
+                        categories[category] += 1
+                        categories_by_event[kind][category] += 1
                     if kind == "tool.execution_start":
                         name = data.get("toolName")
                         if isinstance(name, str):
                             tools[name[:64]] += 1
                     if kind == "result":
                         terminal.update(str(k)[:70] for k in data)
-        print(f"\\n{arm}: resolved={row.get('resolved')} "
+        print(f"\n{arm}: resolved={row.get('resolved')} "
               f"attempts={row.get('webbench_attempts')} "
               f"model_calls={types['model.call_start']} "
               f"model_failures={types['model.call_failure']} "
               f"session_errors={types['session.error']}")
-        print("  failure categories:", dict(categories))
+        print("  failure categories (all events; not unique requests):",
+              dict(categories))
+        for event_type in ("model.call_failure", "session.error"):
+            print("  ", event_type, "categories:",
+                  dict(categories_by_event[event_type]))
         print("  error data field names:", sorted(fields))
         print("  tool executions:", dict(tools))
         print("  result field names:", sorted(terminal))
