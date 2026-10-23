@@ -16,9 +16,14 @@ def aggregate(reports):
     controlled = (all(r.get("profile")=="study" and r.get("pruning_mode")=="default"
                       and len(r.get("demo_revision") or "") == 40
                       and (r.get("proof") or {}).get("comparison_valid")
-                      and (r.get("proof") or {}) == reassess(r) for r in reports)
+                      and (r.get("proof") or {}) == reassess(r)
+                      and (r.get("proof") or {}).get("verdict") in (
+                          "PRELIMINARY_SAVINGS", "LOWER_COST_UNATTRIBUTED",
+                          "NOT_DEMONSTRATED") for r in reports)
                   and all(len({json.dumps(r.get(k),sort_keys=True) for r in reports})==1
-                          for k in attrs))
+                          for k in attrs)
+                  and len({(r.get("tool_versions") or {}).get("claude_cli")
+                           for r in reports}) == 1)
     stats=[]
     for r in sorted(reports,key=lambda x:x["seed"]):
         p=r.get("proof") or {}
@@ -39,10 +44,13 @@ def aggregate(reports):
     cost_a=sum(x["baseline_usd"] for x in stats)
     cost_b=sum(x["plugin_usd"] for x in stats)
     all_lower=all(x["plugin_usd"] < x["baseline_usd"] for x in stats)
+    mechanisms_all = all((r.get("proof") or {}).get("plugin_activation_observed")
+                         for r in reports)
     if not good:
         status="INCONCLUSIVE"
     elif all_lower and cost_b < cost_a:
-        status="REPEATED_DIRECTIONAL_SAVINGS"
+        status=("REPEATED_DIRECTIONAL_SAVINGS" if mechanisms_all
+                else "REPEATED_LOWER_COST_UNATTRIBUTED")
     elif cost_b < cost_a:
         status="MIXED_DIRECTION"
     else:
