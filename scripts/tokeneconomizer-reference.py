@@ -29,6 +29,7 @@ MAX_TASKS = 8
 DEFAULT_TASKS = 6
 # Reviewed original Web-Bench source revision, not a moving main branch.
 WEBBENCH_SHA = "7b31ca2b786eef120dd49ce63dd03d0c0006046d"
+COPILOT_REFERENCE_VERSION = "1.0.84-7"
 ARMS = (("baseline", "baseline"), ("after", "trimech-web"))
 # The Web-Bench checkout is kept under the demo's already git-ignored state.
 # No dependency is downloaded by 'plan' or the offline validator.
@@ -148,11 +149,51 @@ def prepare():
     print("No model calls were made. Next: make tokeneconomizer-reference-check", flush=True)
 
 
+def copilot_preflight():
+    """Fail early and keylessly when the original agent executable is missing."""
+    binary = shutil.which("copilot")
+    if not binary:
+        local = Path.home() / ".local" / "bin" / "copilot"
+        message = ("GitHub Copilot CLI is missing from PATH; install the original "
+                   f"version {COPILOT_REFERENCE_VERSION} with:\n"
+                   "  curl -fsSL https://gh.io/copilot-install | "
+                   f"VERSION={COPILOT_REFERENCE_VERSION} PREFIX=\"$HOME/.local\" bash\n"
+                   "  export PATH=\"$HOME/.local/bin:$PATH\"\n"
+                   "Then run 'copilot --version' and 'make tokeneconomizer-reference-check'. "
+                   "See docs/TOKENECONOMIZER_REFERENCE.md.")
+        if local.is_file():
+            message = ("Copilot exists at " + str(local) +
+                       " but is not on PATH. Run 'export PATH=\"$HOME/.local/bin:$PATH\"' "
+                       "and retry 'make tokeneconomizer-reference-check'.")
+        raise RuntimeError(message)
+    # A local CLI --version lookup does not require Copilot authentication or
+    # Anthropic credentials. Use a scrubbed env to avoid leaking real keys.
+    info = subprocess.run([binary, "--version"], capture_output=True, text=True,
+                          env=demo.safe_env(), timeout=30, check=False)
+    if info.returncode:
+        raise RuntimeError("Copilot CLI could not start locally (exit " +
+                           str(info.returncode) + "). Verify " + str(binary))
+    version = (info.stdout or info.stderr).strip().splitlines()
+    if not version:
+        raise RuntimeError("Copilot CLI did not report its version")
+    return {"binary": binary, "version": version[0]}
+
+
 def check():
     projects, tasks, selected = inputs()
+    # Keep all prerequisites in the FREE gate, so a paid run is not used
+    # for discovering missing host executables.
+    for name in ("talon", "git", "node", "bash"):
+        if not shutil.which(name):
+            raise RuntimeError("Missing " + name + "; no model calls made")
+    cli = copilot_preflight()
     _, commit = demo.install_plugin()
     print("PASS: original Web-Bench evaluator, source task order and", len(selected),
           "selected tasks verified; Microsoft harness pinned to", commit)
+    print("Copilot CLI:", cli["binary"], "|", cli["version"])
+    if COPILOT_REFERENCE_VERSION not in cli["version"]:
+        print("WARNING: upstream paper used Copilot CLI", COPILOT_REFERENCE_VERSION,
+              "but found", cli["version"], "- comparability may differ")
     print("Projects:", projects)
     print("Export:", tasks)
     print("No model calls were made.")
@@ -297,6 +338,8 @@ def plan():
     print("Then export ANTHROPIC_API_KEY (used only in Talon's vault) and run:")
     print("  TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run")
     print("Default paths:", reference_paths())
+    print("Host prerequisite: Copilot CLI", COPILOT_REFERENCE_VERSION,
+          "and Node.js 22+. See docs/TOKENECONOMIZER_REFERENCE.md")
     print("Billing may exceed Talon's estimate-based admission limits: set a provider-side limit.")
 
 
@@ -308,9 +351,11 @@ def run():
     if demo.ARM_BUDGET != 5.0 or demo.MODEL != MODEL:
         raise RuntimeError("Reference study requires the $5/arm policy and claude-sonnet-5")
     projects, tasks, expected = inputs()
-    for name in ("copilot", "talon", "git", "node", "bash"):
+    copilot = copilot_preflight()
+    for name in ("talon", "git", "node", "bash"):
         if not shutil.which(name):
             raise RuntimeError("Missing " + name + "; no model calls made")
+    print("Copilot CLI preflight:", copilot["binary"], "|", copilot["version"], flush=True)
     version = demo.execute(["talon", "version"], check=False)
     if version.returncode or version.stdout.strip().splitlines()[0] != "Talon " + demo.TALON_RELEASE:
         raise RuntimeError("Expected released Talon " + demo.TALON_RELEASE)
