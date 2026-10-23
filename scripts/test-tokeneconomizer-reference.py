@@ -133,6 +133,36 @@ class ReferencePilotTest(unittest.TestCase):
         self.assertEqual(proc.call_args.kwargs["env"], ref.demo.safe_env())
         self.assertEqual(proc.call_args.args[0], ["/tmp/copilot", "--version"])
 
+    def test_playwright_preflight_rejects_missing_system_libraries_without_model_call(self):
+        with tempfile.TemporaryDirectory() as directory:
+            projects = Path(directory) / "projects"
+            (projects / "expressjs").mkdir(parents=True)
+            failure = type("Process", (), {
+                "returncode": 1, "stdout": "",
+                "stderr": "chrome-headless-shell: error while loading shared libraries: "
+                          "libatk-1.0.so.0: cannot open shared object file"})()
+            with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "should-never-leak"}):
+                with patch.object(ref.demo, "execute", return_value=failure) as call:
+                    with self.assertRaisesRegex(RuntimeError, "libatk-1.0.so.0"):
+                        ref.playwright_preflight(projects)
+            command = call.call_args.args[0]
+            self.assertEqual(command[:2], ["node", "-e"])
+            self.assertIn("chromium.launch", command[2])
+            self.assertNotIn("ANTHROPIC_API_KEY", call.call_args.kwargs["env"])
+            self.assertEqual(call.call_args.kwargs["cwd"], projects / "expressjs")
+
+    def test_playwright_preflight_succeeds_with_local_browser_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            projects = Path(directory) / "projects"
+            (projects / "expressjs").mkdir(parents=True)
+            success = type("Process", (), {
+                "returncode": 0, "stdout": "Chromium 143\\n", "stderr": ""})()
+            with patch.object(ref.demo, "execute", return_value=success) as call:
+                with contextlib.redirect_stdout(io.StringIO()) as output:
+                    ref.playwright_preflight(projects)
+            self.assertIn("PASS: local Playwright browser launch", output.getvalue())
+            self.assertFalse(call.call_args.kwargs["check"])
+
     def test_offline_diagnosis_distinguishes_unreached_from_attempted(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
