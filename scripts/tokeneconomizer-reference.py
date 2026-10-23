@@ -320,6 +320,44 @@ def official_rows(results, arm):
     return found
 
 
+def transcript_activity(path):
+    """Count ACTUAL executed tools (not streamed tool-call deltas), without payloads.
+
+    Do not print prompts, tool arguments, responses, commands, filenames, or keys.
+    A 'bash' execution can still write files; its effect cannot be determined
+    from tool names alone. Transcript activity is not evaluator evidence.
+    """
+    from collections import Counter
+    counts, executions = Counter(), Counter()
+    if not path.is_file():
+        return None
+    with path.open(encoding="utf-8", errors="replace") as stream:
+        for line in stream:
+            try:
+                event = json.loads(line)
+            except (ValueError, TypeError):
+                continue
+            if not isinstance(event, dict):
+                continue
+            kind = event.get("type")
+            counts[kind] += 1
+            if kind == "tool.execution_start":
+                data = event.get("data")
+                if not isinstance(data, dict):
+                    data = {}
+                name = data.get("toolName") or data.get("tool") or data.get("name")
+                if not isinstance(name, str):
+                    name = "unknown"
+                # Keep tool names to bounded, predictable metadata. No raw
+                # data/arguments/results are copied into the displayed output.
+                name = name[:60]
+                executions[name] += 1
+    return {"model_calls": counts["model.call_start"],
+            "tool_execution_started": counts["tool.execution_start"],
+            "tool_execution_completed": counts["tool.execution_complete"],
+            "executed_tools": dict(sorted(executions.items()))}
+
+
 def diagnose(run_location=None):
     """Offline postmortem of saved *original* Web-Bench rows. Never makes model calls."""
     if run_location:
@@ -379,7 +417,20 @@ def diagnose(run_location=None):
                     if evaluator_log:
                         print("  Failed task evaluator log:", evaluator_log)
                 print("  Failed task row:", location / "row.json")
-                print("  Failed task agent transcript:", location / "transcript.jsonl")
+                transcript = location / "transcript.jsonl"
+                print("  Failed task agent transcript:", transcript)
+                activity = transcript_activity(transcript)
+                if activity is not None:
+                    print("  Agent execution summary (no prompts/commands):", activity)
+                submissions = row.get("webbench_answered_files")
+                if isinstance(submissions, list):
+                    print("  Submitted changed-file counts per attempt:",
+                          [len(items) if isinstance(items, list) else "unknown"
+                           for items in submissions])
+                    if submissions and all(isinstance(x, list) and not x for x in submissions):
+                        print("  NOTE: no eligible file changes were submitted. 'bash' may")
+                        print("  edit files; inspect local bash tool commands/results and")
+                        print("  workspace paths to distinguish no edits vs collection.")
                 print("  Agent-side error:", bool(row.get("is_error")),
                       "stream_broken:", bool(row.get("stream_broken")),
                       "timed_out:", bool(row.get("timed_out")))
