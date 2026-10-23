@@ -94,6 +94,11 @@ def assess(report):
     elif not cheaper:
         verdict = "NOT_DEMONSTRATED"
         title = "No net cost improvement across the entire repository stream."
+    elif not activated:
+        verdict = "LOWER_COST_UNATTRIBUTED"
+        title = ("Plugin arm happened to cost less across this stream, but no "
+                 "optimization action was observed in the measured sessions; "
+                 "no benefit can be attributed to TokenEconomizer.")
     else:
         verdict = "PRELIMINARY_SAVINGS"
         title = ("Lower whole-stream Talon-estimated spend with no observed decline in "
