@@ -353,62 +353,86 @@ repositories: five learning sessions and five measured repair sessions without
 TokenEconomizer, then five learning and five measured sessions with Microsoft's
 TokenEconomizer plugin loaded through the Claude Code --plugin-dir flag.
 
-### Requirements
+### Required Talon release and tooling
 
-- Talon CLI built from the **merged budget-governance main** (PR #508), not an
-  older binary/release. For an explicitly reviewed source revision, use
-  `cef6313c42a44ab9ab64de0e879147bf50370ea3` (Go 1.26.10).
-- Official Claude Code CLI on PATH, with non-interactive print mode and --plugin-dir.
-- Python 3.10+, Git and connectivity to the Anthropic API.
-- An Anthropic API key with active API billing, not only a Claude subscription.
+**Talon v1.15.3** is the latest stable release verified on 2026-10-23:
+[release notes](https://github.com/dativo-io/talon/releases/tag/v1.15.3).
+It contains PR #508's fail-closed pricing and agent/session budget-concurrency
+fixes. The demo pins this **published release**, not `main` or an untagged
+commit. The single source of truth is
+[`config/tokeneconomizer-talon-release.txt`](config/tokeneconomizer-talon-release.txt);
+CI installs that exact release, and the local keyless/paid entrypoints verify
+`talon version` before any Anthropic requests.
 
-If Talon is not on your shell's `PATH`, the demo first tries the **existing**
-`scripts/with-talon.sh` resolver: `TALON_BIN`, the regular PATH,
-`~/go/bin/talon`, `~/.local/bin/talon`, a sibling
-`../talon/bin/talon` or `../talon/talon`, and a repository-managed running
-Talon process. It does **not** silently install a release or switch builds.
+Requirements:
 
-For a clean Ubuntu host, install the exact reviewed Talon main commit (requires
-a compatible Go 1.26.10 toolchain):
+- Talon **v1.15.3**, via the published Go module or release binary.
+- Go 1.26.10 or a compatible toolchain **only if building Talon**.
+- Official Claude Code CLI on PATH, supporting `-p` and `--plugin-dir`.
+- Python 3.10+, Git, and outbound connectivity to Anthropic for paid runs.
+- A metered Anthropic API key; a Claude subscription login is not sufficient.
+
+On a fresh Ubuntu machine (or to upgrade the earlier `cef6313` development
+build to the latest release):
 
 ```bash
-go install github.com/dativo-io/talon/cmd/talon@cef6313c42a44ab9ab64de0e879147bf50370ea3
+go install github.com/dativo-io/talon/cmd/talon@v1.15.3
 export PATH="$(go env GOPATH)/bin:$PATH"
-talon --version
+talon version                    # correct syntax; NOT talon --version
+cd ~/src/talon-full-demo       # run make targets in the DEMO repository
+git pull --ff-only
+make tokeneconomizer-validate
+make tokeneconomizer-contract
 ```
 
-Or, when a binary already exists outside PATH, invoke
-`TALON_BIN=/absolute/path/to/talon make tokeneconomizer-smoke`. The keyless
-contract will reject incompatible binaries before any Anthropic spending.
+The `scripts/with-talon.sh` resolver also discovers `TALON_BIN`, PATH,
+`~/go/bin/talon`, `~/.local/bin/talon`, sibling Talon builds, and
+repository-owned running Talon processes. However, merely finding a Talon
+binary is **not enough**: the keyless contract checks the *exact published
+release* and fails with upgrade instructions if it finds an older or other
+version. To choose an executable explicitly:
 
-### Compatibility and run
+```bash
+TALON_BIN="$HOME/go/bin/talon" make tokeneconomizer-contract
+```
 
-The **credential-free real-Talon contract** is a separate CI job, not a mock
-replacement for Talon. It builds the above merged `main` revision, starts
-the real Talon gateway with a local Anthropic-wire mock (no external key or
-Claude CLI), reuses the two exact demo agent policies, confirms pricing of
-`claude-sonnet-5`, verifies cross-session agent budget denials before
-provider dispatch, and verifies the signed receipt exports. The mock
-deliberately bills one huge response above $5 to demonstrate **estimate
-overshoot**: Talon prevents further admission, but cannot stop billing
-within an already-admitted request.
+### Validation and live runs
 
-Locally run `make tokeneconomizer-contract` with a Talon binary built from
-that same main revision on PATH. This validates the gateway/CLI boundary
-without spending money. CI's fixed commit is a reproducibility fixture;
-when upgrading to a newer Talon main, update the fixture SHA and rerun it
-before claiming compatibility. The `tokeneconomizer-smoke` and `demo-tokeneconomizer` Make targets
-**run this keyless contract automatically first** against the Talon binary
-actually on PATH, refusing paid execution if the real gateway/evidence/budget
-contract fails. The real Claude Code/TokenEconomizer plugin integration
-**still needs the paid smoke**.
+The keyless real-Talon contract starts a **real gateway**, using only a
+loopback Anthropic-wire fixture (not the real Anthropic API), the same pair of
+$5 demo policies, and the same signed-evidence reader as the paid run. It
+checks fleet identity, vault key ACLs, table pricing, independent per-agent
+spend, cross-session denials with zero upstream dispatch, and verifiable
+signed evidence. The simulated provider intentionally reports a first
+response exceeding the admission estimate; this demonstrates that a $5
+policy is not a guaranteed $5 provider billing ceiling.
 
-    make tokeneconomizer-validate       # offline fixture and report invariants
-    make tokeneconomizer-contract       # real Talon gateway / mock Anthropic / $5 denial / signed evidence
-    export ANTHROPIC_API_KEY='sk-ant-...'
-    make tokeneconomizer-smoke          # one real task per arm, checks integration
-    make demo-tokeneconomizer           # full real comparison, subject to $5/arm policies
-    make present-tokeneconomizer        # replay the latest table without new API calls
+```bash
+make tokeneconomizer-validate       # offline fixtures and report invariants
+make tokeneconomizer-contract       # released Talon v1.15.3, mock Anthropic; $0
+export ANTHROPIC_API_KEY='sk-ant-...'
+make tokeneconomizer-smoke          # ONE paid warmup task per arm
+make demo-tokeneconomizer           # complete 10-task-per-arm experiment
+make present-tokeneconomizer        # replay evidence-backed report, no new calls
+```
+
+The paid Make targets rerun the keyless contract first and **refuse to use**
+a Talon CLI other than the supported release. CI uses the pinned published
+release, not a potentially newer unreleased `main` commit.
+
+### Last observed operator smoke (2026-10-23)
+
+An operator completed `make tokeneconomizer-smoke` successfully using
+the earlier `cef6313` development build: one baseline warmup cost
+USD 0.1453 and one TokenEconomizer warmup cost USD 0.0894. Both tasks passed
+sealed grading; one TokenEconomizer hook-session file appeared.
+**No learned facts, tool exclusions, or loop nudges were observed.**
+The measured comparison appropriately reported zero measured tasks and
+`INCONCLUSIVE`; these numbers are **not a savings claim**.
+
+After installing v1.15.3, **rerun the paid smoke** to confirm the *released*
+binary with your local Claude CLI and plugin. The keyless release contract
+alone does not validate plugin activation or meaningful compression.
 
 The run prints a before/after table for **Talon-estimated USD cost from real
 Anthropic usage**, input and output tokens, cached-input tokens, runtime,
