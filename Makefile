@@ -374,7 +374,7 @@ tokeneconomizer-reference-analyze:
 # provider keys, gateway startup, or fabricated reference-proof.json.
 # Requires TE_REFERENCE_RUN_DIR=/path/to/reference-... .
 tokeneconomizer-reference-recover:
-	python3 scripts/tokeneconomizer-reference.py recover
+	bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-reference.py recover
 
 # Original Microsoft Web-Bench (not the synthetic 24-ticket/production-plugin
 # study). Plan and offline tests make NO model calls.
