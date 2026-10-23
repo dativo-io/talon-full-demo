@@ -87,7 +87,7 @@ def provider_env(values, run_id, arm, projects, tasks, results, env_file):
         TE_EFFORT_LEVEL="high",
         TE_STRICT_MODEL_ID="1",
         TE_OPTIMIZER_PREFLIGHT="1",
-        COPILOT_HOME=str(results / "copilot-home-" + arm),
+        COPILOT_HOME=str(results / ("copilot-home-" + arm)),
     )
     # The paper's optimizer sometimes makes a direct Messages API call, which
     # uses this *same* BYOK base URL and agent key, but not Copilot's custom
