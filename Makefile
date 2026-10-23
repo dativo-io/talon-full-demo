@@ -310,7 +310,7 @@ preflight:
 
 # Real, credential-driven Claude Code x TokenEconomizer experiment.
 # Isolated: does not change Talon source or the running Full Demo fleet.
-.PHONY: tokeneconomizer-validate tokeneconomizer-contract tokeneconomizer-smoke demo-tokeneconomizer tokeneconomizer-study-3 present-tokeneconomizer tokeneconomizer-reference-plan tokeneconomizer-reference-run
+.PHONY: tokeneconomizer-validate tokeneconomizer-contract tokeneconomizer-smoke demo-tokeneconomizer tokeneconomizer-study-3 present-tokeneconomizer tokeneconomizer-reference-plan tokeneconomizer-reference-prepare tokeneconomizer-reference-check tokeneconomizer-reference-run
 
 tokeneconomizer-validate:
 	python3 scripts/tokeneconomizer-demo.py validate
@@ -350,6 +350,14 @@ tokeneconomizer-study-3: tokeneconomizer-contract
 
 present-tokeneconomizer:
 	python3 scripts/tokeneconomizer-demo.py present
+
+# Explicitly non-billable bootstrap. Downloads untrusted open-source build
+# dependencies and Playwright Chromium, but never uses model credentials.
+tokeneconomizer-reference-prepare:
+	python3 -u scripts/tokeneconomizer-reference.py prepare
+
+tokeneconomizer-reference-check:
+	python3 scripts/tokeneconomizer-reference.py check
 
 # Original Microsoft Web-Bench (not the synthetic 24-ticket/production-plugin
 # study). Plan and offline tests make NO model calls.
