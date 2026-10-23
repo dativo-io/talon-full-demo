@@ -376,6 +376,11 @@ tokeneconomizer-reference-analyze:
 tokeneconomizer-reference-recover:
 	bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-reference.py recover
 
+# No-cost, privacy-preserving analysis of Copilot model.call_failure and
+# session.error categories on task 10 in both reference arms.
+tokeneconomizer-reference-model-failures:
+	python3 scripts/tokeneconomizer-reference.py model-failures
+
 # Original Microsoft Web-Bench (not the synthetic 24-ticket/production-plugin
 # study). Plan and offline tests make NO model calls.
 tokeneconomizer-reference-plan:
