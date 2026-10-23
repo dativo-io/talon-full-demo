@@ -310,10 +310,15 @@ preflight:
 
 # Real, credential-driven Claude Code x TokenEconomizer experiment.
 # Isolated: does not change Talon source or the running Full Demo fleet.
-.PHONY: tokeneconomizer-validate tokeneconomizer-smoke demo-tokeneconomizer present-tokeneconomizer
+.PHONY: tokeneconomizer-validate tokeneconomizer-contract tokeneconomizer-smoke demo-tokeneconomizer present-tokeneconomizer
 
 tokeneconomizer-validate:
 	python3 scripts/tokeneconomizer-demo.py validate
+
+# Real Talon binary, local counted Anthropic-wire mock, no provider key or Claude CLI.
+# In CI install Talon from the reviewed main SHA; locally use talon on PATH.
+tokeneconomizer-contract:
+	python3 scripts/test-tokeneconomizer-talon-contract.py
 
 tokeneconomizer-smoke:
 	TE_DEMO_TASK_LIMIT=1 python3 scripts/tokeneconomizer-demo.py run
