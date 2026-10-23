@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Credential-free checks for the *reference* benchmark mini-pilot."""
+"""Credential-free checks for the original full-project Web-Bench reference experiment."""
 import importlib.util
 import contextlib
 import io
@@ -17,15 +17,56 @@ spec.loader.exec_module(ref)
 
 
 class ReferencePilotTest(unittest.TestCase):
-    def test_fixed_budgets_and_sample_cap(self):
-        self.assertEqual(ref.demo.ARM_BUDGET, 5.0)
-        self.assertEqual(ref.task_limit(), 6)
-        with patch.dict(os.environ, {"TE_REFERENCE_TASK_LIMIT": "8"}):
-            self.assertEqual(ref.task_limit(), 8)
-        for value in ("0", "9", "-1"):
+    def test_full_stream_only_and_explicit_budget_optin(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(ref.demo.ARM_BUDGET, 5.0)
+            self.assertEqual(ref.task_limit(), 20)
+            self.assertEqual(ref.reference_budget(), 5.0)
+        for value in ("0", "6", "8", "19", "21", "-1"):
             with patch.dict(os.environ, {"TE_REFERENCE_TASK_LIMIT": value}):
-                with self.assertRaises(RuntimeError):
+                with self.assertRaisesRegex(RuntimeError, "INVALID BENCHMARK"):
                     ref.task_limit()
+        with patch.dict(os.environ, {"TE_REFERENCE_TASK_LIMIT": "20"}):
+            self.assertEqual(ref.task_limit(), 20)
+        with patch.dict(os.environ, {"TE_REFERENCE_ARM_BUDGET_USD": "10.00",
+                                     "TE_REFERENCE_HIGHER_BUDGET_CONFIRM": ""},
+                        clear=True):
+            with self.assertRaisesRegex(RuntimeError, "HIGHER_BUDGET_CONFIRM"):
+                ref.reference_budget()
+        with patch.dict(os.environ, {"TE_REFERENCE_ARM_BUDGET_USD": "10.00",
+                                     "TE_REFERENCE_HIGHER_BUDGET_CONFIRM": "YES"},
+                        clear=True):
+            self.assertEqual(ref.reference_budget(), 10.0)
+        for value in ("0", "-1", "26", "inf", "nan"):
+            with patch.dict(os.environ, {"TE_REFERENCE_ARM_BUDGET_USD": value}):
+                with self.assertRaises(RuntimeError):
+                    ref.reference_budget()
+
+    def test_source_provenance_rejects_finished_gold_instead_of_init(self):
+        with tempfile.TemporaryDirectory() as folder:
+            projects = Path(folder) / "projects"
+            initial = projects / "expressjs" / "src-init"
+            completed = projects / "expressjs" / "src"
+            settings = Path(folder) / "tools" / "evaluator" / "src" / "settings"
+            initial.mkdir(parents=True)
+            completed.mkdir(parents=True)
+            settings.mkdir(parents=True)
+            (initial / "index.js").write_text("initial")
+            (completed / "index.js").write_text("reference")
+            (settings / "bench.ts").write_text(
+                "if (startTask) { outputProjectDir.push(srcDir) } "
+                "else { outputProjectDir.push(initDir) }; "
+                "fullTasks.length !== tasks.length")
+            task_ids = [f"task-{i}" for i in range(1, 21)]
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                ref.initial_state_preflight(projects, task_ids)
+            self.assertIn("starts from src-init", out.getvalue())
+            with self.assertRaisesRegex(RuntimeError, "all 20"):
+                ref.initial_state_preflight(projects, task_ids[:6])
+            (initial / "routes" / "home").mkdir(parents=True)
+            (initial / "routes" / "home" / "api.js").write_text("gold contamination")
+            with self.assertRaisesRegex(RuntimeError, "completed home routes"):
+                ref.initial_state_preflight(projects, task_ids)
 
     def test_agent_env_never_exposes_provider_key(self):
         values = {"agent_baseline": "talon-test-agent-secret",
@@ -58,11 +99,11 @@ class ReferencePilotTest(unittest.TestCase):
             (evaluator / "index.js").write_text("// offline fixture")
             taskfile = base / "webbench_tasks.json"
             tasks = [{"instance_id": f"task-{i}", "repo": "expressjs"}
-                     for i in range(1, 9)]
+                     for i in range(1, 21)]
             taskfile.write_text(json.dumps(tasks))
             with patch.dict(os.environ, {"TE_REFERENCE_PROJECTS": str(projects),
                                          "TE_REFERENCE_TASKS": str(taskfile)}):
-                self.assertEqual(ref.inputs()[2], [f"task-{i}" for i in range(1, 7)])
+                self.assertEqual(ref.inputs()[2], [f"task-{i}" for i in range(1, 21)])
                 tasks[1]["instance_id"] = "task-77"
                 taskfile.write_text(json.dumps(tasks))
                 with self.assertRaises(RuntimeError):
@@ -246,8 +287,20 @@ class ReferencePilotTest(unittest.TestCase):
 
     def test_run_is_opt_in_before_any_dependencies_or_cost(self):
         with patch.dict(os.environ, {"TE_REFERENCE_PAID_CONFIRM": "",
-                                     "ANTHROPIC_API_KEY": "not-used"}):
+                                     "TE_REFERENCE_FULL_STREAM_CONFIRM": "",
+                                     "ANTHROPIC_API_KEY": "not-used"}, clear=True):
             with self.assertRaisesRegex(RuntimeError, "TE_REFERENCE_PAID_CONFIRM"):
+                ref.run()
+        with patch.dict(os.environ, {"TE_REFERENCE_PAID_CONFIRM": "YES",
+                                     "TE_REFERENCE_FULL_STREAM_CONFIRM": "",
+                                     "ANTHROPIC_API_KEY": "not-used"}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "FULL_STREAM_CONFIRM"):
+                ref.run()
+        with patch.dict(os.environ, {"TE_REFERENCE_PAID_CONFIRM": "YES",
+                                     "TE_REFERENCE_FULL_STREAM_CONFIRM": "YES",
+                                     "TE_REFERENCE_TASK_LIMIT": "6",
+                                     "ANTHROPIC_API_KEY": "not-used"}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "INVALID BENCHMARK"):
                 ref.run()
 
 
