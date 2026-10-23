@@ -78,7 +78,7 @@ def assess(report):
     same_input = (len(fingerprints.get("baseline", "")) == 64 and
                   fingerprints.get("baseline") == fingerprints.get("after"))
     controls = bool(model and version and len(plugin_version) == 40 and same_input and
-                    report.get("comparison_policy") == "separate $5 Talon agents")
+                    report.get("comparison_policy") == "separate $7.50 Talon agents")
     # A proposed deny list has NO runtime effect; an injection prepared for
     # a future session does not prove anything reached a measured request.
     # Only signals attributed to an ACTUAL measured Claude session count.
@@ -150,7 +150,7 @@ def assess(report):
             "Observed savings are paired observations, not a controlled causal estimate.",
             "Small sequential synthetic workload; no statistical significance, external validity or guaranteed repeatability.",
             "TokenEconomizer mechanism observations do not prove that they caused cost differences.",
-            "Talon-estimated provider pricing is not the Anthropic invoice; $5/arm is an admission cap, not a hard billing ceiling.",
+            "Talon-estimated provider pricing is not the Anthropic invoice; $7.50/arm is an admission cap, not a hard billing ceiling.",
             "Talon only governs routed model calls; local file operations and commands are outside the perimeter.",
             "Signed receipts were verified with the local Talon signing key; exported hashes allow integrity tracking, not third-party verification without the key.",
         ],
