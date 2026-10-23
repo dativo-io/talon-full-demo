@@ -719,6 +719,119 @@ def audit_agent(values, run_id, arm, out):
             "signed_receipt": str(signed.relative_to(out.parent))}
 
 
+def classify_copilot_failure(data):
+    """Coarse diagnosis of error fields only; never return raw exception text."""
+    import re
+    if not isinstance(data, dict):
+        return "unknown"
+    parts = []
+    # Only failure-event diagnostic fields, never model prompts, outputs,
+    # tool arguments, headers or arbitrary transcripts.
+    for name in ("error", "message", "reason", "code", "status", "statusCode",
+                 "status_code", "details", "cause", "type"):
+        value = data.get(name)
+        if value is not None:
+            parts.append(str(value)[:12000])
+    message = " ".join(parts).lower()
+    groups = (
+        ("rate_limit_429", (r"rate.?limit", r"too many requests",
+                            r"(?<![0-9])429(?![0-9])")),
+        ("credit_or_quota", (r"insufficient.?credit", r"credit balance",
+                             r"billing", r"quota.?exceed", r"spending.?limit")),
+        ("upstream_overload_5xx", (r"overload", r"(?<![0-9])50[0234](?![0-9])",
+                                   r"(?<![0-9])529(?![0-9])")),
+        ("authentication_401_403", (r"unauthoriz", r"authenticat", r"forbidden",
+                                     r"(?<![0-9])40[13](?![0-9])")),
+        ("context_length", (r"context.?length", r"context.?window",
+                             r"prompt.?too.?long", r"input.?too.?long",
+                             r"maximum.?context", r"token.?limit")),
+        ("timeout_or_transport", (r"timed?.?out", r"timeout", r"econnreset",
+                                   r"econnrefused", r"fetch failed", r"network",
+                                   r"connection.?reset", r"connection.?closed")),
+        ("bad_request_400", (r"bad request", r"invalid.?request",
+                              r"(?<![0-9])400(?![0-9])")),
+        ("cancelled", (r"cancelled", r"canceled", r"aborted")),
+    )
+    for group, patterns in groups:
+        if any(re.search(pattern, message) for pattern in patterns):
+            return group
+    return "unclassified"
+
+
+def diagnose_model_failures(run_location=None):
+    """Compare Copilot task-10 failure types safely; no sensitive payloads."""
+    from collections import Counter
+    if not run_location:
+        raise RuntimeError("Set TE_REFERENCE_RUN_DIR to the saved benchmark.")
+    root = Path(run_location).expanduser().resolve()
+    tree = root / "official-results" / "copilot_webbench_sonnet5"
+    print("COPILOT TASK-10 MODEL FAILURE DIAGNOSIS (OFFLINE)")
+    print("Only failure counts, metadata keys and error categories are printed.")
+    print("No commands, prompts, exception messages, or credentials.")
+    for arm in ("baseline", "trimech-web"):
+        cell = tree / arm / "expressjs_s0"
+        match = []
+        for file in sorted(cell.glob("20*/row.json")):
+            try:
+                row = json.loads(file.read_text())
+            except (OSError, ValueError):
+                continue
+            if row.get("instance") == "task-10":
+                match.append((file.parent, row))
+        if not match:
+            print(arm, "task-10 missing")
+            continue
+        folder, row = match[-1]
+        types, categories, tools, failures = Counter(), Counter(), Counter(), Counter()
+        fields, terminal = set(), Counter()
+        path = folder / "transcript.jsonl"
+        if path.is_file():
+            with path.open(encoding="utf-8", errors="replace") as stream:
+                for line in stream:
+                    try:
+                        ev = json.loads(line)
+                    except ValueError:
+                        continue
+                    if not isinstance(ev, dict):
+                        continue
+                    kind = ev.get("type")
+                    types[kind] += 1
+                    data = ev.get("data") or {}
+                    if not isinstance(data, dict):
+                        data = {}
+                    if kind in ("model.call_failure", "session.error"):
+                        failures[kind] += 1
+                        fields.update(str(k)[:70] for k in data)
+                        categories[classify_copilot_failure(data)] += 1
+                    if kind == "tool.execution_start":
+                        name = data.get("toolName")
+                        if isinstance(name, str):
+                            tools[name[:64]] += 1
+                    if kind == "result":
+                        terminal.update(str(k)[:70] for k in data)
+        print(f"\\n{arm}: resolved={row.get('resolved')} "
+              f"attempts={row.get('webbench_attempts')} "
+              f"model_calls={types['model.call_start']} "
+              f"model_failures={types['model.call_failure']} "
+              f"session_errors={types['session.error']}")
+        print("  failure categories:", dict(categories))
+        print("  error data field names:", sorted(fields))
+        print("  tool executions:", dict(tools))
+        print("  result field names:", sorted(terminal))
+        print("  submitted changed-file counts:",
+              [len(x) if isinstance(x, list) else "unknown"
+               for x in row.get("webbench_answered_files", [])])
+        for logdir in sorted(folder.glob(".copilot-runlog-*")):
+            blocks = 0
+            files = list(logdir.glob("*.log"))
+            for file in files:
+                blocks += file.read_text(encoding="utf-8",
+                                         errors="replace").count('"usage": {')
+            print("  debug usage blocks", logdir.name, blocks, "in", len(files), "logs")
+    print("NOTE: unclassified events require local inspection of raw failure")
+    print("events. Do not share unredacted exception text or API keys.")
+
+
 def recover_evidence(run_location=None):
     """Offline postmortem export of ORIGINAL Talon receipts, no model traffic.
 
@@ -1001,10 +1114,12 @@ def main():
             analyze(sys.argv[2] if len(sys.argv) > 2 else os.getenv("TE_REFERENCE_RUN_DIR"))
         elif action == "recover":
             recover_evidence(sys.argv[2] if len(sys.argv) > 2 else os.getenv("TE_REFERENCE_RUN_DIR"))
+        elif action == "model-failures":
+            diagnose_model_failures(sys.argv[2] if len(sys.argv) > 2 else os.getenv("TE_REFERENCE_RUN_DIR"))
         elif action == "run":
             run()
         else:
-            raise RuntimeError("Use plan, prepare, check, diagnose, analyze, recover, or run")
+            raise RuntimeError("Use plan, prepare, check, diagnose, analyze, recover, model-failures, or run")
     except Exception as exc:
         print("ERROR:", exc, file=sys.stderr)
         sys.exit(1)
