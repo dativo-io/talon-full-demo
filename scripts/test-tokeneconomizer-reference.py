@@ -176,7 +176,7 @@ class ReferencePilotTest(unittest.TestCase):
                    {"type": "tool.execution_start",
                     "data": {"toolName": "bash", "arguments": "secret"}},
                    {"type": "tool.execution_complete", "data": {"output": "secret"}}])
-            trace.write_text("\\n".join(json.dumps(x) for x in events) + "\\n")
+            trace.write_text("\n".join(json.dumps(x) for x in events) + "\n")
             summary = ref.transcript_activity(trace)
             self.assertEqual(summary["model_calls"], 2)
             self.assertEqual(summary["tool_execution_started"], 2)
