@@ -222,7 +222,7 @@ gateway:
                     if Provider.calls != 2:
                         raise AssertionError(f"denials reached mock provider: {Provider.calls}")
                     print("PASS: Talon stable release " + RELEASE + " compatibility — two separately budgeted "
-                          "$7.50 agents; Anthropic-wire requests, priced usage, two preventive 
+                          "$7.50 agents; Anthropic-wire requests, priced usage, two preventive "
                           "denials (zero dispatch), verified signed evidence; no paid calls")
                 except Exception:
                     print(log_path.read_text()[-5000:], file=sys.stderr)
