@@ -25,6 +25,7 @@ def fake(seed=0):
     return {
         "run_id":f"OFFLINE-UNIT-TEST-SEED-{seed}",
         "profile":"study","seed":seed,"demo_revision":"a"*40,"task_limit":TASK_COUNT,
+        "budget_cap_usd_per_arm":1.66,
         "warmup_count":WARMUP,"workload_design":DESIGN,
         "task_order":ids,"model":"claude-sonnet-5",
         "talon_release":"v1.15.3","tokeneconomizer_sha":"0"*40,
@@ -53,6 +54,38 @@ class StudyProofTests(unittest.TestCase):
         self.assertIn("entire stream",markdown(p,r))
         self.assertIn("Cumulative savings",html_section(p))
         self.assertTrue(p["plugin_activation_observed"])
+
+    def test_inactive_optimizer_with_higher_cost_has_distinct_verdict(self):
+        r=fake()
+        r["tasks"]["after"][10]["plugin_injected_facts"]=0
+        for item in r["tasks"]["after"]:
+            item["cost"]=0.12
+        r["with_tokeneconomizer"]["cost"]=1.92
+        r["arm_total_including_warmups"]["after"]["cost"]=2.88
+        p=self.proof(r)
+        self.assertEqual(p["verdict"], "NO_OPTIMIZER_INTERVENTION")
+        self.assertIn("Proposed tool removals", markdown(p,r))
+        reports=[fake(seed) for seed in range(3)]
+        for report in reports:
+            report["tasks"]["after"][10]["plugin_injected_facts"]=0
+            for row in report["tasks"]["after"]:
+                row["cost"]=0.12
+            report["with_tokeneconomizer"]["cost"]=1.92
+            report["arm_total_including_warmups"]["after"]["cost"]=2.88
+            report["proof"]=self.proof(report)
+        self.assertEqual(aggregate(reports)["status"],"NO_OPTIMIZER_INTERVENTION")
+
+    def test_approved_budget_is_required_for_claim(self):
+        r=fake()
+        r["budget_cap_usd_per_arm"]=7.5
+        self.assertEqual(self.proof(r)["verdict"], "INCONCLUSIVE")
+
+    def test_three_seed_approved_budget_is_cumulative(self):
+        reports=[fake(seed) for seed in range(3)]
+        for r in reports:
+            r["budget_cap_usd_per_arm"]=2.5
+            r["proof"]=self.proof(r)
+        self.assertEqual(aggregate(reports)["status"],"INCONCLUSIVE")
 
     def test_sequential_learning_cost_cannot_be_excluded(self):
         r=fake()
