@@ -38,8 +38,19 @@ class DemoBudgetTests(unittest.TestCase):
         self.assertIn("TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=7.5 ", MAKE)
         self.assertIn("TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=2.50 ", MAKE)
         self.assertIn("python3 -u scripts/tokeneconomizer-demo.py run", MAKE)
+        # Make must escape the shell loop variable using $; otherwise
+        # '$seed' is expanded by Make into 'eed' before Bash sees it.
         self.assertIn("TE_DEMO_SEED=$seed", MAKE)
         self.assertEqual(MAKE.count("TE_DEMO_SEED=$seed"), 1)
+        self.assertIn('echo "STUDY: seed $seed', MAKE)
+        # Verify the actual shell recipe after Make's expansion, without
+        # executing the contract, contacting any provider or making API calls.
+        planned = subprocess.run(
+            ["make", "-n", "tokeneconomizer-study-3"], cwd=ROOT,
+            capture_output=True, text=True, timeout=10, check=True).stdout
+        self.assertIn("for seed in 0 1 2", planned)
+        self.assertIn("TE_DEMO_SEED=$seed", planned)
+        self.assertNotIn("TE_DEMO_SEED=eed", planned)
         # Three independently initialized ledgers must have equal per-seed
         # budgets and 3 * 2.50 = 7.50, within the USD 7.50 cap per named arm.
         self.assertLessEqual(3 * 2.50, 7.5)
