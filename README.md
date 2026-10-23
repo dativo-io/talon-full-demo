@@ -355,12 +355,10 @@ TokenEconomizer plugin, and it does not replace the 24-ticket synthetic study.
 - **Keyless data setup:** `make tokeneconomizer-reference-prepare` (downloads/builds upstream benchmark, but no provider calls)
 - **No-spend readiness:** `make tokeneconomizer-reference-check`
 - **No-spend diagnosis of existing runs:** `make tokeneconomizer-reference-diagnose` (or set `TE_REFERENCE_RUN_DIR=...`)
-- **Paid only with explicit opt-in:** `TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run`
+- **Paid full 20-task stream only:** `TE_REFERENCE_PAID_CONFIRM=YES TE_REFERENCE_FULL_STREAM_CONFIRM=YES make tokeneconomizer-reference-run` — default $5 estimated admission/arm, may terminate before the final task. Higher budgets require separately confirmed opt-in (see the guide).
 - **Full setup and methodology:** [Original Web-Bench pilot](docs/TOKENECONOMIZER_REFERENCE.md).
 
-The mini-pilot's shortened task sequence changes the upstream evaluator to
-stricter development-mode timeouts, so it is not directly comparable to full
-paper grading. **The first real operator run on 2026-10-23 was invalidated by a missing Ubuntu Chromium dependency (`libatk-1.0.so.0`).** Both arms attempted only task 1 twice before Web-Bench stopped; the five later rows per arm were `unreached`, not coding attempts. Talon signed-cost attribution worked, but optimizer effectiveness remains **unmeasured**. The demo now performs a local Chromium launch/close smoke test in `prepare`, `check` and before any paid run. See the [original benchmark postmortem and repair](docs/TOKENECONOMIZER_REFERENCE.md#required-browser-smoke-test-do-not-pay-for-broken-chromium).
+**The 2026-10-23 six-task pilot is invalid for optimizer conclusions.** Its shortened range made the official Web-Bench evaluator set `startTask`, which starts from the fully implemented reference `src/` rather than the intended `src-init/`. Both agents consequently found task 1 already complete and submitted no file edits. Chromium also lacked an Ubuntu shared library (`libatk-1.0.so.0`), now repaired and guarded with a local smoke test. The runner now **fails closed on partial streams**, checks initial-vs-gold source provenance, and requires an extra explicit confirmation for the real full-20-task study. Talon's signed cost evidence is valid, but the pilot does not establish TokenEconomizer savings. See the [benchmark root-cause analysis](docs/TOKENECONOMIZER_REFERENCE.md#forensic-result-why-the-six-task-run-was-invalid).
 
 
 
