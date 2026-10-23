@@ -22,6 +22,7 @@ STATE = ROOT / ".state" / "tokeneconomizer-demo"
 PORT = int(os.getenv("TE_DEMO_PORT", "18086"))
 MODEL = os.getenv("TE_DEMO_MODEL", "claude-sonnet-5")
 ARM_BUDGET = 5.0
+TALON_RELEASE = (ROOT / "config" / "tokeneconomizer-talon-release.txt").read_text().strip()
 # Reviewed upstream revision; intentionally not a floating checkout.
 TOKENECONOMIZER_COMMIT = "0ce0e067b42b1dd5a5f5984275d07f8c7686c44a"
 # These model identifiers have entries in Talon's embedded USD pricing table.
@@ -616,6 +617,17 @@ def run():
     for tool in ("talon", "claude", "git"):
         if not shutil.which(tool):
             raise RuntimeError(tool + " not installed")
+    # Direct Python entry must enforce the same version guard as the Make
+    # contract, even when the operator bypasses Make (no paid calls yet).
+    release_result = execute(["talon", "version"], check=False, timeout=15)
+    installed = (release_result.stdout or "").splitlines()
+    if release_result.returncode != 0 or not installed or installed[0].strip() != "Talon " + TALON_RELEASE:
+        raise RuntimeError(
+            "TokenEconomizer requires Talon " + TALON_RELEASE +
+            "; installed binary reports " + repr((release_result.stdout or
+             release_result.stderr).strip()[:160]) +
+            ". Install: go install github.com/dativo-io/talon/cmd/talon@" +
+            TALON_RELEASE + " and put $(go env GOPATH)/bin on PATH.")
     if "--plugin-dir" not in execute(["claude", "--help"], timeout=30).stdout:
         raise RuntimeError("Claude Code version does not advertise --plugin-dir")
     task_limit = int(os.getenv("TE_DEMO_TASK_LIMIT", "10"))
@@ -627,7 +639,7 @@ def run():
     plugin, commit = install_plugin()
     versions = {}
     for command, label in ((["claude", "--version"], "claude_cli"),
-                           (["talon", "--version"], "talon_cli"),
+                           (["talon", "version"], "talon_cli"),
                            (["git", "--version"], "git")):
         version = execute(command, check=False, timeout=15)
         versions[label] = (version.stdout or version.stderr).strip()[:200]
