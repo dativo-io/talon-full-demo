@@ -498,6 +498,31 @@ def run():
     comparable = len(arms) == 2 and not errors and all(
         "talon" in x and len(x["tasks"]) == len(expected)
         for x in arms.values())
+    # An official Web-Bench cell can contain rows for UNREACHED tasks. Once a
+    # task fails both attempts, the project stream ends. Do not present a
+    # successfully exported but unattempted cell as an informative comparison.
+    success_per_arm = {
+        arm: sum(row.get("resolved") is True for row in x["tasks"].values())
+        for arm, x in arms.items()
+    }
+    unreachable_per_arm = {
+        arm: sum(bool(row.get("unreached")) for row in x["tasks"].values())
+        for arm, x in arms.items()
+    }
+    attempted_per_arm = {
+        arm: sum(int(row.get("webbench_attempts") or 0) > 0
+                 for row in x["tasks"].values())
+        for arm, x in arms.items()
+    }
+    informative = comparable and all(
+        unreachable_per_arm.get(arm, len(expected)) == 0
+        and attempted_per_arm.get(arm, 0) == len(expected)
+        and success_per_arm.get(arm, 0) > 0
+        for arm in ("baseline", "after"))
+    if comparable and not informative:
+        errors.append("Official Web-Bench stream non-informative: "
+                      "unreached tasks or zero resolved; use offline diagnose "
+                      "before planning another paid experiment")
     report = {
         "run_id": run_id, "workload": "original Web-Bench expressjs first tasks",
         "origin": "microsoft/TokenEconomizer", "upstream_sha": commit,
@@ -509,13 +534,23 @@ def run():
         "arms": {arm: {
             "official_arm": x["official_arm"], "exit_code": x["exit_code"],
             "tasks": [{"id": k, "resolved": v.get("resolved"),
+                       "resolved_p1": v.get("resolved_p1"),
                        "resolved_p2": v.get("resolved_p2"),
+                       "attempts": v.get("webbench_attempts"),
+                       "attempt_results": v.get("webbench_attempt_results"),
+                       "unreached": bool(v.get("unreached")),
+                       "stream_broken": bool(v.get("stream_broken")),
+                       "num_turns": v.get("num_turns"),
+                       "usage_incomplete": v.get("usage_incomplete"),
                        "eff_tokens": v.get("cost_effective_tokens")}
                       for k, v in x["tasks"].items()],
             "talon": x.get("talon"), "audit_error": x.get("audit_error"),
         } for arm, x in arms.items()},
         "errors": errors,
-        "verdict": "ONE_SEED_OBSERVATIONAL_ONLY" if comparable else "INCONCLUSIVE",
+        "attempted_tasks_per_arm": attempted_per_arm,
+        "resolved_tasks_per_arm": success_per_arm,
+        "unreached_tasks_per_arm": unreachable_per_arm,
+        "verdict": "ONE_SEED_OBSERVATIONAL_ONLY" if informative else "INCONCLUSIVE",
         "limits": [
             "No statistical or causal inference from one short seed",
             "Experimental trimech-web controller, NOT the production plugin",
