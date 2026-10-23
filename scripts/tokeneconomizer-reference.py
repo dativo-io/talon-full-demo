@@ -582,7 +582,7 @@ def main():
         elif action == "check":
             check()
         elif action == "diagnose":
-            diagnose(sys.argv[2] if len(sys.argv) > 2 else None)
+            diagnose(sys.argv[2] if len(sys.argv) > 2 else os.getenv("TE_REFERENCE_RUN_DIR"))
         elif action == "run":
             run()
         else:
