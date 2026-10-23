@@ -104,6 +104,19 @@ class StudyProofTests(unittest.TestCase):
             x["passed"]=False
         self.assertEqual(self.proof(r)["verdict"],"PRELIMINARY_SAVINGS")
 
+    def test_no_measured_mechanism_cannot_be_attributed(self):
+        r=fake()
+        r["tasks"]["after"][10]["plugin_injected_facts"]=0
+        p=self.proof(r)
+        self.assertEqual(p["verdict"],"LOWER_COST_UNATTRIBUTED")
+        reports=[fake(seed) for seed in range(3)]
+        for row in reports:
+            row["proof"]=self.proof(row)
+        reports[1]["tasks"]["after"][10]["plugin_injected_facts"]=0
+        reports[1]["proof"]=self.proof(reports[1])
+        self.assertEqual(aggregate(reports)["status"],
+                         "REPEATED_LOWER_COST_UNATTRIBUTED")
+
     def test_three_seed_non_cherry_picking(self):
         reports=[fake(seed) for seed in range(3)]
         for r in reports:
