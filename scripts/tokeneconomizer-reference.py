@@ -475,6 +475,123 @@ def transcript_activity(path):
             "assistant_messages_with_content": agent_messages_with_content}
 
 
+def analyze(run_location=None):
+    """No-cost, censoring-aware paired analysis of original aggregator CSV.
+
+    The original compare_arms.py excludes incomplete-token rows, but does
+    not exclude UNREACHED placeholder rows from its pair count or cost sums.
+    A task is comparable only when BOTH arms actually attempted it, it was
+    graded, and BOTH token breakdowns are complete. This does not repair
+    missing task data or claim causal optimizer savings.
+    """
+    import csv
+    root = (Path(run_location).expanduser().resolve() if run_location
+            else next(iter(sorted(
+                (p for p in demo.STATE.glob("reference-*")
+                 if (p / "official-results" / "copilot_webbench_sonnet5"
+                     / "index" / "all_rows.csv").is_file()),
+                reverse=True)), None))
+    if root is None:
+        raise RuntimeError("No official Web-Bench aggregated run found")
+    index = root / "official-results" / "copilot_webbench_sonnet5" / "index"
+    source = index / "all_rows.csv"
+    if not source.is_file():
+        raise RuntimeError("Missing original aggregated rows: " + str(source))
+    with source.open(newline="", encoding="utf-8") as stream:
+        data = list(csv.DictReader(stream))
+    expected = [f"task-{i}" for i in range(1, FULL_PROJECT_TASKS + 1)]
+    by_arm = {}
+    for arm in ("baseline", "trimech-web"):
+        entries = [r for r in data if r.get("arm") == arm and
+                   r.get("repo") == "expressjs" and str(r.get("seed")) == "0"]
+        by_arm[arm] = {r.get("instance"): r for r in entries}
+    if any(not by_arm[arm] for arm in by_arm):
+        raise RuntimeError("Missing official baseline/trimech-web rows in " + str(source))
+
+    def flag(row, key):
+        return str(row.get(key, "")).strip().lower() == "true"
+
+    def attempts(row):
+        try:
+            return int(row.get("webbench_attempts") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def measured(row):
+        return (attempts(row) > 0 and not flag(row, "usage_incomplete")
+                and not flag(row, "not_graded"))
+
+    def cost(row):
+        try:
+            return float(row.get("cost_effective_tokens") or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    print("OFFICIAL WEB-BENCH: CENSORING-AWARE OFFLINE ANALYSIS")
+    print("Run:", root)
+    print("No model calls, budget changes, or benchmark reruns.")
+    print("Source: original Microsoft index/all_rows.csv (original grader unchanged)")
+    for arm, rows in by_arm.items():
+        reached = [i for i in expected if i in rows and attempts(rows[i]) > 0]
+        resolved1 = sum(flag(rows[i], "resolved_p1") for i in reached)
+        resolved2 = sum(flag(rows[i], "resolved_p2") for i in reached)
+        incomplete = [(i, rows[i].get("usage_incomplete_reason"))
+                      for i in reached if flag(rows[i], "usage_incomplete")]
+        print(f"{arm}: reached {len(reached)}/20; pass@1 {resolved1}/{len(reached)}; "
+              f"pass@2 {resolved2}/{len(reached)}; unreached {20-len(reached)}; "
+              f"incomplete usage {incomplete}")
+
+    paired_attempted = [i for i in expected if all(
+        i in by_arm[a] and attempts(by_arm[a][i]) > 0 for a in by_arm)]
+    paired_complete = [i for i in paired_attempted
+                       if all(measured(by_arm[a][i]) for a in by_arm)]
+    baseline, arm = by_arm["baseline"], by_arm["trimech-web"]
+    print("Both arms ATTEMPTED:", len(paired_attempted), paired_attempted)
+    print("Both attempted, graded, complete usage:", len(paired_complete),
+          paired_complete)
+    removed = [i for i in paired_attempted if i not in paired_complete]
+    if removed:
+        print("Attempted but excluded from COST comparison:", removed)
+    if paired_complete:
+        base_tokens = sum(cost(baseline[i]) for i in paired_complete)
+        arm_tokens = sum(cost(arm[i]) for i in paired_complete)
+        delta = (100 * (arm_tokens / base_tokens - 1)) if base_tokens > 0 else None
+        print("PAIRED COST (same actually attempted, fully measured tasks):")
+        print(f"  baseline: {base_tokens:,.1f} effective tokens including overhead")
+        print(f"  trimech-web: {arm_tokens:,.1f} effective tokens including overhead")
+        print("  descriptive change: " +
+              (f"{delta:+.1f}%" if delta is not None else "undefined"))
+        print("  cheaper on", sum(cost(arm[i]) < cost(baseline[i])
+                                for i in paired_complete), "of", len(paired_complete))
+        print("  correctness on cost-comparable tasks:",
+              sum(flag(baseline[i], "resolved_p2") for i in paired_complete),
+              "vs", sum(flag(arm[i], "resolved_p2") for i in paired_complete))
+    print("NOTE: cost-complete common prefix is not an unbiased 20-task outcome.")
+    print("Original compare_arms.py pairs UNREACHED placeholders; its apparent")
+    print("full-cell savings can reflect execution stopping early, not optimization.")
+    print("Research controller activations must be separately verified.")
+
+    proof = root / "reference-proof.json"
+    print("Wrapper signed-evidence summary:",
+          "present" if proof.is_file() else "MISSING (wrapper may be unfinished/failed)")
+    if proof.is_file():
+        p = json.loads(proof.read_text())
+        print("Wrapper verdict:", p.get("verdict"))
+        print("Wrapper errors:", p.get("errors"))
+        for key in ("baseline", "after"):
+            audit = (p.get("arms", {}).get(key) or {}).get("talon") or {}
+            if audit:
+                print(key, "Talon priced USD", audit.get("talon_estimated_usd"),
+                      "signed calls", audit.get("provider_calls"),
+                      "policy denials", audit.get("denials"))
+    else:
+        for arm_name in ("baseline", "after"):
+            print("  existing signed evidence", arm_name,
+                  (root / arm_name / "signed.json").is_file())
+        print("  Do not assume the Talon evidence/export completed from the")
+        print("  original controller's DONE line; that only finishes one cell.")
+
+
 def diagnose(run_location=None):
     """Offline postmortem of saved *original* Web-Bench rows. Never makes model calls."""
     if run_location:
@@ -803,10 +920,12 @@ def main():
             check()
         elif action == "diagnose":
             diagnose(sys.argv[2] if len(sys.argv) > 2 else os.getenv("TE_REFERENCE_RUN_DIR"))
+        elif action == "analyze":
+            analyze(sys.argv[2] if len(sys.argv) > 2 else os.getenv("TE_REFERENCE_RUN_DIR"))
         elif action == "run":
             run()
         else:
-            raise RuntimeError("Use plan, prepare, check, diagnose, or run")
+            raise RuntimeError("Use plan, prepare, check, diagnose, analyze, or run")
     except Exception as exc:
         print("ERROR:", exc, file=sys.stderr)
         sys.exit(1)
