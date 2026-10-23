@@ -221,6 +221,52 @@ investigate the wrapper process/logs before assuming costs or
 policy denials. **Do not fund another run until the terminal failure
 and evidence-export states are resolved.**
 
+## Task-10 failure postmortem: model-call errors, not proof of a coding regression
+
+The operator's original trace comparison provides a clear asymmetry:
+
+| Task 10 | baseline | trimech-web |
+|---|---:|---:|
+| model calls started | 10 | 16 |
+| `model.call_failure` events | 0 | **12** |
+| `session.error` events | 0 | **2** |
+| `view` tool executions | 18 | 14 |
+| `create` / `edit` executions | 1 / 1 | **0 / 0** |
+| changed files submitted | 3 | 0 |
+| task resolved | yes | no |
+
+The experimental arm's first attempt had only four Copilot debug-log
+usage blocks and the second attempt had **none**. The original evaluator
+successfully executed Playwright, passing 34 earlier tests but failing all
+five task-10 tests for the missing `/profile/:username` route and its
+authorization / display behavior. There was no Talon policy denial
+for this arm (139 verified provider-call receipts, 0 policy denials, 
+$2.2873 Talon-estimated USD total). No spiral aborts or nudges were
+recorded for task 10. Thus the decisive immediate failure was repeated
+Copilot **model-call/session errors**, after which neither attempt wrote
+changes. This does **not** establish whether Anthropic, the Talon
+transport, Copilot's local handling, or optimizer-induced context caused
+the errors. It is misleading to label this as a demonstrated optimizer
+coding-quality regression.
+
+To isolate provider/CLI error categories **without exposing raw model
+prompts or exception text**, run:
+
+```bash
+TE_REFERENCE_RUN_DIR=".state/tokeneconomizer-demo/reference-20261023T203253Z-5e50676f" \
+  make tokeneconomizer-reference-model-failures
+```
+
+The local-only command compares original task-10 `model.call_failure` and
+`session.error` events across both arms. It prints coarse categories
+(rate limits, authentication, overload, context length, network/timeout,
+bad requests or unclassified), counts and error-event **field names**, but
+never the raw error payload. It also confirms actual edit-tool activity
+and per-attempt debug-log usage block counts. If events are
+`unclassified`, inspect the raw error fields locally and share **only a
+redacted error code and safe summary**. Do not repeat the paid study
+until these errors are understood.
+
 ## Offline Talon evidence recovery after an interrupted wrapper
 
 When the original Microsoft harness finishes but `reference-proof.json` is absent,
