@@ -1,6 +1,6 @@
-# Original TokenEconomizer Web-Bench mini-pilot through Talon
+# Original TokenEconomizer full-project Web-Bench pilot through Talon
 
-**Status:** the operator's first paid Web-Bench pilot (2026-10-23; expressjs first six tasks, seed 0) produced complete signed Talon model evidence, but both arms stopped after task 1 failed twice. The **root cause was a host dependency**, not task correctness: Playwright's Chromium executable could not load `libatk-1.0.so.0` (exit 127). Five later task rows per arm were `unreached` placeholders. Optimizer effectiveness remains **unmeasured**; the local Talon v1.15.3 contract passed. The free `prepare`/`check` and paid `run` paths now require a local browser launch/close smoke test, preventing a repeat of this avoidable spend.
+**State (2026-10-23):** The first six-task paid attempt is **invalid as an optimizer study**, for two independently verified reasons: the host lacked Chromium system libraries (`libatk-1.0.so.0`) and, more fundamentally, selecting only tasks 1–6 populated the evaluator workspace with the **fully developed reference code**. Both Copilot arms consequently said task 1 was already implemented. The browser has since passed its local launch test. This PR now forbids truncated runs and requires 20-task, `src-init`-based Web-Bench execution. No valid optimizer-effectiveness comparison has yet been produced.
 
 ## Ubuntu host prerequisites
 
@@ -121,7 +121,7 @@ make tokeneconomizer-validate               # free, local regression tests
 make tokeneconomizer-contract               # free, live Talon gateway against a local mock
 ```
 
-The **prepare** target downloads Microsoft TokenEconomizer at the reviewed pinned revision, clones ByteDance Web-Bench at pinned commit `7b31ca2b786eef120dd49ce63dd03d0c0006046d`, runs Rush install/build **for only `@web-bench/eval` and `@web-bench/expressjs`**, installs the Playwright Chromium browser for the project's pinned version, and exports all **20 original** expressjs tasks into a single-project task list. The paid runner uses only the first six by default (one to eight supported). Original source descriptions, task order, experiment controller and evaluator stay unchanged. The export is a data-only projection of Microsoft's `workloads/webbench.json` + Web-Bench's `projects/expressjs/tasks.jsonl`; no tasks are invented or rewritten.
+The **prepare** target downloads Microsoft TokenEconomizer at the reviewed pinned revision, clones ByteDance Web-Bench at pinned commit `7b31ca2b786eef120dd49ce63dd03d0c0006046d`, runs Rush install/build **for only `@web-bench/eval` and `@web-bench/expressjs`**, installs the pinned Playwright Chromium browser, and exports all **20 original** Express.js tasks. The paid runner requires **the entire 20-task stream** and rejects any shorter `TE_REFERENCE_TASK_LIMIT`. Original source descriptions, task order, experiment controller, and evaluator stay unchanged. The export is a data-only projection of Microsoft's `workloads/webbench.json` + Web-Bench's `projects/expressjs/tasks.jsonl`; no tasks are invented or rewritten.
 
 The default paths live in Git-ignored demo state, so **no `TE_REFERENCE_PROJECTS` or `TE_REFERENCE_TASKS` exports are needed**:
 
@@ -132,131 +132,70 @@ If you already have a built Web-Bench checkout, set `TE_REFERENCE_PROJECTS` and 
 
 Ubuntu prerequisites: Python 3.10+, Git, Node.js/npm/npx, pinned Copilot CLI 1.0.84-7 and Talon v1.15.3. Preparing dependencies executes the normal external Rush installation/build scripts; review external packages as you would for any downloaded open-source project. On a 2-vCPU, 8-GB server, dependency installation and compilation may be resource-intensive. It does not charge the Anthropic provider.
 
-## Diagnose a saved reference run BEFORE paying for another one
+## Forensic result: why the six-task run was invalid
 
-The first local experiment returned six row files for each arm, but the
-upstream comparison script printed `resolved=0/0` and crashed on division
-by a zero baseline median. **Do not treat all six rows as six attempted
-tasks.** When a Web-Bench task fails both tries, the original evaluator
-stops the sequential project and the harness writes `unreached=True`
-placeholder rows for all remaining tasks with zero cost. These placeholders
-bias token averages and make the upstream `compare_arms.py` median zero.
+This failure was **not a Talon policy denial or evidence that TokenEconomizer worsens coding**. Two unrelated defects invalidated the first operator run.
 
-Run the demo's **read-only, zero-cost** diagnostic on the previously saved
-experiment (it does not rerun the agent or require a key):
+**1. Missing browser libraries (repaired):** The saved official evaluator log showed Playwright's Chromium exiting 127 because Ubuntu lacked `libatk-1.0.so.0`. Only task 1 was attempted (twice) in each arm; five later rows per arm were `unreached` placeholders. A keyless Chromium launch-and-close smoke test is now mandatory in `prepare`, `check`, and before paid execution.
+
+**2. Gold/reference source contamination (methodology defect):** The original pinned ByteDance source `tools/evaluator/src/settings/bench.ts` explicitly contains:
+
+```ts
+if (startTask) {
+  outputProjectDir.push(srcDir)
+} else {
+  outputProjectDir.push(initDir)
+}
+```
+
+In this evaluator, `startTask` means **resume/calibration from the already developed `projects/expressjs/src/`**, not *start a new project at task 1*. The Microsoft harness set `startTask` when our caller passed a six-task subset. Consequently both agents were handed already-solved home/login routes and correctly said no file changes were needed. The reference `src/` contains the final Pug views/routes, while `src-init/` contains only the initial scaffold. The captured experimental agent trace confirms 22 `view` and three read-only Bash operations and zero changed-file submissions per attempt. The baseline likewise submitted no changed files.
+
+**Full original 20-task stream:** When all 20 original tasks are selected in order, the Microsoft harness does not set `startTask`/`endTask`. Web-Bench starts from `src-init/` and uses the **production Playwright timeout of 30 seconds**, rather than the partial-run development timeout of 2 seconds. The new `initial_state_preflight` checks this upstream source behavior and confirms the initial and completed trees are distinct before authorization is used.
+
+The old signed Talon receipts remain legitimate **governance/evidence artifacts**: all model/optimizer calls were attributed by isolated agent identity, but **cost and task-success deltas are unusable for optimizer-effectiveness claims**.
+
+To examine the historical run locally with no API calls:
 
 ```bash
-git pull --ff-only
 TE_REFERENCE_RUN_DIR=".state/tokeneconomizer-demo/reference-20261023T191741Z-01db0489" \
   make tokeneconomizer-reference-diagnose
 ```
 
-Or use `make tokeneconomizer-reference-diagnose` for the newest saved
-reference-proof.json. The report prints **per-arm actual attempted tasks,
-actual pass/fail per attempt, unreached placeholders, model turns, usage
-source, and exact evaluator/agent log paths** for failing tasks. It does
-not dump raw prompts, API keys, or logs. Inspect the failing task's
-`evaluator.log`, `row.json`, `run_config.json` and agent transcript
-before sharing logs publicly; these may contain workspace code/prompts.
+The command reads saved official rows and tool-execution metadata, counts attempted versus unreached tasks, and prints original evaluator-log paths. It does not print prompts, tool arguments or model messages.
 
-The first failure is now **explained** by the evaluator log:
-Chromium could not load `libatk-1.0.so.0`. The experimental
-`webbench_answered_files` field was also `[[], []]` on task 1. A subsequent
-operator-provided transcript **event-type-only summary** showed 15 model calls,
-22 actual `view` tool executions and 3 actual `bash` executions in the
-experimental arm; it did NOT contain evidence of a dedicated file-editing tool
-execution. (Its 984 streamed `assistant.tool_call_delta` events are fragments,
-not 984 tool executions.) The `bash` calls may have modified files; the
-sanitized tool-name summary does not say what commands or outcomes occurred.
+### How to advance the evidence
 
-`make tokeneconomizer-reference-diagnose` now reads the saved local
-transcript and prints **executed tool counts and per-attempt changed-file
-submission counts** alongside the grader facts, without printing any prompt,
-tool command, arguments or response. Diagnose the old run after updating the
-branch; then inspect the **three Bash command outcomes** locally to distinguish
-"agent didn't change files" from "agent wrote files outside the evaluator's
-scratch workspace" or "collector excluded edits". The operator subsequently supplied all **three** experimental Bash invocation
-arguments: they were `cat`/`ls`, `ls`/`find`, and `grep` commands, all
-read-only, executed in the second-attempt scratch workspace. Taken together
-with the 22 `view` executions, the transcript summary contains **no
-observed edit/write action** for that arm. This explains the lack of changed
-files without implying the evaluator's file collector failed. It does not
-explain *why* Copilot never attempted to write.
+1. Run `make tokeneconomizer-reference-prepare`, `make tokeneconomizer-reference-check`, and `make tokeneconomizer-reference-plan` **without provider spend**. The check must print both `PASS: local Playwright browser launch` and `PASS: 20-task production stream starts from src-init`.
+2. Review and explicitly approve the expected costs of **one full 20-task Express.js stream**, with one seed in each arm. The two-arm Talon estimate-admission default remains **$5 per arm**, which may interrupt a 20-task study; any increase is an explicit, separately confirmed opt-in.
+3. Evaluate the official per-task `resolved_p1` and `resolved_p2`, including genuinely reached tasks, total provider spend and cache-aware effective tokens, and actually active TokenEconomizer mechanisms. End early or declare the run inconclusive if the original evaluator stops or the Talon budget denies model calls.
+4. Only if this stream yields meaningful outcomes, predeclare multiple original projects and at least three seeds; do not make a causal or replication claim from one seed.
 
-The original Microsoft `TASK_TEMPLATE` explicitly tells the agent to edit
-existing files and create new ones. Its Copilot `build_argv` uses
-`--allow-all-tools`, with `edit`, `create`, `str_replace`, and `bash` as
-protected tools that must not be pruned; the arm's saved row recorded
-`untooled_excluded=[]` and `net_guard_blocks=0`. We should inspect the
-actual `session.tools_updated` declarations and the completed `view`/Bash
-results for errors or absent paths, along with the agent's final message.
-Do not infer a Talon policy denial, broken collector, or read-only tool policy
-without evidence.
-
-A later probe of the local transcript found `session.tools_updated`
-containing **only** the `model` field, so an empty `Declared tools`
-list from that probe is **not** evidence of missing edit tools. In the
-baseline arm, naïve text searches found `no such file` and
-`permission denied` in tool results, but those strings could be
-quoted output rather than actual execution failures. The free
-`diagnose` command now distinguishes explicit structured tool-failure
-flags from result text, reports event field names and states whether
-any tool catalog was exposed. It never prints tool arguments or model
-answers. The precise blocker remains why neither arm generated a
-workspace edit; inspect the final assistant messages and original
-tool results *locally* before repeating a paid run.
-
-**Next decision:** do not spend on another run until runtime tool availability
-and workspace accessibility have been inspected. A repaired browser alone does
-not guarantee a meaningful coding-agent benchmark.
-
-None of these can be
-concluded from tool names alone. The partial-stream
-Playwright 2-second timeout limitation remains and should not be conflated
-with the missing-library failure.
-
-### Next experiment: preserve the paper's evaluation unit
-
-**Do not just increase seed count on the six-task pilot.** The paper's
-Web-Bench experiment uses **full 20-task project streams**. A partial
-stream switches the evaluator from 30-second to 2-second Playwright
-timeouts and cannot reproduce the paper's grading. Additionally, later
-tasks only run when earlier tasks pass; even a 20-task limit can end
-after the first task if it fails both attempts.
-
-1. Investigate the saved failed task and validate baseline grader health
-   independently, without modifying the original Microsoft grader or
-   optimizer.
-2. Once healthy, explicitly fund a **full 20-task, one-seed, paired
-   baseline/trimech-web pilot** on a predeclared project, with native
-   production-mode evaluator settings; no claims from a one-seed result.
-3. Only if that completes successfully, run **three predeclared seeds**
-   across several original projects, with a cost budget approved before
-   adding more traffic. Preserve the original model, Copilot CLI version,
-   retry count, project order and signed Talon per-arm isolation.
-4. Publish **both** Web-Bench's pass@1 and pass@2, attempted/reached task
-   counts, paired cache-aware effective token costs, actual Talon-estimated
-   provider spend (including optimization calls), and mechanism activation.
-
-The current runner intentionally caps pilot tasks at eight and budgets at
-$5 estimated admission per arm. **Full-20 support and its cost ceiling
-must be deliberately designed and approved before a paid scale-up.**
-
-We should tell a Talon governance and evidence story: Talon attributes
-all agent and optimizer model calls, enforces independent budgets and
-emits verifiable signed records. Whether the optimizer saves tokens on
-this workload remains a separate, falsifiable empirical question.
+**Do not change or patch the original ByteDance grader, Microsoft controller, or gold/reference source to improve results.** This wrapper changes only benchmark selection, preflight checks, Talon routing, and evidence packaging.
 
 ## Deliberately paid experiment
 
-Only after the keyless preparation and contract pass:
+Only after the keyless preflight passes **and the full-stream costs have been approved**:
 
 ```bash
+# No API calls:
+make tokeneconomizer-reference-check
+make tokeneconomizer-reference-plan
+make tokeneconomizer-contract
+
+# Explicitly paid, a *full* 20-task project per arm:
 export ANTHROPIC_API_KEY='...'
-TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run
+TE_REFERENCE_PAID_CONFIRM=YES TE_REFERENCE_FULL_STREAM_CONFIRM=YES \
+  make tokeneconomizer-reference-run
 ```
 
-The real Anthropic key is sent to Talon's encrypted vault through stdin, not to the Copilot CLI. Copilot CLI uses two isolated BYOK identities to talk to Talon, which enforces independent **$5 estimated admission caps** for baseline and experimental arms. No provider calls happen unless the `TE_REFERENCE_PAID_CONFIRM=YES` environment variable is explicitly present.
+If you explicitly approve a larger estimated admission budget for this stream, set
+`TE_REFERENCE_ARM_BUDGET_USD` (maximum 25 per arm) together with
+`TE_REFERENCE_HIGHER_BUDGET_CONFIRM=YES`. For example, `TE_REFERENCE_ARM_BUDGET_USD=10`
+would authorize **up to $10 estimated admission per arm, $20 combined**; this is not a
+hard provider invoice ceiling. These flags are **not required for the default $5 per arm**.
+Changing the budget does not modify Talon OSS or the original research controller.
+
+The real Anthropic key is sent to Talon's encrypted vault through stdin, not to Copilot CLI. Copilot uses two isolated BYOK identities to talk to Talon, which enforces the individually approved **estimated admission caps** per arm (default **$5**). Model calls require BOTH `TE_REFERENCE_PAID_CONFIRM=YES` and `TE_REFERENCE_FULL_STREAM_CONFIRM=YES`; higher budgets require an additional explicit confirmation.
 
 **These are admission-estimate budgets, not hard provider invoice ceilings.** Set an account-side Anthropic usage limit if you need a hard spending control. The reference harness may make billed preflight calls, which count in Talon's signed cost ledger and the $5 admission budgets.
 
@@ -265,16 +204,16 @@ The real Anthropic key is sent to Talon's encrypted vault through stdin, not to 
 | Dimension | Choice |
 |---|---|
 | Microsoft revision | `0ce0e067b42b1dd5a5f5984275d07f8c7686c44a` |
-| Workload | Original Web-Bench expressjs tasks 1–6; sequential |
+| Workload | **All original 20 Web-Bench Express.js tasks, sequential** |
 | Arms | Original `baseline` vs experimental `trimech-web` |
 | Agent/model | Copilot CLI BYOK, `claude-sonnet-5`, high effort |
 | Network path | Copilot BYOK → Talon v1.15.3 → Anthropic |
-| Budgets | $5 admission per arm, signed record export of ALL agent sessions |
+| Budgets | $5 estimated admission per arm by default; optional explicitly approved increase ≤$25/arm |
 | Scope | One seed; observational only |
 
 The original Claude Code experiment runner hardcodes Anthropic routing and ignores `ANTHROPIC_BASE_URL`, so this experiment deliberately uses Copilot's BYOK transport rather than bypassing Talon.
 
-**Important limitation:** When the original Web-Bench evaluator is asked to grade fewer than its full 20-task project, it switches to development mode with Playwright timeouts of 2 seconds instead of 30 seconds. We preserve the upstream evaluator behavior and disclose this limitation. Correctness numbers cannot be compared directly with the full published benchmark.
+**Integrity invariant:** This runner will not use fewer than 20 tasks: restricted streams set Web-Bench's `startTask`, unexpectedly loading pre-solved reference `src/` and tightening Playwright timeout from 30s to 2s. The full-project grader preserves the original 30s production behavior. One seed is observational only and not equivalent to the published multi-project, multi-seed benchmark.
 
 The benchmark writes results to a new, ignored `.state/tokeneconomizer-demo/reference-<timestamp>-<nonce>/` directory:
 
