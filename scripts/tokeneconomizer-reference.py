@@ -183,7 +183,7 @@ def check():
     projects, tasks, selected = inputs()
     # Keep all prerequisites in the FREE gate, so a paid run is not used
     # for discovering missing host executables.
-    for name in ("talon", "git", "node", "bash"):
+    for name in ("git", "node", "bash"):
         if not shutil.which(name):
             raise RuntimeError("Missing " + name + "; no model calls made")
     cli = copilot_preflight()
