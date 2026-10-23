@@ -339,216 +339,171 @@ docs/                  quickstarts, architecture, setup, presenter, and blockers
 Never commit provider keys, Talon keys, Zendesk settings, generated evidence, n8n credentials, operator-approval keys, or real customer content. Real provider keys should be exported only for `make real-prepare`; the helper stores them in Talon's encrypted local vault and does not write them into `.env`.
 
 
-## TokenEconomizer x Talon — real Claude Code before/after demo
+## TokenEconomizer × Talon — real coding-agent cost study
 
-This optional case is **isolated** from the other Full Demo workflows. It does
-not modify the Talon source checkout or the existing generated fleet. It starts
-a loopback Talon gateway on port 18086 with **two isolated Talon agent identities**
-(te-baseline and te-after), separate cost ledgers, and an encrypted vault under
-the Git-ignored .state/tokeneconomizer-demo directory. Each invocation uses a
-fresh data store so earlier experiments cannot consume its budget.
+This optional demo uses **real Claude Code → Talon v1.15.3 → Anthropic
+requests**, separate governed agent identities, a Talon vault, per-session
+signed receipts and independent correctness grading. All state lives in the
+Git-ignored `.state/tokeneconomizer-demo/` directory. This is a **production
+TokenEconomizer plugin** study, NOT a reproduction of the paper's experimental
+controller or its 277-task SWE-Bench results.
 
-It drives the **real Claude Code CLI** on two equivalent synthetic Python
-repositories: five learning sessions and five measured repair sessions without
-TokenEconomizer, then five learning and five measured sessions with Microsoft's
-TokenEconomizer plugin loaded through the Claude Code --plugin-dir flag.
+### Two modes with different goals
 
-### Required Talon release and tooling
+| Command | Goal | Workload | Billable? |
+|---|---|---|---|
+| `make tokeneconomizer-validate` | Check fixtures, proof gates, seed handling, grading and report code | 24-ticket fixture + negative tests | No |
+| `make tokeneconomizer-contract` | Verify released Talon gateway, budgets, Anthropic wire and signed evidence against local mock | Gateway mock | No |
+| `make tokeneconomizer-smoke` | Ensure Claude Code, plugin and Talon can complete one real coding task in each arm | Original simple fixture | **Yes** |
+| `make demo-tokeneconomizer` | Study actual plugin effectiveness across a persistent repository stream | **24 linked tickets per arm**, seed 0 | **Yes** |
+| `make tokeneconomizer-study-3` | Repeat 24-ticket study with independent state/seeds 0, 1 and 2, alternate arm order, aggregate **all** seeds | **144 total paid tasks** | **Yes** |
+| `make present-tokeneconomizer` | Read the most recent report without paying again | Existing saved evidence | No |
 
-**Talon v1.15.3** is the latest stable release verified on 2026-10-23:
-[release notes](https://github.com/dativo-io/talon/releases/tag/v1.15.3).
-It contains PR #508's fail-closed pricing and agent/session budget-concurrency
-fixes. The demo pins this **published release**, not `main` or an untagged
-commit. The single source of truth is
-[`config/tokeneconomizer-talon-release.txt`](config/tokeneconomizer-talon-release.txt);
-CI installs that exact release, and the local keyless/paid entrypoints verify
-`talon version` before any Anthropic requests.
+The original one-task smoke remains a connectivity check. Do not use its
+cost delta as an optimization result.
 
-Requirements:
+### Prerequisites and Ubuntu setup
 
-- Talon **v1.15.3**, via the published Go module or release binary.
-- Go 1.26.10 or a compatible toolchain **only if building Talon**.
-- Official Claude Code CLI on PATH, supporting `-p` and `--plugin-dir`.
-- Python 3.10+, Git, and outbound connectivity to Anthropic for paid runs.
-- A metered Anthropic API key; a Claude subscription login is not sufficient.
-
-On a fresh Ubuntu machine (or to upgrade the earlier `cef6313` development
-build to the latest release):
+Talon **v1.15.3** is pinned in
+[`config/tokeneconomizer-talon-release.txt`](config/tokeneconomizer-talon-release.txt),
+which CI installs by published tag. The keyless contract and both paid modes
+refuse a different binary. Requires a supported Claude Code CLI (`--plugin-dir`,
+`--effort high`), Python 3.10+, git, Anthropic API billing and an API key.
+Go 1.26.10 is needed only to build Talon from source/module.
 
 ```bash
 go install github.com/dativo-io/talon/cmd/talon@v1.15.3
 export PATH="$(go env GOPATH)/bin:$PATH"
-talon version                    # correct syntax; NOT talon --version
-cd ~/src/talon-full-demo       # run make targets in the DEMO repository
+talon version                 # use 'talon version', NOT '--version'
+cd ~/src/talon-full-demo
 git pull --ff-only
 make tokeneconomizer-validate
 make tokeneconomizer-contract
-```
-
-The `scripts/with-talon.sh` resolver also discovers `TALON_BIN`, PATH,
-`~/go/bin/talon`, `~/.local/bin/talon`, sibling Talon builds, and
-repository-owned running Talon processes. However, merely finding a Talon
-binary is **not enough**: the keyless contract checks the *exact published
-release* and fails with upgrade instructions if it finds an older or other
-version. To choose an executable explicitly:
-
-```bash
-TALON_BIN="$HOME/go/bin/talon" make tokeneconomizer-contract
-```
-
-### Validation and live runs
-
-The keyless real-Talon contract starts a **real gateway**, using only a
-loopback Anthropic-wire fixture (not the real Anthropic API), the same pair of
-$5 demo policies, and the same signed-evidence reader as the paid run. It
-checks fleet identity, vault key ACLs, table pricing, independent per-agent
-spend, cross-session denials with zero upstream dispatch, and verifiable
-signed evidence. The simulated provider intentionally reports a first
-response exceeding the admission estimate; this demonstrates that a $5
-policy is not a guaranteed $5 provider billing ceiling.
-
-```bash
-make tokeneconomizer-validate       # offline fixtures and report invariants
-make tokeneconomizer-contract       # released Talon v1.15.3, mock Anthropic; $0
 export ANTHROPIC_API_KEY='sk-ant-...'
-make tokeneconomizer-smoke          # ONE paid warmup task per arm
-make demo-tokeneconomizer           # complete 10-task-per-arm experiment
-make present-tokeneconomizer        # replay evidence-backed report, no new calls
+make tokeneconomizer-smoke
+make demo-tokeneconomizer
+make present-tokeneconomizer
 ```
 
-The paid Make targets rerun the keyless contract first and **refuse to use**
-a Talon CLI other than the supported release. CI uses the pinned published
-release, not a potentially newer unreleased `main` commit.
+If Talon is not on PATH, set `TALON_BIN=/absolute/path/to/talon`
+for the Make targets. `scripts/with-talon.sh` also resolves common local
+install locations.
 
-### Last observed operator smoke (2026-10-23)
+### Why the study changed
 
-An operator completed `make tokeneconomizer-smoke` successfully using
-the earlier `cef6313` development build: one baseline warmup cost
-USD 0.1453 and one TokenEconomizer warmup cost USD 0.0894. Both tasks passed
-sealed grading; one TokenEconomizer hook-session file appeared.
-**No learned facts, tool exclusions, or loop nudges were observed.**
-The measured comparison appropriately reported zero measured tasks and
-`INCONCLUSIVE`; these numbers are **not a savings claim**.
+Our first real v1.15.3 10-task pilot on 2026-10-23 verified its
+signed evidence and grading but **did not demonstrate savings**:
+measured provider cost went from USD 0.3022 to USD 0.3495
+(**+15.6%**); cache reads fell **20.8%**, cache writes rose
+**88.4%**. Both arms passed five measured repairs. This is a genuine
+observation, but one tiny task dominated the result, the plugin's
+tool-pruning quiet-time delay had been forced to zero, and almost no
+micro-skill or loop-guard learning was possible. **Do not market
+those numbers as representative of the original research.**
 
-After installing v1.15.3, **rerun the paid smoke** to confirm the *released*
-binary with your local Claude CLI and plugin. The keyless release contract
-alone does not validate plugin activation or meaningful compression.
+The revised default study uses a persistent Python service repository
+with **24 incremental tickets** spanning normalization, routing, data
+policy and usage billing. Each ticket requires navigating issue
+descriptions and test conventions and modifying the shared domain
+implementation **and** public service registry. Visible tests are
+available in the checkout; hidden acceptance tests run in a fresh,
+separate grader directory so editing visible tests cannot fake success.
+Fixes accumulate in each arm's repository over the entire stream.
+Three seeded orders keep task pairs aligned while varying experience
+and alternating which arm executes first.
 
-### What the proof report must establish
+Eight tickets form the learning phase, and the remaining 16 show the
+later trajectory. **The headline cost always includes ALL 24 paid
+tickets per arm**, including learning. The late-phase figure is
+diagnostic, not a cherry-picked replacement for acquisition costs.
+The report shows correctness (resolved tickets), full-stream USD,
+USD/resolved ticket, cache reads/writes, per-ticket signed evidence,
+and cumulative break-even. Explicit **high** reasoning effort,
+up to **24 turns** and bounded **900-second** task execution are used,
+not the prior eight-turn quick-fix configuration.
 
-The experiment now issues an explicit **DEMONSTRATED / NOT_DEMONSTRATED /
-INCONCLUSIVE** verdict, rather than treating a smaller dollar number as proof.
-Every real run writes `comparison.json`, `comparison.html`, **`proof.json`**
-and **`proof.md`** beside per-task `metrics.json` and verified
-`signed.json` receipts in
-`.state/tokeneconomizer-demo/<RUN_ID>/`. The HTML report starts with the
-proof verdict and a pass/fail table for every gate; `proof.md` includes
-task-by-task costs and relative links to signed receipts.
+### Plugin defaults matter
 
-A **DEMONSTRATED** pilot requires all of the following:
+The official production plugin's normal idle-time tool-pruning delay
+is preserved. No `TE_TOOLPRUNE_QUIET_MINUTES=0` override is used in
+the default study. We perform the plugin's documented **no-model tool
+catalog capture** before the plugin arm starts, and record whether it
+succeeded. Paid LLM-assisted plugin helpers remain disabled
+(`TE_PAID=false`), matching the shipped no-paid-helper baseline.
+Micro-skill injections, actual pruning applications, and loop nudges
+are recorded when they occur; a hook's mere existence does not prove
+intervention. When none occurs, **we report that honestly**.
 
-1. Both independent agents complete **10 identical initial-workspace tasks**
-   (five warmups plus five measured repairs), using the same model and
-   Claude Code CLI, with matching starting-workspace SHA-256 digests.
-2. All **20** tasks pass independent **sealed** correctness grading and the
-   Claude CLI exits cleanly, with no provider error, budget denial or policy
-   denial. Every session has model calls attributed to the correct agent.
-3. All 20 signed Talon exports pass offline signature verification; the
-   reported **measured and full-arm** spend totals reconcile exactly to
-   the corresponding task-level, provider-priced USD evidence.
-4. The plugin has really **intervened during measured sessions (tasks 6–10)**:
-   an actual SessionStart fact injection, an applied tool-deny rule loaded
-   by the workspace, or a session-correlated loopguard nudge. Hook-file
-   presence, an unconsumed learned fact, or an unapplied tool-pruning
-   *proposal* alone **does not qualify**. Before the plugin arm begins,
-   the demo performs TokenEconomizer's **documented tool-catalog refresh**
-   (`te --host claude toolprune refresh-catalog`), capturing Claude's
-   initialized tool list *before a model call*; a failed capture makes the
-   experiment incomplete rather than silently disabling pruning evidence.
-5. Measured Talon-estimated provider spend is lower in the plugin arm,
-   **without sacrificing task correctness**. Warmup spend is also shown,
-   separately, and still counts toward each arm's $5 Talon budget.
+To investigate cache-prefix invalidation explicitly, a separately
+labeled accelerated ablation is available via
+`TE_DEMO_PRUNING_MODE=accelerated` with direct Python invocation. That
+is **not** the default and the production-default evaluator does not
+accept its result as a normal-configuration savings claim.
 
-If both arms are valid but there is **no applied plugin intervention** or
-**no measured reduction**, the verdict is `NOT_DEMONSTRATED`. Missing
-receipts, mismatched tasks, budget exhaustion, failed grading, or smoke-only
-runs produce `INCONCLUSIVE` and must not be marketed as savings.
+### Study budgets and costs
 
-This is a **bounded observational demo**, not a causal A/B experiment or a
-replication of the TokenEconomizer paper: the two arms run sequentially and
-the tasks are synthetic. Even a `DEMONSTRATED` result establishes only a
-measured association **in this run**, not that TokenEconomizer was the
-sole cause, that savings will generalize, or that Anthropic's invoice will
-match Talon's price-table estimates. Repeat on realistic codebases with
-multiple runs before making a generalized ROI claim.
+The one-task smoke and keyless Talon compatibility contract retain
+the original **USD 5 daily/monthly per agent** policy. The extended
+24-ticket study has a distinct fresh **USD 15 daily/monthly per arm**
+admission budget (**USD 30 across one run**). A three-seed sequence has
+three independent stores (**USD 90 in aggregate admission budgets**).
+These are **estimation-based preventive admission policies, NOT
+guaranteed hard limits on final provider invoices**; a request can
+consume more than the estimate. Real incurred costs may be lower or
+higher than the budgets. Keep Anthropic account-side billing safeguards.
 
-To inspect the proof without another paid call:
+Talon enforces model/provider and agent budget rules on gateway traffic;
+Claude Code's local file and shell actions are not governed by Talon.
+The operator Anthropic key is stored through stdin in Talon's encrypted
+vault, never supplied directly to the coding agent or plugin.
+
+### Proof standards and reports
+
+Every run saves:
+- `comparison.html`: first-screen proof verdict, signed-vs-graded
+  metrics, and a cumulative savings table by ticket
+- `proof.md` and `proof.json`: reasoned conclusion, passing/failing
+  gates, resolved counts, per-task receipts and whole-stream economics
+- `comparison.json`: raw experiment metadata and cost summaries
+- `baseline/task-NN/signed.json`, `after/task-NN/signed.json` and
+  corresponding `metrics.json`: individually verified, agent-attributed
+  signed Talon evidence
+
+The study yields **INCONCLUSIVE** when paired task identities,
+identical initial repo hashes, high effort, CLI/provider/model metadata,
+signature verification, spent-cost reconciliation, or completion fail.
+**QUALITY_REGRESSION** means outcomes got worse; **NOT_DEMONSTRATED**
+means no complete-stream cost benefit; **PRELIMINARY_SAVINGS** means
+one observed run was cheaper without reducing graded completions.
+None of these constitutes paper replication or causal evidence.
+
+The optional three-seed aggregate compares independently initialized
+runs without dropping losing seeds. It produces
+`.state/tokeneconomizer-demo/study-aggregate.md` and
+`study-aggregate.json`. A repeated direction across three seeds
+still supports only a **bounded, synthetic, observational claim**,
+not a generalizable ROI prediction.
 
 ```bash
 make present-tokeneconomizer
 cat ".state/tokeneconomizer-demo/$(cat .state/tokeneconomizer-demo/latest.txt)/proof.md"
+# Only when ready for three separate billable runs:
+make tokeneconomizer-study-3
+cat .state/tokeneconomizer-demo/study-aggregate.md
 ```
 
-The run prints a before/after table for **Talon-estimated USD cost from real
-Anthropic usage**, input and output tokens, cached-input tokens, runtime,
-independently graded **sealed Python tests** (three input cases per function,
-executed outside Claude's editable workspace), provider calls, and signed
-Talon evidence. It also saves an audience-friendly
-HTML comparison under .state/tokeneconomizer-demo/<RUN_ID>/comparison.html,
-JSON data, and signed per-session Talon receipts under the same run directory.
-The report also separates cache-read and cache-write tokens and records
-the CLI versions used to reproduce it.
+### Relationship to the original research
 
-**Talon cost policy: USD $5 per arm (USD $10 across the experiment).** Each arm
-uses its own Talon agent with `cost_limits.daily: 5.00` and
-`cost_limits.monthly: 5.00` plus a `session_limits.max_cost: 5.00` safeguard.
-Talon enforces each agent's **aggregate** daily/monthly limit across all its
-Claude CLI task sessions. Both the baseline and the TokenEconomizer arm include
-all warmup and measured requests in their budget. Policy is limited to the
-configured, Talon-priced Anthropic model (default: `claude-sonnet-5`).
-Synthetic Python prompts and responses are PII-scanned in **warn** mode so
-benchmark content is not silently rewritten or blocked. Local file/test tools
-remain Claude Code permissions, not Talon-controlled actions.
-
-The $5 values are **pre-request admission budgets, not a guaranteed invoice
-hard ceiling**: Talon checks the model cost estimate before forwarding requests,
-but a request costing more than estimated can overshoot. This is why the report
-shows the total including warmups for each agent and marks a budget-stopped arm
-**incomplete**, with no before/after savings percentage. Actual billed provider
-cost can differ from Talon's pricing-table estimates. The user must still monitor
-their Anthropic billing limits.
-
-Five warmups per arm are excluded from the headline comparison, but their
-spend is recorded separately in the JSON and counted against the $5 arm cap.
-The sampled task count is small (five measured repairs per arm),
-so results are not a statistically powered measure of product savings.
-Runs that fail grading, contain a model/provider error, exhaust a budget, or
-fail to show actual TokenEconomizer hook/mechanism activity are
-**INCONCLUSIVE**: the report does not print a numeric savings percentage.
-The one-task smoke intentionally reports INCONCLUSIVE by design; it is a
-connectivity check, not a savings experiment. Partial reports remain available
-when an individual task errors after the gateway starts. The
-result can be a negative cost reduction; none is assumed in advance.
-
-Each model call must have session-correlated, agent-attributed signed evidence
-that passes Talon's offline signature verification. The independent Python
-test outcome determines task correctness, not Claude's self-assessment.
-
-Tool pruning may modify only the synthetic repository's local Claude settings;
-the plugin is given isolated state and a five-session threshold. The upstream
-TokenEconomizer revision is pinned to
-`0ce0e067b42b1dd5a5f5984275d07f8c7686c44a` so changes to its main
-branch cannot silently alter the experiment. Upstream notes that a recorded
-Claude Code tool catalog is important to make pruning effective; this pilot
-does **not** guarantee a measurable improvement on tiny synthetic tasks. The operator's
-real upstream API key is stored in a local Talon encrypted vault, never passed
-to Claude Code, written to reports or committed to Git. It is passed to Talon
-vault setup by stdin (not process arguments), and both Claude Code and Talon
-receive an allowlisted environment with unrelated host credentials removed.
-The provider secret is accessible only to the two benchmark agent identities.
-The demonstration uses small bounded coding tasks and eight maximum agent turns
-per task.
-
-This demo governs only the model traffic that actually crosses Talon. File
-edits, local shell/test execution and bypass traffic remain outside the Talon
-enforcement boundary.
+The original [TokenEconomizer paper](https://arxiv.org/abs/2610.22732),
+[project page](https://tokeneconomizer.github.io/) and
+[reference experiments](https://github.com/microsoft/TokenEconomizer/tree/main/experiments)
+use a **different experimental controller** with independently isolated
+real SWE-Bench tasks, official grading, long repository streams, and
+three seeds. The paper's `trimech` activation, cost model and failure-loop
+actions are **not interchangeable** with the published production plugin.
+To reproduce the paper, use its reference experiment harness, official
+tasks/images and graders. Our 24-ticket scenario is an affordable
+production-plugin effectiveness **pilot** with Talon observability and
+signed evidence. It has deliberately narrower external validity.
+Read [the upstream plugin methodology](https://github.com/microsoft/TokenEconomizer/blob/main/docs/PLUGIN.md)
+before using these pilot outcomes as research evidence.
