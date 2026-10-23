@@ -13,7 +13,7 @@ MAKE = (ROOT / "Makefile").read_text()
 
 
 class DemoBudgetTests(unittest.TestCase):
-    def test_default_live_policies_are_five_dollars_per_arm(self):
+    def test_default_live_policies_are_seven_fifty_per_arm(self):
         ns = runpy.run_path(str(RUNNER))
         self.assertEqual(ns["ARM_BUDGET"], 7.5)
         for arm in ("baseline", "after"):
@@ -38,6 +38,8 @@ class DemoBudgetTests(unittest.TestCase):
         self.assertIn("TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=7.5 ", MAKE)
         self.assertIn("TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=2.50 ", MAKE)
         self.assertIn("python3 -u scripts/tokeneconomizer-demo.py run", MAKE)
+        self.assertIn("TE_DEMO_SEED=$seed", MAKE)
+        self.assertNotIn("TE_DEMO_SEED=$seed ", MAKE)
         # Three independently initialized ledgers must have equal per-seed
         # budgets and 3 * 2.50 = 7.50, within the USD 7.50 cap per named arm.
         self.assertLessEqual(3 * 2.50, 7.5)
