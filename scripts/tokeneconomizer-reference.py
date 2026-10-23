@@ -79,9 +79,26 @@ def prepare():
     checkout = projects.parent
     if projects.is_symlink() or checkout.is_symlink() or tasks.is_symlink():
         raise RuntimeError("Web-Bench checkout and export must not use symlinks")
-    for executable in ("git", "node", "npm", "npx", "python3"):
+    if not shutil.which("node"):
+        raise RuntimeError(
+            "Node.js 22+ is required by Web-Bench but 'node' is missing from PATH. "
+            "On Ubuntu: install nvm, run 'nvm install 22', then 'nvm use 22'. "
+            "See docs/TOKENECONOMIZER_REFERENCE.md (Ubuntu host prerequisites).")
+    raw_version = subprocess.run(
+        ["node", "--version"], capture_output=True, text=True,
+        env=demo.safe_env(), check=True, timeout=15).stdout.strip()
+    try:
+        node_major = int(raw_version.lstrip("v").split(".")[0])
+    except (ValueError, IndexError):
+        raise RuntimeError("Cannot identify Node.js version: " + repr(raw_version))
+    if node_major < 22:
+        raise RuntimeError(
+            f"Web-Bench requires Node.js 22+; detected {raw_version}. "
+            "Run 'nvm install 22 && nvm use 22' before preparation.")
+    for executable in ("git", "npm", "npx", "python3"):
         if not shutil.which(executable):
-            raise RuntimeError("Missing " + executable + ". Install prerequisites and retry.")
+            raise RuntimeError("Missing " + executable + ". Install prerequisites and retry. "
+                               "See docs/TOKENECONOMIZER_REFERENCE.md.")
     plugin, commit = demo.install_plugin()
     experiments = plugin.parent / "experiments"
     build_env = demo.safe_env()  # never expose Anthropic/OpenAI keys to third-party build scripts
