@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Credential-free checks for the *reference* benchmark mini-pilot."""
 import importlib.util
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -130,6 +132,32 @@ class ReferencePilotTest(unittest.TestCase):
         self.assertIn("1.0.84-7", result["version"])
         self.assertEqual(proc.call_args.kwargs["env"], ref.demo.safe_env())
         self.assertEqual(proc.call_args.args[0], ["/tmp/copilot", "--version"])
+
+    def test_offline_diagnosis_distinguishes_unreached_from_attempted(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "reference-proof.json").write_text(json.dumps({
+                "upstream_sha": ref.demo.TOKENECONOMIZER_COMMIT,
+                "task_ids": ["task-1", "task-2"]}))
+            for arm in ("baseline", "trimech-web"):
+                cell = root / "official-results" / "copilot_webbench_sonnet5" / arm / "expressjs_s0"
+                for index, (attempts, unreached) in enumerate(((2, False), (0, True)), 1):
+                    run = cell / f"20261023T00000{index}Z"
+                    run.mkdir(parents=True)
+                    (run / "row.json").write_text(json.dumps({
+                        "instance": f"task-{index}", "resolved": False,
+                        "webbench_attempts": attempts,
+                        "webbench_attempt_results": [False] * attempts,
+                        "unreached": unreached, "num_turns": attempts * 5,
+                        "run_dir": str(run)}))
+            capture = io.StringIO()
+            with contextlib.redirect_stdout(capture):
+                ref.diagnose(str(root))
+            output = capture.getvalue()
+            self.assertIn("STREAM CENSORED", output)
+            self.assertIn("'attempted': 1", output)
+            self.assertIn("'unreached': 1", output)
+            self.assertIn("No API calls made", output)
 
     def test_run_is_opt_in_before_any_dependencies_or_cost(self):
         with patch.dict(os.environ, {"TE_REFERENCE_PAID_CONFIRM": "",
