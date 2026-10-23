@@ -548,7 +548,8 @@ def one(arm, index, run_id, workspace, values, plugin, issue_id=None):
     except subprocess.TimeoutExpired:
         answer = None
     duration = round(time.monotonic() - started, 2)
-    grade_passed = (study_grade(workspace, issue_id) if PROFILE == "study"\n                    else independent_grade(workspace, index))
+    grade_passed = (study_grade(workspace, issue_id) if PROFILE == "study"
+                    else independent_grade(workspace, index))
     destination = STATE / run_id / arm / f"task-{index:02d}"
     metrics = verified(session, ARM_AGENTS[arm], tenv(values, run_id), destination)
     signed = destination / "signed.json"
