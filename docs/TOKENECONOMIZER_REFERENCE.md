@@ -175,7 +175,29 @@ submission counts** alongside the grader facts, without printing any prompt,
 tool command, arguments or response. Diagnose the old run after updating the
 branch; then inspect the **three Bash command outcomes** locally to distinguish
 "agent didn't change files" from "agent wrote files outside the evaluator's
-scratch workspace" or "collector excluded edits". None of these can be
+scratch workspace" or "collector excluded edits". The operator subsequently supplied all **three** experimental Bash invocation
+arguments: they were `cat`/`ls`, `ls`/`find`, and `grep` commands, all
+read-only, executed in the second-attempt scratch workspace. Taken together
+with the 22 `view` executions, the transcript summary contains **no
+observed edit/write action** for that arm. This explains the lack of changed
+files without implying the evaluator's file collector failed. It does not
+explain *why* Copilot never attempted to write.
+
+The original Microsoft `TASK_TEMPLATE` explicitly tells the agent to edit
+existing files and create new ones. Its Copilot `build_argv` uses
+`--allow-all-tools`, with `edit`, `create`, `str_replace`, and `bash` as
+protected tools that must not be pruned; the arm's saved row recorded
+`untooled_excluded=[]` and `net_guard_blocks=0`. We should inspect the
+actual `session.tools_updated` declarations and the completed `view`/Bash
+results for errors or absent paths, along with the agent's final message.
+Do not infer a Talon policy denial, broken collector, or read-only tool policy
+without evidence.
+
+**Next decision:** do not spend on another run until runtime tool availability
+and workspace accessibility have been inspected. A repaired browser alone does
+not guarantee a meaningful coding-agent benchmark.
+
+None of these can be
 concluded from tool names alone. The partial-stream
 Playwright 2-second timeout limitation remains and should not be conflated
 with the missing-library failure.
