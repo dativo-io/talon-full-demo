@@ -364,6 +364,11 @@ tokeneconomizer-reference-check:
 tokeneconomizer-reference-diagnose:
 	python3 scripts/tokeneconomizer-reference.py diagnose
 
+# Censoring-aware, free paired task analysis; works even when reference-proof.json
+# was never written by the benchmark wrapper.
+tokeneconomizer-reference-analyze:
+	python3 scripts/tokeneconomizer-reference.py analyze
+
 # Original Microsoft Web-Bench (not the synthetic 24-ticket/production-plugin
 # study). Plan and offline tests make NO model calls.
 tokeneconomizer-reference-plan:
