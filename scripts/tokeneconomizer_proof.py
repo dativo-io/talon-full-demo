@@ -62,11 +62,18 @@ def assess(report):
                   fingerprints.get("baseline") == fingerprints.get("after"))
     controls = bool(model and version and len(plugin_version) == 40 and same_input and
                     report.get("comparison_policy") == "separate $5 Talon agents")
-    # A proposed deny list has *no runtime effect*, and rendered facts may
-    # only be prepared for the NEXT session. Count actual SessionStart
-    # injections, applied tool removals or delivered loopguard nudges.
-    intervention = any(signals[k] for k in
-                       ("session_injections", "pruned_tools", "nudges"))
+    # A proposed deny list has NO runtime effect; an injection prepared for
+    # a future session does not prove anything reached a measured request.
+    # Only signals attributed to an ACTUAL measured Claude session count.
+    measured_interventions = [
+        {"task": r.get("task"),
+         "injected_facts": int(r.get("plugin_injected_facts") or 0),
+         "pruned_tools": list(r.get("plugin_pruned_tools") or []),
+         "nudges": int(r.get("plugin_nudges") or 0)}
+        for r in after if r.get("task") in MEASURED
+    ]
+    intervention = any(x["injected_facts"] > 0 or x["pruned_tools"] or
+                       x["nudges"] > 0 for x in measured_interventions)
     # A hook session record is evidence of loading, NOT of useful optimization.
     hooks = int(report.get("token_economizer_hook_sessions") or 0)
     activation = hooks >= 5 and intervention
@@ -85,7 +92,7 @@ def assess(report):
         {"id": "quality_and_execution", "pass": passing and complete,
          "detail": f"Sealed grading, CLI success, zero provider errors/denials for all {len(all_tasks)} tasks"},
         {"id": "actual_plugin_intervention", "pass": activation,
-         "detail": f"{hooks} hook sessions; observed mechanisms {signals}"},
+         "detail": f"{hooks} hook sessions; measured-session effects {measured_interventions}; total history {signals}"},
         {"id": "measured_cost_lower", "pass": lower and comparable,
          "detail": f"Baseline USD {x:.4f}; plugin USD {y:.4f}; difference USD {savings:.4f}"},
     ]
@@ -111,6 +118,7 @@ def assess(report):
         "paired_measured_tasks": pairs,
         "comparison_valid": comparable and release_ok and controls,
         "plugin_activation_observed": activation,
+        "measured_interventions": measured_interventions,
         "cost": {
             "measured_baseline_usd": round(x, 7),
             "measured_plugin_usd": round(y, 7),
