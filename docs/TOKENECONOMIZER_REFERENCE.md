@@ -49,7 +49,6 @@ the Playwright-provided dependency installer (review the package changes):
 
 ```bash
 cd ~/src/talon-full-demo/.state/tokeneconomizer-demo/reference-web-bench/projects/expressjs
-sudo env "PATH=$PATH" "$(command -v node)" --version  # optional diagnostics; no install
 npx playwright install-deps chromium
 cd ~/src/talon-full-demo
 ```
