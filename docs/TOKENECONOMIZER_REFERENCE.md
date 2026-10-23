@@ -172,6 +172,55 @@ The command reads saved official rows and tool-execution metadata, counts attemp
 
 **Do not change or patch the original ByteDance grader, Microsoft controller, or gold/reference source to improve results.** This wrapper changes only benchmark selection, preflight checks, Talon routing, and evidence packaging.
 
+## Correctly compare censored streams and incomplete usage (Oct 23 full-20 pilot)
+
+The next full-project Express.js / seed 0 experiment reported **15 tasks
+attempted in baseline (14 pass@2)**, versus **10 attempted in trimech-web
+(9 pass@2)**. Both cells contain 20 stored rows, but the later rows are
+`unreached` placeholders produced after Web-Bench stopped at a failed task.
+Token accounting on baseline task-15 and experimental task-10 is marked
+`tokens_source=mixed`: one or more Copilot segments did not produce the
+full debug-log token breakdown. Their recorded values are **lower bounds**,
+not actual zero or measured savings.
+
+**Do not cite the initial aggregator's $8.20 vs $3.69 token-equivalent
+estimates or the original `compare_arms.py` 54.5% lower effective-token
+figure as an optimizer saving.** `compare_arms.py` excludes the two
+incomplete rows, but still retains `unreached` placeholder rows as
+"paired". Those rows have no real task cost; the experimental arm ran
+five fewer tasks. The script's 18 pairs are **not** 18 shared executions.
+
+Use the supplementary demo wrapper's read-only, no-key, no-cost command
+to compare ONLY tasks that both agents really attempted, were actually
+graded, and have complete usage:
+
+```bash
+TE_REFERENCE_RUN_DIR=".state/tokeneconomizer-demo/reference-20261023T203253Z-5e50676f" \
+  make tokeneconomizer-reference-analyze
+```
+
+In this run, tasks **1–10** were attempted in both arms, but task 10 is
+excluded from the token-cost comparison because the experimental arm's
+usage is incomplete. Thus the comparable fully measured cost sample is
+**tasks 1–9, not 18 tasks**. Report correctness separately on all
+actually reached tasks: baseline passed task 10 while experimental
+failed both attempts. A cost delta on the nine common measured tasks
+is *descriptive only*, is conditioned on having survived the stream,
+and cannot extrapolate to full-project savings. No prefix injections
+were observed in the original comparison; other mechanism
+interventions require separate evidence. The experimental task-10
+failure reason is not yet established.
+
+The operator reported `reference-proof.json` **missing**, so neither
+the final wrapper verdict nor signed Talon cost/denial summary is
+currently available. The official controller's `DONE` confirms an
+original benchmark cell completed, **not** that the demo wrapper
+finished exporting/verifying signed Talon evidence. The analysis command
+states whether the proof and per-arm `signed.json` files exist;
+investigate the wrapper process/logs before assuming costs or
+policy denials. **Do not fund another run until the terminal failure
+and evidence-export states are resolved.**
+
 ## Deliberately paid experiment
 
 Only after the keyless preflight passes **and the full-stream costs have been approved**:
