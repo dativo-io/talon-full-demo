@@ -102,11 +102,11 @@ def prepare():
                       "--to", "@web-bench/eval", "--to", "@web-bench/expressjs"]):
             print(">", " ".join(args), flush=True)
             subprocess.run(args, cwd=checkout, check=True)
-        # Use the project's pinned @playwright/test version, not a
-        # global playwright install with a potentially incompatible browser.
-        args = ["npx", "playwright", "install", "chromium", "chromium-headless-shell"]
-        print(">", " ".join(args), flush=True)
-        subprocess.run(args, cwd=projects / "expressjs", check=True)
+    # Idempotent: a pre-existing evaluator build does not imply that this
+    # machine has the project's pinned browser binary installed.
+    args = ["npx", "playwright", "install", "chromium", "chromium-headless-shell"]
+    print(">", " ".join(args), flush=True)
+    subprocess.run(args, cwd=projects / "expressjs", check=True)
     rows = export_expressjs_tasks(projects, tasks, experiments)
     revision = subprocess.run(["git", "-C", str(checkout), "rev-parse", "HEAD"],
                               capture_output=True, text=True, check=True).stdout.strip()
