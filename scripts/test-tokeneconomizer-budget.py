@@ -39,7 +39,7 @@ class DemoBudgetTests(unittest.TestCase):
         self.assertIn("TE_DEMO_PROFILE=study TE_DEMO_ARM_BUDGET=2.50 ", MAKE)
         self.assertIn("python3 -u scripts/tokeneconomizer-demo.py run", MAKE)
         self.assertIn("TE_DEMO_SEED=$seed", MAKE)
-        self.assertNotIn("TE_DEMO_SEED=$seed ", MAKE)
+        self.assertEqual(MAKE.count("TE_DEMO_SEED=$seed"), 1)
         # Three independently initialized ledgers must have equal per-seed
         # budgets and 3 * 2.50 = 7.50, within the USD 7.50 cap per named arm.
         self.assertLessEqual(3 * 2.50, 7.5)
