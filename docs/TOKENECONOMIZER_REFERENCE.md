@@ -15,7 +15,7 @@ make tokeneconomizer-validate               # free, local regression tests
 make tokeneconomizer-contract               # free, live Talon gateway against a local mock
 ```
 
-The **prepare** target downloads Microsoft TokenEconomizer at the reviewed pinned revision, clones ByteDance Web-Bench, runs Rush install/build **for only `@web-bench/eval` and `@web-bench/expressjs`**, installs the Playwright Chromium browser for the project's pinned version, and exports all **20 original** expressjs tasks into a single-project task list. The paid runner uses only the first six by default (one to eight supported). Original source descriptions, task order, experiment controller and evaluator stay unchanged. The export is a data-only projection of Microsoft's `workloads/webbench.json` + Web-Bench's `projects/expressjs/tasks.jsonl`; no tasks are invented or rewritten.
+The **prepare** target downloads Microsoft TokenEconomizer at the reviewed pinned revision, clones ByteDance Web-Bench at pinned commit `7b31ca2b786eef120dd49ce63dd03d0c0006046d`, runs Rush install/build **for only `@web-bench/eval` and `@web-bench/expressjs`**, installs the Playwright Chromium browser for the project's pinned version, and exports all **20 original** expressjs tasks into a single-project task list. The paid runner uses only the first six by default (one to eight supported). Original source descriptions, task order, experiment controller and evaluator stay unchanged. The export is a data-only projection of Microsoft's `workloads/webbench.json` + Web-Bench's `projects/expressjs/tasks.jsonl`; no tasks are invented or rewritten.
 
 The default paths live in Git-ignored demo state, so **no `TE_REFERENCE_PROJECTS` or `TE_REFERENCE_TASKS` exports are needed**:
 
