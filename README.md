@@ -440,6 +440,15 @@ recorded, not relabeled as a compliant run. The logs and signed receipts
 remain local to the operator; the terminal summary alone is not an
 independently published evidence package.
 
+**Why activation was unlikely:** The upstream plugin defaults to an
+**hour of repository inactivity before applying an automatic tool-pruning
+deny list**, while this study issued successive short tasks. Its free
+micro-skills require recurring environment failures across sessions,
+and the failure-loop guard needs repeated failing attempts inside a turn.
+The all-green 24-ticket result supplies little evidence for either.
+These are eligibility limitations, **not evidence that the plugin is
+broken**. See [upstream plugin settings](https://github.com/microsoft/TokenEconomizer/blob/main/plugin/README.md).
+
 **Next experiment gate:** First establish an observable mechanism
 (injection, applied tool pruning or loop nudge) in a genuinely eligible
 workload. Repeating short default-plugin runs with zero interventions
