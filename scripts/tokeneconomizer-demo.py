@@ -545,23 +545,29 @@ def table(report):
               ("Provider calls", "calls", "{:,.0f}"),
               ("Provider errors", "provider_errors", "{:,.0f}"),
               ("Signed evidence", "records", "{:,.0f}")]
-    complete = bool(report.get("proof", {}).get("comparison_valid"))
+    proof = report.get("proof") or {}
+    complete = bool(proof.get("comparison_valid"))
+    intervened = bool(proof.get("plugin_activation_observed"))
+    # Print raw observed amounts in every run, but a percentage needs
+    # comparable signed evidence AND an applied optimization. Otherwise it
+    # looks like a causal claim on an unverified warmup fluctuation.
+    delta_unproven = "not proven" if complete else "incomplete"
     rows = []
     for label, key, display in fields:
         x, y = before[key], after[key]
-        delta = "incomplete" if not complete else (
+        delta = delta_unproven if not complete or not intervened else (
             "n/a" if not x else f"{(y / x - 1) * 100:+.1f}%")
         rows.append((label, display.format(x), display.format(y), delta))
     spent = report.get("arm_total_including_warmups") or {}
     if "baseline" in spent and "after" in spent:
         x, y = spent["baseline"]["cost"], spent["after"]["cost"]
-        delta = "incomplete" if not complete else (
+        delta = delta_unproven if not complete or not intervened else (
             "n/a" if not x else f"{(y / x - 1) * 100:+.1f}%")
         rows.insert(1, ("Full-arm cost incl. warmups (USD)",
                         f"USD {x:.4f}", f"USD {y:.4f}", delta))
         rows.insert(2, ("Talon budget utilization",
                         f"{100*x/ARM_BUDGET:.1f}%",
-                        f"{100*y/ARM_BUDGET:.1f}%", "incomplete" if not complete else "—"))
+                        f"{100*y/ARM_BUDGET:.1f}%", delta_unproven if not complete or not intervened else "—"))
     widths = [max(map(lambda line: len(str(line[i])),
                   [("Metric", "Before", "After", "Change")] + rows)) for i in range(4)]
     layout = lambda line: " | ".join(str(line[i]).ljust(widths[i]) for i in range(4))
