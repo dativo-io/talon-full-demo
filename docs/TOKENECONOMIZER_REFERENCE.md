@@ -1,6 +1,6 @@
 # Original TokenEconomizer Web-Bench mini-pilot through Talon
 
-**Status:** self-service setup and keyless validation implemented. The paid benchmark has **not** been run by ChatGPT. Earlier output showing missing `TE_REFERENCE_PROJECTS` is a setup-only failure, not a Talon fault.
+**Status:** self-service setup and keyless validation implemented. The operator's first paid Web-Bench pilot (2026-10-23; expressjs first six tasks, seed 0) produced complete signed Talon model evidence but both arms resolved **0 tasks**. The benchmark is therefore **inconclusive for effectiveness**. It is NOT evidence that the optimizer helps, nor evidence that it makes tasks worse. Talon's local v1.15.3 contract passed.
 
 ## Ubuntu host prerequisites
 
@@ -112,6 +112,70 @@ If you already have a built Web-Bench checkout, set `TE_REFERENCE_PROJECTS` and 
 
 Ubuntu prerequisites: Python 3.10+, Git, Node.js/npm/npx, pinned Copilot CLI 1.0.84-7 and Talon v1.15.3. Preparing dependencies executes the normal external Rush installation/build scripts; review external packages as you would for any downloaded open-source project. On a 2-vCPU, 8-GB server, dependency installation and compilation may be resource-intensive. It does not charge the Anthropic provider.
 
+## Diagnose a saved reference run BEFORE paying for another one
+
+The first local experiment returned six row files for each arm, but the
+upstream comparison script printed `resolved=0/0` and crashed on division
+by a zero baseline median. **Do not treat all six rows as six attempted
+tasks.** When a Web-Bench task fails both tries, the original evaluator
+stops the sequential project and the harness writes `unreached=True`
+placeholder rows for all remaining tasks with zero cost. These placeholders
+bias token averages and make the upstream `compare_arms.py` median zero.
+
+Run the demo's **read-only, zero-cost** diagnostic on the previously saved
+experiment (it does not rerun the agent or require a key):
+
+```bash
+git pull --ff-only
+TE_REFERENCE_RUN_DIR=".state/tokeneconomizer-demo/reference-20261023T191741Z-01db0489" \
+  make tokeneconomizer-reference-diagnose
+```
+
+Or use `make tokeneconomizer-reference-diagnose` for the newest saved
+reference-proof.json. The report prints **per-arm actual attempted tasks,
+actual pass/fail per attempt, unreached placeholders, model turns, usage
+source, and exact evaluator/agent log paths** for failing tasks. It does
+not dump raw prompts, API keys, or logs. Inspect the failing task's
+`evaluator.log`, `row.json`, `run_config.json` and agent transcript
+before sharing logs publicly; these may contain workspace code/prompts.
+
+Possible causes include actual unsolved task requirements, incorrect
+workspace changes, evaluator/browser problems, or excessively strict
+partial-stream Playwright timeouts. Do **not** assume any particular cause
+without reading that saved evidence.
+
+### Next experiment: preserve the paper's evaluation unit
+
+**Do not just increase seed count on the six-task pilot.** The paper's
+Web-Bench experiment uses **full 20-task project streams**. A partial
+stream switches the evaluator from 30-second to 2-second Playwright
+timeouts and cannot reproduce the paper's grading. Additionally, later
+tasks only run when earlier tasks pass; even a 20-task limit can end
+after the first task if it fails both attempts.
+
+1. Investigate the saved failed task and validate baseline grader health
+   independently, without modifying the original Microsoft grader or
+   optimizer.
+2. Once healthy, explicitly fund a **full 20-task, one-seed, paired
+   baseline/trimech-web pilot** on a predeclared project, with native
+   production-mode evaluator settings; no claims from a one-seed result.
+3. Only if that completes successfully, run **three predeclared seeds**
+   across several original projects, with a cost budget approved before
+   adding more traffic. Preserve the original model, Copilot CLI version,
+   retry count, project order and signed Talon per-arm isolation.
+4. Publish **both** Web-Bench's pass@1 and pass@2, attempted/reached task
+   counts, paired cache-aware effective token costs, actual Talon-estimated
+   provider spend (including optimization calls), and mechanism activation.
+
+The current runner intentionally caps pilot tasks at eight and budgets at
+$5 estimated admission per arm. **Full-20 support and its cost ceiling
+must be deliberately designed and approved before a paid scale-up.**
+
+We should tell a Talon governance and evidence story: Talon attributes
+all agent and optimizer model calls, enforces independent budgets and
+emits verifiable signed records. Whether the optimizer saves tokens on
+this workload remains a separate, falsifiable empirical question.
+
 ## Deliberately paid experiment
 
 Only after the keyless preparation and contract pass:
@@ -148,7 +212,7 @@ The benchmark writes results to a new, ignored `.state/tokeneconomizer-demo/refe
 - `baseline/signed.json` and `after/signed.json`: Talon signed evidence for every agent session
 - `baseline/harness.log`, `after/harness.log`: upstream logs
 
-The result is `INCONCLUSIVE` if task grading or signed evidence is incomplete or model/pricing facts cannot be verified. Even a completed one-seed run is only `ONE_SEED_OBSERVATIONAL_ONLY`. We must inspect the original intervention telemetry before making an optimizer-effect claim.
+The result is `INCONCLUSIVE` if task grading or signed evidence is incomplete, if the stream contains unattempted/unreached tasks or no successful tasks, or if model/pricing facts cannot be verified. Even a completed one-seed run is only `ONE_SEED_OBSERVATIONAL_ONLY`. We must inspect the original intervention telemetry before making an optimizer-effect claim.
 
 **Boundaries:** this is the research **experimental controller**, not the installable TokenEconomizer plugin; do not pool results with the existing synthetic 24-ticket pilot. The demo makes no Talon OSS changes and does not govern local file or shell operations. The original controller and evaluator are unmodified.
 
