@@ -84,8 +84,15 @@ def assess(report):
     ]
     activated = any(x["injected_facts"] or x["pruned_tools"] or x["nudges"] for x in interventions)
     catalog = (report.get("tokeneconomizer_catalog") or {}).get("status") == "recorded"
+    # The user's approved preventive admission ceiling is USD 5/arm.
+    # This does not imply the final provider invoice is hard-capped.
+    try:
+        admission_budget = float(report.get("budget_cap_usd_per_arm") or 0)
+    except (TypeError, ValueError):
+        admission_budget = 0
+    budget_valid = 0 < admission_budget <= 5.0
     defaults = report.get("pruning_mode") == "default"
-    compatible = controlled and completed and signed and costs_reconciled and catalog
+    compatible = controlled and completed and signed and costs_reconciled and catalog and budget_valid
     checks = [
         {"id":"published_talon_version","pass":version_ok,"detail":version.splitlines()[0] if version else "missing"},
         {"id":"paired_seed_and_starting_repository","pass":paired and same,"detail":"24 paired tasks; identical initial source SHA-256; seeded order"},
@@ -94,6 +101,8 @@ def assess(report):
         {"id":"full_and_measured_cost_reconciles","pass":costs_reconciled,"detail":"Every displayed USD total matches real signed task receipts"},
         {"id":"independent_grader","pass":quality,"detail":f"Baseline {passed_a}/24 passed, plugin {passed_b}/24; cumulative hidden regressions {regression_failures}; require >=12 baseline successes and no regression"},
         {"id":"plugin_setup","pass":catalog,"detail":"Upstream-recommended Claude tool catalog captured"},
+        {"id":"approved_admission_budget","pass":budget_valid,
+         "detail":f"Configured USD {admission_budget:.2f}/arm; approved ceiling USD 5.00/arm (estimate-based admission, not invoice cap)"},
         {"id":"plugin_mechanism_applied","pass":activated,"detail":f"{sum(bool(x['injected_facts'] or x['pruned_tools'] or x['nudges']) for x in interventions)} measured tasks received a recorded intervention"},
         {"id":"full_stream_cost_lower","pass":cheaper and compatible,"detail":f"Baseline USD {full_a:.4f}; plugin USD {full_b:.4f}"},
         {"id":"production_default_pruning","pass":defaults,"detail":"No artificial tool-pruning quiet-time override"}
@@ -107,9 +116,14 @@ def assess(report):
     elif not quality:
         verdict = "QUALITY_REGRESSION"
         title = "Previously working tickets regressed or the plugin resolved fewer tickets; cost savings are not sufficient."
+    elif not cheaper and not activated:
+        verdict = "NO_OPTIMIZER_INTERVENTION"
+        title = ("The plugin ran, but no micro-skill injection, applied tool pruning "
+                 "or failure-loop nudge was observed in measured tickets; "
+                 "the plugin arm did not reduce full-stream cost.")
     elif not cheaper:
         verdict = "NOT_DEMONSTRATED"
-        title = "No net cost improvement across the entire repository stream."
+        title = "An optimizer intervention was observed, but full-stream cost was not lower."
     elif not activated:
         verdict = "LOWER_COST_UNATTRIBUTED"
         title = ("Plugin arm happened to cost less across this stream, but no "
@@ -184,7 +198,21 @@ def markdown(proof, report):
     lines += ["", "## Claim gates", "", "| Evidence gate | Result | Basis |", "|---|---|---|"]
     for c in proof["checks"]:
         lines.append(f"| {c['id']} | {'PASS' if c['pass'] else 'NOT MET'} | {c['detail'].replace('|','/')} |")
-    lines += ["","## Paired task costs and cumulative break-even","","| # | Ticket | Phase | Baseline USD | Plugin USD | Cumulative saving USD | Pass both | Receipts |",
+    mechanisms = report.get("plugin_mechanisms_observed") or {}
+    lines += ["", "## What the optimizer actually did", "",
+              f"Recorded hook sessions: {report.get('token_economizer_hook_sessions', 0)}. "
+              f"Proposed tool removals: {mechanisms.get('proposed_tools', 0)}. "
+              f"Applied removals: {mechanisms.get('pruned_tools', 0)}. "
+              f"Sessions with injection: {mechanisms.get('session_injections', 0)}. "
+              f"Failure-loop nudges: {mechanisms.get('nudges', 0)}.",
+              "",
+              "Proposals and hook presence are not interventions. Only injections, "
+              "applied pruning or nudges observed in real measured sessions can "
+              "establish that an optimizer mechanism executed.",
+              "The production default quiet-time window can prevent pruning in "
+              "a short study; extending the task count alone does not prove activation.",
+              "",
+              "## Paired task costs and cumulative break-even","","| # | Ticket | Phase | Baseline USD | Plugin USD | Cumulative saving USD | Pass both | Receipts |",
               "|---|---|---|---:|---:|---:|---|---|"]
     for p in proof["paired_tasks"]:
         rec=(" / ".join(f"[{label}]({p[key]})" if p.get(key) else "missing"
