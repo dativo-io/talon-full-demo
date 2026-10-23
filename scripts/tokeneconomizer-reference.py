@@ -3,7 +3,7 @@
 
 The Microsoft experiments/trimech-web controller and official Web-Bench grader
 are used UNMODIFIED. GitHub Copilot CLI BYOK sends Anthropic wire requests to
-Talon; a separate authenticated agent and $5 admission limit protects each arm.
+Talon; a separate authenticated agent with an explicitly approved budget protects each arm.
 
 No provider calls without an explicit TE_REFERENCE_PAID_CONFIRM=YES.
 """
@@ -25,8 +25,8 @@ demo = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(demo)
 
 MODEL = "claude-sonnet-5"
-MAX_TASKS = 8
-DEFAULT_TASKS = 6
+FULL_PROJECT_TASKS = 20
+MAX_ARM_BUDGET_USD = 25.0
 # Reviewed original Web-Bench source revision, not a moving main branch.
 WEBBENCH_SHA = "7b31ca2b786eef120dd49ce63dd03d0c0006046d"
 COPILOT_REFERENCE_VERSION = "1.0.84-7"
@@ -220,6 +220,7 @@ def check():
             raise RuntimeError("Missing " + name + "; no model calls made")
     cli = copilot_preflight()
     playwright_preflight(projects)
+    initial_state_preflight(projects, selected)
     _, commit = demo.install_plugin()
     print("PASS: original Web-Bench evaluator, source task order and", len(selected),
           "selected tasks verified; Microsoft harness pinned to", commit)
@@ -234,10 +235,59 @@ def check():
 
 
 def task_limit():
-    value = int(os.getenv("TE_REFERENCE_TASK_LIMIT", str(DEFAULT_TASKS)))
-    if not 1 <= value <= MAX_TASKS:
-        raise RuntimeError("Reference pilot requires between 1 and 8 original Web-Bench tasks/arm")
+    """Full project only: startTask on ANY partial run seeds the gold src/."""
+    value = int(os.getenv("TE_REFERENCE_TASK_LIMIT", str(FULL_PROJECT_TASKS)))
+    if value != FULL_PROJECT_TASKS:
+        raise RuntimeError(
+            "INVALID BENCHMARK: Web-Bench partial streams set startTask and "
+            "initialize from the completed reference src/ instead of src-init/. "
+            "This contaminates the benchmark and changes test timeouts. "
+            "Only the complete original 20-task project is supported; "
+            "unset TE_REFERENCE_TASK_LIMIT or set it to 20. No paid calls made.")
     return value
+
+
+def reference_budget():
+    """Explicit, capped Talon estimate-admission budget for both arms."""
+    from math import isfinite
+    raw = os.getenv("TE_REFERENCE_ARM_BUDGET_USD", "5.00")
+    try:
+        usd = float(raw)
+    except ValueError:
+        raise RuntimeError("Invalid TE_REFERENCE_ARM_BUDGET_USD: " + repr(raw))
+    if not isfinite(usd) or not 0 < usd <= MAX_ARM_BUDGET_USD:
+        raise RuntimeError("TE_REFERENCE_ARM_BUDGET_USD must be > 0 and <= USD 25/arm")
+    if usd > 5.0 and os.getenv("TE_REFERENCE_HIGHER_BUDGET_CONFIRM") != "YES":
+        raise RuntimeError(
+            "Higher budget requires TE_REFERENCE_HIGHER_BUDGET_CONFIRM=YES "
+            "as well as the existing paid confirmation. No paid calls made.")
+    return round(usd, 2)
+
+
+def initial_state_preflight(projects, task_ids):
+    """Keyless guard for the original Web-Bench source/calibration trap."""
+    if task_ids != [f"task-{i}" for i in range(1, FULL_PROJECT_TASKS + 1)]:
+        raise RuntimeError("Initial-state safeguard requires all 20 original tasks in order")
+    project = projects / "expressjs"
+    init = project / "src-init" / "index.js"
+    gold = project / "src" / "index.js"
+    settings = projects.parent / "tools" / "evaluator" / "src" / "settings" / "bench.ts"
+    if not all(f.is_file() for f in (init, gold, settings)):
+        raise RuntimeError("Official Web-Bench src-init, reference src and settings are missing")
+    source = settings.read_text()
+    if not all(x in source for x in (
+        "if (startTask)", "outputProjectDir.push(srcDir)",
+        "outputProjectDir.push(initDir)",
+        "fullTasks.length !== tasks.length")):
+        raise RuntimeError(
+            "Web-Bench starting-state logic changed; audit official source before paying.")
+    # Unlike the completed reference, the starting scaffold must not already
+    # contain the first task's implementation. Do not mutate either folder.
+    if (project / "src-init" / "routes" / "home" / "api.js").exists():
+        raise RuntimeError("Web-Bench src-init contains completed home routes")
+    if init.read_bytes() == gold.read_bytes():
+        raise RuntimeError("Web-Bench initial and reference entrypoints are identical")
+    print("PASS: 20-task production stream starts from src-init (not solved src/)", flush=True)
 
 
 def inputs():
@@ -515,18 +565,22 @@ def audit_agent(values, run_id, arm, out):
 
 
 def plan():
-    print("TokenEconomizer ORIGINAL Web-Bench mini pilot (NOT production plugin)")
-    print("Source: microsoft/TokenEconomizer @" , demo.TOKENECONOMIZER_COMMIT)
-    print("Official evaluator: expressjs | first", task_limit(), "sequential tasks | seed 0")
+    print("TokenEconomizer ORIGINAL Web-Bench full-project pilot (NOT production plugin)")
+    print("Source: microsoft/TokenEconomizer @", demo.TOKENECONOMIZER_COMMIT)
+    print("Official evaluator: expressjs | ALL", task_limit(), "tasks | production grader | seed 0")
     print("Arms: baseline vs trimech-web | Copilot CLI BYOK -> Talon -> Anthropic")
-    print("Each arm: independent $5.00 admission cap; up to $10.00 combined.")
-    print("Pilot subset switches official Web-Bench evaluator to stricter development timeouts.")
+    print("Each arm: independent USD 5.00 default estimated admission budget;")
+    print("explicitly opt into a higher amount (max USD 25/arm), if needed.")
+    print("Partial benchmark forbidden: Web-Bench treats startTask as GOLD src/ calibration.")
     print("Only 1 seed: no statistical, causal or paper-replication claim.")
     print("No API calls performed. One-command benchmark setup:")
     print("  make tokeneconomizer-reference-prepare   # source/dependency downloads; NO paid calls")
     print("  make tokeneconomizer-reference-check     # original evaluator/task order; NO paid calls")
     print("Then export ANTHROPIC_API_KEY (used only in Talon's vault) and run:")
-    print("  TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run")
+    print("  TE_REFERENCE_PAID_CONFIRM=YES TE_REFERENCE_FULL_STREAM_CONFIRM=YES")
+    print("    make tokeneconomizer-reference-run")
+    print("Optional budget only if explicitly approved: TE_REFERENCE_ARM_BUDGET_USD=<amount>")
+    print("  and TE_REFERENCE_HIGHER_BUDGET_CONFIRM=YES when amount exceeds 5.")
     print("Default paths:", reference_paths())
     print("Host prerequisite: Copilot CLI", COPILOT_REFERENCE_VERSION,
           "and Node.js 22+. See docs/TOKENECONOMIZER_REFERENCE.md")
@@ -536,12 +590,22 @@ def plan():
 def run():
     if os.getenv("TE_REFERENCE_PAID_CONFIRM") != "YES":
         raise RuntimeError("No paid execution without TE_REFERENCE_PAID_CONFIRM=YES")
+    if os.getenv("TE_REFERENCE_FULL_STREAM_CONFIRM") != "YES":
+        raise RuntimeError(
+            "The invalid six-task experiment is retired. Full 20-task Web-Bench "
+            "run requires TE_REFERENCE_FULL_STREAM_CONFIRM=YES and explicit "
+            "TE_REFERENCE_PAID_CONFIRM=YES. No paid calls made.")
+    budget = reference_budget()
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise RuntimeError("ANTHROPIC_API_KEY is required only for Talon's vault setup")
-    if demo.ARM_BUDGET != 5.0 or demo.MODEL != MODEL:
-        raise RuntimeError("Reference study requires the $5/arm policy and claude-sonnet-5")
+    if demo.MODEL != MODEL:
+        raise RuntimeError("Reference study requires claude-sonnet-5")
+    # The budget is only consumed inside this benchmark subprocess; no
+    # modification to Talon OSS or to the synthetic fixture study.
+    demo.ARM_BUDGET = budget
     projects, tasks, expected = inputs()
     playwright_preflight(projects)
+    initial_state_preflight(projects, expected)
     copilot = copilot_preflight()
     for name in ("talon", "git", "node", "bash"):
         if not shutil.which(name):
@@ -580,7 +644,8 @@ def run():
             if pre.returncode or "cells=1" not in pre.stdout or \
                     "task-runs=" not in pre.stdout:
                 raise RuntimeError("Reference arm planning failed; see " + str(output / "plan.log"))
-            print("START", name, "|", len(expected), "official tasks | $5 Talon policy", flush=True)
+            print("START", name, "|", len(expected), "official tasks | $",
+                  f"{budget:.2f}", " Talon estimated admission policy", flush=True)
             process = demo.execute(["bash", "scripts/launch/main_sweep.sh"],
                                    env=env, cwd=experiments, check=False,
                                    timeout=3600)
@@ -638,13 +703,14 @@ def run():
                       "unreached tasks or zero resolved; use offline diagnose "
                       "before planning another paid experiment")
     report = {
-        "run_id": run_id, "workload": "original Web-Bench expressjs first tasks",
+        "run_id": run_id, "workload": "original Web-Bench expressjs full 20-task stream",
         "origin": "microsoft/TokenEconomizer", "upstream_sha": commit,
         "webbench_sha": WEBBENCH_SHA,
         "model": MODEL, "agent": "copilot CLI BYOK", "seed": 0,
-        "task_ids": expected, "budget_admission_per_arm_usd": 5.0,
+        "task_ids": expected, "budget_admission_per_arm_usd": budget,
+        "source_state": "src-init", "original_project_complete": True,
         "strict_provider_invoice_ceiling": False,
-        "grading_caveat": "Original Web-Bench partial stream uses development-mode Playwright timeouts",
+        "grading_caveat": "Original Web-Bench full project, production Playwright grader",
         "arms": {arm: {
             "official_arm": x["official_arm"], "exit_code": x["exit_code"],
             "tasks": [{"id": k, "resolved": v.get("resolved"),
