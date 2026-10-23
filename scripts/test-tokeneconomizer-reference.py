@@ -78,7 +78,7 @@ class ReferencePilotTest(unittest.TestCase):
             task_file = projects / "expressjs" / "tasks.jsonl"
             task_file.write_text("".join(json.dumps({"id": f"task-{i}",
                                                      "description": f"Original task {i}"}) +
-                                         "\\n" for i in range(1, 21)))
+                                         "\n" for i in range(1, 21)))
             output = base / "benchmark_tasks.json"
             rows = ref.export_expressjs_tasks(projects, output, experiments)
             self.assertEqual(len(rows), 20)
@@ -86,7 +86,7 @@ class ReferencePilotTest(unittest.TestCase):
                              [f"task-{i}" for i in range(1, 21)])
             self.assertEqual(rows[5]["problem_statement"], "Original task 6")
             self.assertEqual(json.loads(output.read_text()), rows)
-            task_file.write_text('{"id": "task-1", "description": "missing rest"}\\n')
+            task_file.write_text('{"id": "task-1", "description": "missing rest"}\n')
             with self.assertRaisesRegex(RuntimeError, "differs from official"):
                 ref.export_expressjs_tasks(projects, output, experiments)
 
