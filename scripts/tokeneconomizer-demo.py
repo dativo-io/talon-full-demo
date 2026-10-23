@@ -5,6 +5,7 @@ Run: python3 scripts/tokeneconomizer-demo.py validate|run|present
 Secrets stay outside Git, in .state/tokeneconomizer-demo and Talon's vault.
 """
 import html
+import hashlib
 import tempfile
 import json
 import os
@@ -16,6 +17,8 @@ import time
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+
+from tokeneconomizer_proof import assess, markdown as proof_markdown, html_section as proof_html
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / ".state" / "tokeneconomizer-demo"
@@ -133,6 +136,17 @@ def fixture(path):
         "Synthetic Python benchmark. Run python3 -m unittest discover -s tests "
         "-p test_case_N.py. No remotes or dependencies.\n")
     execute(["git", "init", "-q"], cwd=path)
+
+
+def workload_fingerprint(workspace):
+    """Hash the immutable benchmark starting point, not each agent's edits."""
+    h = hashlib.sha256()
+    for file in sorted([*workspace.glob("src/*.py"),
+                        *workspace.glob("tests/*.py"), workspace / "README.md"]):
+        rel = file.relative_to(workspace).as_posix()
+        h.update(rel.encode() + b"\0")
+        h.update(file.read_bytes())
+    return h.hexdigest()
 
 
 def validate():
@@ -407,7 +421,8 @@ def verified(session, agent, env, destination):
              "--format", "signed-json", "--output", str(signed)], env=env)
     check = execute(["talon", "audit", "verify", "--file", str(signed)], env=env).stdout
     if not all(value in check for value in
-               ("Invalid records: 0", "Missing signature: 0", "Could not parse: 0")):
+               ("Invalid records: 0", "Missing signature: 0",
+                "Could not parse: 0", "Unsupported: 0")):
         raise RuntimeError("Signed evidence failed verification: " + session)
     return summarize_session_records(json.loads(signed.read_text()).get("records", []),
                                      session, agent)
@@ -443,9 +458,13 @@ def one(arm, index, run_id, workspace, values, plugin):
     grade_passed = independent_grade(workspace, index)
     destination = STATE / run_id / arm / f"task-{index:02d}"
     metrics = verified(session, ARM_AGENTS[arm], tenv(values, run_id), destination)
+    signed = destination / "signed.json"
     metrics.update(task=index, warmup=index <= 5, passed=grade_passed,
                    cli_success=answer is not None and answer.returncode == 0,
-                   duration_s=duration, session=session)
+                   duration_s=duration, session=session,
+                   signed_evidence_verified=True,
+                   receipt=f"{arm}/task-{index:02d}/signed.json",
+                   receipt_sha256=hashlib.sha256(signed.read_bytes()).hexdigest())
     private(destination / "metrics.json", json.dumps(metrics, indent=2))
     if answer:
         private(destination / "claude.json", answer.stdout)
@@ -477,10 +496,7 @@ def table(report):
               ("Provider calls", "calls", "{:,.0f}"),
               ("Provider errors", "provider_errors", "{:,.0f}"),
               ("Signed evidence", "records", "{:,.0f}")]
-    complete = (all(status == "completed" for status in
-                    report.get("arm_status", {"baseline": "completed",
-                                               "after": "completed"}).values())
-                and report.get("optimizer_effect_observed", True))
+    complete = bool(report.get("proof", {}).get("comparison_valid"))
     rows = []
     for label, key, display in fields:
         x, y = before[key], after[key]
@@ -539,6 +555,7 @@ p{color:#475569}.ok{color:#166534;font-weight:650}</style>
 <h1>Before / after TokenEconomizer</h1>
 <p>Real Claude Code calls routed through Talon. Provider usage and cost are derived from signed,
 independently verified Talon evidence. Tasks are independently graded by Python tests.</p>
+PROOF_SECTION
 <div class="card"><h2>Measured comparison</h2><table><thead>
 <tr><th>Metric</th><th>Without plugin</th><th>With TokenEconomizer</th><th>Change</th>
 </tr></thead><tbody>ROWS</tbody></table></div>
@@ -563,7 +580,8 @@ not Talon-governed actions.</p>
 <p>Learned facts: FACTS · Proposed tool exclusions: PROPOSALS · Applied exclusions: PRUNED · Loop nudges: NUDGES.</p>
 <p>These are observed plugin events, not assumed feature activation. Zero means none observed.</p>
 </div><p class="label">Run RUNID · model MODEL · TokenEconomizer REV</p></div></html>"""
-    path.write_text(document.replace("ROWS", row_html)
+    path.write_text(document.replace("PROOF_SECTION", proof_html(report.get("proof") or assess(report)))
+                    .replace("ROWS", row_html)
                     .replace("RUNID", report["run_id"])
                     .replace("MODEL", html.escape(report["model"]))
                     .replace("REV", report["tokeneconomizer_sha"][:12])
@@ -645,11 +663,13 @@ def run():
         versions[label] = (version.stdout or version.stderr).strip()[:200]
     server, log = start_gateway(values, run_id)
     arms = {arm: [] for arm in ARM_AGENTS}
+    workload_digests = {}
     run_error = ""
     try:
         for arm in ("baseline", "after"):
             workspace = STATE / run_id / ("workspace-" + arm)
             fixture(workspace)
+            workload_digests[arm] = workload_fingerprint(workspace)
             for index in range(1, task_limit + 1):
                 try:
                     result = one(arm, index, run_id, workspace, values,
@@ -682,6 +702,8 @@ def run():
     effect_observed = len(observed_hooks) >= 5 and any(mechanisms.values())
     report = {
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
+        "talon_release": TALON_RELEASE,
+        "workload_sha256": workload_digests,
         "task_limit": task_limit, "run_error": run_error,
         "tool_versions": versions, "comparison_policy": "separate $5 Talon agents",
         "token_economizer_hook_sessions": len(observed_hooks),
@@ -704,10 +726,16 @@ def run():
         "tasks": arms, "source": "Live Anthropic through Talon signed evidence",
     }
     destination = STATE / run_id
+    report["proof"] = assess(report)
     private(destination / "comparison.json", json.dumps(report, indent=2))
+    private(destination / "proof.json", json.dumps(report["proof"], indent=2))
+    private(destination / "proof.md", proof_markdown(report["proof"], report))
     private(STATE / "latest.txt", run_id)
     rows = table(report)
     html_report(report, rows, destination / "comparison.html")
+    print("\nPROOF VERDICT:", report["proof"]["verdict"])
+    print(report["proof"]["headline"])
+    print("Proof report:", destination / "proof.md")
     print("Observed TokenEconomizer hook session files:", len(observed_hooks))
     print("Plugin mechanisms:", report["plugin_mechanisms_observed"])
     print("Optimizer effect observed:", effect_observed)
@@ -728,7 +756,13 @@ def main():
         elif action == "present":
             run_id = (STATE / "latest.txt").read_text().strip()
             report = json.loads((STATE / run_id / "comparison.json").read_text())
+            if not report.get("proof"):
+                raise RuntimeError("Stored report has no proof assessment; "
+                                   "rerun the benchmark with the updated demo.")
             table(report)
+            print("\nPROOF VERDICT:", report["proof"]["verdict"])
+            print(report["proof"]["headline"])
+            print("Proof report:", STATE / run_id / "proof.md")
             print("HTML report:", STATE / run_id / "comparison.html")
         else:
             raise RuntimeError("Use validate, run, or present")
