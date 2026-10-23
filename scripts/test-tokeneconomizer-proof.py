@@ -17,7 +17,9 @@ def sample():
              "provider_errors": 0, "budget_denied": False, "denials": 0,
              "calls": 1, "records": 1, "signed_evidence_verified": True,
              "receipt": f"{arm}/task-{i:02d}/signed.json",
-             "receipt_sha256": "f" * 64}
+             "receipt_sha256": "f" * 64,
+             "plugin_injected_facts": 1 if arm == "after" and i == 6 else 0,
+             "plugin_pruned_tools": [], "plugin_nudges": 0}
             for i in range(1, 11)]
     return {
         "run_id": "OFFLINE-UNIT-FIXTURE-NOT-A-LIVE-RUN",
@@ -56,6 +58,8 @@ class ProofVerdictTests(unittest.TestCase):
         report["plugin_mechanisms_observed"] = {
             "session_injections": 0, "learned_facts": 1,
             "proposed_tools": 3, "pruned_tools": 0, "nudges": 0}
+        # A prepared (but never injected) fact or proposal is not action.
+        report["tasks"]["after"][5]["plugin_injected_facts"] = 0
         self.assertEqual(assess(report)["verdict"], "NOT_DEMONSTRATED")
 
     def test_no_savings_even_with_plugin_intervention(self):
