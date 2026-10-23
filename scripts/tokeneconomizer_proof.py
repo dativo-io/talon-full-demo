@@ -49,7 +49,24 @@ def assess(report):
     paired = all(p["baseline_usd"] is not None and
                  p["after_usd"] is not None and
                  p["baseline_passed"] and p["after_passed"] for p in pairs)
-    comparable = complete and signed and passing and paired
+    # Published totals must reconcile to the *same per-task signed receipts*.
+    # Never trust a prettier aggregation that silently omits expensive work.
+    calculated_measured = (
+        sum(float(r.get("cost") or 0) for r in before if r.get("task") in MEASURED),
+        sum(float(r.get("cost") or 0) for r in after if r.get("task") in MEASURED))
+    reported_measured = (
+        float((report.get("baseline") or {}).get("cost") or 0),
+        float((report.get("with_tokeneconomizer") or {}).get("cost") or 0))
+    full_actual = (
+        sum(float(r.get("cost") or 0) for r in before),
+        sum(float(r.get("cost") or 0) for r in after))
+    full_reported = (
+        float((spent.get("baseline") or {}).get("cost") or 0),
+        float((spent.get("after") or {}).get("cost") or 0))
+    reconciliation = (
+        all(abs(a - b) < 1e-6 for a, b in zip(calculated_measured, reported_measured))
+        and all(abs(a - b) < 1e-6 for a, b in zip(full_actual, full_reported)))
+    comparable = complete and signed and passing and paired and reconciliation
     model = report.get("model") or ""
     release = (report.get("tool_versions") or {}).get("talon_cli") or ""
     release_expected = report.get("talon_release") or ""
@@ -77,7 +94,7 @@ def assess(report):
     # A hook session record is evidence of loading, NOT of useful optimization.
     hooks = int(report.get("token_economizer_hook_sessions") or 0)
     activation = hooks >= 5 and intervention
-    x, y = (float(m.get("cost") or 0) for m in measured)
+    x, y = calculated_measured
     savings = x - y
     lower = x > 0 and y < x
     checks = [
@@ -89,6 +106,8 @@ def assess(report):
          "detail": f"Baseline {len(before)}/10, plugin {len(after)}/10; statuses {statuses}"},
         {"id": "signed_talon_receipts", "pass": signed,
          "detail": f"{sum(bool(r.get('signed_evidence_verified')) for r in all_tasks)}/{len(all_tasks)} tasks with independently verified signed receipts"},
+        {"id": "cost_reconciles_to_receipts", "pass": reconciliation,
+         "detail": "Measured AND full-arm cost totals equal sums of the same task receipts"},
         {"id": "quality_and_execution", "pass": passing and complete,
          "detail": f"Sealed grading, CLI success, zero provider errors/denials for all {len(all_tasks)} tasks"},
         {"id": "actual_plugin_intervention", "pass": activation,
