@@ -32,7 +32,7 @@ jobs:
       - name: Run repository CI contract
         run: make ci
 
-  talon-main-contract:
+  talon-release-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -41,9 +41,11 @@ jobs:
         with:
           go-version: "1.26.10"
           cache: false
-      - name: Install verified Talon main commit (not a floating release)
+      - name: Install latest reviewed Talon stable release
         run: |
-          go install github.com/dativo-io/talon/cmd/talon@cef6313c42a44ab9ab64de0e879147bf50370ea3
+          TALON_RELEASE="$(cat config/tokeneconomizer-talon-release.txt)"
+          go install "github.com/dativo-io/talon/cmd/talon@${TALON_RELEASE}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - name: Exercise Talon budget, gateway and signed-evidence contract without paid models
+          "$(go env GOPATH)/bin/talon" version
+      - name: Exercise released Talon budget, gateway and signed-evidence contract without paid models
         run: make tokeneconomizer-contract
