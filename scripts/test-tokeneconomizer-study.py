@@ -16,7 +16,7 @@ def fake(seed=0):
     for arm, unit in (("baseline",0.10),("after",0.08)):
         tasks[arm]=[
             {"task":i+1,"issue_id":key,"cost":unit,"passed":True,
-             "cli_success":True,"calls":1,"records":1,
+             "cli_success":True,"regression_free":True,"calls":1,"records":1,
              "signed_evidence_verified":True,"receipt_sha256":"f"*64,
              "receipt":f"{arm}/task-{i+1:02d}/signed.json",
              "provider_errors":0,"denials":0,"budget_denied":False,
@@ -24,7 +24,7 @@ def fake(seed=0):
             for i,key in enumerate(ids)]
     return {
         "run_id":f"OFFLINE-UNIT-TEST-SEED-{seed}",
-        "profile":"study","seed":seed,"task_limit":TASK_COUNT,
+        "profile":"study","seed":seed,"demo_revision":"a"*40,"task_limit":TASK_COUNT,
         "warmup_count":WARMUP,"workload_design":DESIGN,
         "task_order":ids,"model":"claude-sonnet-5",
         "talon_release":"v1.15.3","tokeneconomizer_sha":"0"*40,
@@ -88,6 +88,11 @@ class StudyProofTests(unittest.TestCase):
         r=fake()
         r["baseline"]["cost"]=0.01
         self.assertEqual(self.proof(r)["verdict"],"INCONCLUSIVE")
+
+    def test_cumulative_regression_fails_quality_gate(self):
+        r=fake()
+        r["tasks"]["after"][20]["regression_free"]=False
+        self.assertEqual(self.proof(r)["verdict"],"QUALITY_REGRESSION")
 
     def test_quality_is_not_required_to_be_perfect_but_cannot_regress(self):
         r=fake()
