@@ -138,9 +138,9 @@ gateway:
 """)
             env = DEMO["safe_env"]()
             env.update(TALON_DATA_DIR=str(root / "store"),
-                       TALON_SECRETS_KEY="v" * 64,
-                       TALON_SIGNING_KEY="s" * 64,
-                       TALON_ADMIN_KEY="a" * 64,
+                       TALON_SECRETS_KEY="76" * 32,
+                       TALON_SIGNING_KEY="73" * 32,
+                       TALON_ADMIN_KEY="61" * 32,
                        TALON_GATEWAY_CONFIG=str(cfg / "talon.config.yaml"))
             tokens = {"baseline": "talon-demo-contract-baseline-001",
                       "after": "talon-demo-contract-after-002"}
