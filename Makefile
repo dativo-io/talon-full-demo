@@ -318,14 +318,15 @@ tokeneconomizer-validate:
 # Real Talon binary, local counted Anthropic-wire mock, no provider key or Claude CLI.
 # In CI install Talon from the reviewed main SHA; locally use talon on PATH.
 tokeneconomizer-contract:
-	python3 scripts/test-tokeneconomizer-talon-contract.py
+	bash ./scripts/with-talon.sh python3 scripts/test-tokeneconomizer-talon-contract.py
 
-# Always verify the actual Talon binary on PATH BEFORE spending on Anthropic.
+# Use the same resolved Talon CLI for preflight and paid execution.
+# The wrapper finds TALON_BIN, PATH, user-local installs and sibling builds.
 tokeneconomizer-smoke: tokeneconomizer-contract
-	TE_DEMO_TASK_LIMIT=1 python3 scripts/tokeneconomizer-demo.py run
+	TE_DEMO_TASK_LIMIT=1 bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run
 
 demo-tokeneconomizer: tokeneconomizer-contract
-	python3 scripts/tokeneconomizer-demo.py run
+	bash ./scripts/with-talon.sh python3 scripts/tokeneconomizer-demo.py run
 
 present-tokeneconomizer:
 	python3 scripts/tokeneconomizer-demo.py present
