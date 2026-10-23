@@ -719,6 +719,83 @@ def audit_agent(values, run_id, arm, out):
             "signed_receipt": str(signed.relative_to(out.parent))}
 
 
+def recover_evidence(run_location=None):
+    """Offline postmortem export of ORIGINAL Talon receipts, no model traffic.
+
+    Produces a supplementary forensic report, NEVER a fabricated original
+    reference-proof.json. Keep the original signed.json exports untouched.
+    """
+    if not run_location:
+        raise RuntimeError(
+            "Set TE_REFERENCE_RUN_DIR to the exact saved reference run. "
+            "This never starts Talon server, Web-Bench or any agent.")
+    raw = Path(run_location).expanduser()
+    if raw.is_symlink():
+        raise RuntimeError("Refusing symlinked reference run")
+    root = raw.resolve()
+    if not root.is_dir() or not root.name.startswith("reference-"):
+        raise RuntimeError("Not a saved reference run: " + str(root))
+    keys = root / "keys.json"
+    store = root / "talon-store"
+    if not keys.is_file() or not store.is_dir():
+        raise RuntimeError(
+            "Saved Talon keys.json or talon-store is missing. "
+            "No model calls made; cannot reverify signed evidence.")
+    vals = json.loads(keys.read_text())
+    if not all(isinstance(vals.get(k), str) and vals[k]
+               for k in ("vault", "signing", "admin", "agent_baseline", "agent_after")):
+        raise RuntimeError("Saved keys.json lacks one or more required secret fields")
+    if not shutil.which("talon"):
+        raise RuntimeError("Talon CLI missing; local signed audit export needs talon")
+    print("OFFLINE RECOVERY OF SAVED TALON SIGNED EVIDENCE", flush=True)
+    print("Run:", root)
+    print("No gateway started; no model/optimizer requests or provider calls.", flush=True)
+    # Export into a dedicated new directory, without overwriting existing
+    # baseline/signed.json, should the old wrapper have partially completed.
+    evidence = root / "recovered-evidence"
+    summaries, errors = {}, []
+    for arm, name in ARMS:
+        audit_dir = evidence / arm
+        try:
+            summary = audit_agent(vals, root.name, arm, audit_dir)
+            summaries[arm] = summary
+            print(name + ": verified signed records=" +
+                  str(summary["signed_records"]) +
+                  " provider calls=" + str(summary["provider_calls"]) +
+                  " Talon USD=" + str(summary["talon_estimated_usd"]) +
+                  " policy denials=" + str(summary["denials"]), flush=True)
+        except Exception as exc:
+            summaries[arm] = {"audit_error": str(exc)}
+            errors.append(name + " export/verification: " + str(exc))
+            print(name + ": NOT VERIFIED — " + str(exc), flush=True)
+    official = root / "official-results"
+    task_summary = {}
+    for arm, name in ARMS:
+        rows = official_rows(official, name)
+        task_summary[arm] = {
+            "stored_rows": len(rows),
+            "attempted": sum(int(r.get("webbench_attempts") or 0) > 0 for r in rows.values()),
+            "resolved": sum(r.get("resolved") is True for r in rows.values()),
+            "usage_incomplete": sum(bool(r.get("usage_incomplete")) for r in rows.values()),
+            "unreached": sum(bool(r.get("unreached")) for r in rows.values()),
+        }
+    recovered = {
+        "type": "supplementary_postmortem_evidence_only",
+        "original_wrapper_proof_exists": (root / "reference-proof.json").is_file(),
+        "run_id": root.name, "paper_controller": demo.TOKENECONOMIZER_COMMIT,
+        "signed_evidence": summaries, "task_summary": task_summary, "errors": errors,
+        "evidence_complete": not errors and len(summaries) == len(ARMS),
+        "claims": "No optimizer savings, causal result, or complete task stream certified",
+    }
+    output = root / "reference-recovered-evidence.json"
+    demo.private(output, json.dumps(recovered, indent=2) + "\n")
+    print("Recovery report:", output)
+    print("Original reference-proof.json was NOT synthesized or altered.")
+    if errors:
+        raise RuntimeError("Offline recovery incomplete; see report and local Talon store.")
+    return recovered
+
+
 def plan():
     print("TokenEconomizer ORIGINAL Web-Bench full-project pilot (NOT production plugin)")
     print("Source: microsoft/TokenEconomizer @", demo.TOKENECONOMIZER_COMMIT)
@@ -922,10 +999,12 @@ def main():
             diagnose(sys.argv[2] if len(sys.argv) > 2 else os.getenv("TE_REFERENCE_RUN_DIR"))
         elif action == "analyze":
             analyze(sys.argv[2] if len(sys.argv) > 2 else os.getenv("TE_REFERENCE_RUN_DIR"))
+        elif action == "recover":
+            recover_evidence(sys.argv[2] if len(sys.argv) > 2 else os.getenv("TE_REFERENCE_RUN_DIR"))
         elif action == "run":
             run()
         else:
-            raise RuntimeError("Use plan, prepare, check, diagnose, analyze, or run")
+            raise RuntimeError("Use plan, prepare, check, diagnose, analyze, recover, or run")
     except Exception as exc:
         print("ERROR:", exc, file=sys.stderr)
         sys.exit(1)
