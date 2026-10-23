@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / ".state" / "tokeneconomizer-demo"
 PORT = int(os.getenv("TE_DEMO_PORT", "18086"))
 MODEL = os.getenv("TE_DEMO_MODEL", "claude-sonnet-5")
-ARM_BUDGET = float(os.getenv("TE_DEMO_ARM_BUDGET", "7.5"))
+ARM_BUDGET = float(os.getenv("TE_DEMO_ARM_BUDGET", "5.0"))
 PROFILE = os.getenv("TE_DEMO_PROFILE", "smoke")
 SEED = int(os.getenv("TE_DEMO_SEED", "0"))
 PRUNING_MODE = os.getenv("TE_DEMO_PRUNING_MODE", "default")
@@ -229,21 +229,21 @@ def validate():
             raise AssertionError("Untrusted/misattributed cost evidence accepted")
     for arm in ARM_AGENTS:
         policy = agent_policy(arm)
-        assert "daily: 7.50" in policy and "monthly: 7.50" in policy
-        assert "max_cost: 7.50" in policy
+        assert "daily: 5.00" in policy and "monthly: 5.00" in policy
+        assert "max_cost: 5.00" in policy
         assert 'allowed_providers: ["anthropic"]' in policy
         assert json.dumps(MODEL) in policy
     assert "ANTHROPIC_API_KEY" not in safe_env()
     assert "OPENAI_API_KEY" not in safe_env()
     assert "claude-sonnet-5" in SUPPORTED_PRICED_MODELS
     assert len(TOKENECONOMIZER_COMMIT) == 40
-    print("PASS: 10 failing fixtures and independent sealed grading, two distinct $7.50 Talon policies, "
+    print("PASS: 10 failing fixtures and independent sealed grading, two distinct $5.00 Talon policies, "
           "credential isolation, and comparison UX; zero API calls.")
 
 
 def keys(run_id):
     # Fresh credentials and data store every run, so previous runs do not
-    # consume either arm's $7.50 daily/monthly budget.
+    # consume either arm's $5.00 daily/monthly budget.
     values = {name: secrets.token_hex(32) for name in
               ("vault", "signing", "admin", "agent_baseline", "agent_after")}
     private(STATE / run_id / "keys.json", json.dumps(values))
@@ -761,10 +761,10 @@ def run():
     if PRUNING_MODE not in ("default", "accelerated"):
         raise RuntimeError("TE_DEMO_PRUNING_MODE must be default or accelerated")
     # This is a deliberately low-cost PRODUCT demo, not a paid research
-    # sweep. Never let a direct Python invocation override the agreed $7.50
+    # sweep. Never let a direct Python invocation override the agreed $5.00
     # admission budget per arm. Three-seed Make target splits it further.
-    if not (0 < ARM_BUDGET <= 7.5):
-        raise RuntimeError("TE_DEMO_ARM_BUDGET must be > 0 and <= USD 7.50 per arm")
+    if not (0 < ARM_BUDGET <= 5.0):
+        raise RuntimeError("TE_DEMO_ARM_BUDGET must be > 0 and <= USD 5.00 per arm")
     if PROFILE == "study" and SEED not in (0,1,2):
         raise RuntimeError("TE_DEMO_SEED must be 0, 1 or 2")
     if MODEL not in SUPPORTED_PRICED_MODELS:
@@ -888,7 +888,7 @@ def run():
         "tokeneconomizer_catalog": catalog,
         "task_limit": task_limit, "run_error": run_error,
         "tool_versions": versions, "comparison_policy": ("separate governed Talon agents" if PROFILE == "study"
-                              else "separate $7.50 Talon agents"),
+                              else "separate $5.00 Talon agents"),
         "token_economizer_hook_sessions": len(observed_hooks),
         "plugin_mechanisms_observed": mechanisms,
         "optimizer_effect_observed": effect_observed,
