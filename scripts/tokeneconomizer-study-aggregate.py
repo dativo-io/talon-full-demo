@@ -11,9 +11,10 @@ STATE = ROOT / ".state" / "tokeneconomizer-demo"
 def aggregate(reports):
     if len(reports) != 3 or sorted(r.get("seed") for r in reports) != [0,1,2]:
         raise ValueError("exactly one run per seed 0, 1 and 2 required")
-    attrs = ("profile", "model", "tokeneconomizer_sha", "talon_release",
+    attrs = ("profile", "model", "tokeneconomizer_sha", "talon_release", "demo_revision",
              "workload_design", "pruning_mode", "reasoning_effort")
     controlled = (all(r.get("profile")=="study" and r.get("pruning_mode")=="default"
+                      and len(r.get("demo_revision") or "") == 40
                       and (r.get("proof") or {}).get("comparison_valid")
                       and (r.get("proof") or {}) == reassess(r) for r in reports)
                   and all(len({json.dumps(r.get(k),sort_keys=True) for r in reports})==1
