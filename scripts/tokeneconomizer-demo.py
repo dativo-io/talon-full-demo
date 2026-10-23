@@ -374,6 +374,31 @@ def install_plugin():
         raise RuntimeError("Pinned TokenEconomizer checkout missing hook launcher")
     return plugin, commit
 
+def capture_tool_catalog(workspace, plugin, values, run_id):
+    """Upstream-required Claude tool catalog; stops before a model call.
+
+    TokenEconomizer says its auto-pruning evidence omits always-loaded
+    Claude tools unless this one-time catalog is recorded first.
+    """
+    env = safe_env()
+    env.update(ANTHROPIC_AUTH_TOKEN=values["agent_after"],
+               ANTHROPIC_BASE_URL=f"http://127.0.0.1:{PORT}/v1/proxy/anthropic",
+               CLAUDE_CONFIG_DIR=str(STATE / run_id / "claude-after"),
+               TOKENECONOMIZER_HOME=str(STATE / run_id / "plugin-after"),
+               CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1",
+               TE_PAID="false", TE_SIDECALL="1")
+    result = execute([str(plugin / "scripts" / "te"), "--host", "claude",
+                      "--cwd", str(workspace), "toolprune", "refresh-catalog"],
+                     cwd=workspace, env=env, check=False, timeout=90)
+    if result.returncode:
+        raise RuntimeError("TokenEconomizer Claude tool catalog not captured: " +
+                           (result.stderr or result.stdout)[-600:])
+    if "tools recorded" not in result.stdout:
+        raise RuntimeError("TokenEconomizer tool catalog capture was not confirmed: " +
+                           result.stdout[-600:])
+    return {"status": "recorded", "details": result.stdout.strip()[:600]}
+
+
 def summarize_session_records(records, session, agent):
     """Extract comparable accounting ONLY from verified, correctly attributed records."""
     if not records or any(item.get("session_id") != session or
@@ -730,12 +755,22 @@ def run():
     server, log = start_gateway(values, run_id)
     arms = {arm: [] for arm in ARM_AGENTS}
     workload_digests = {}
+    catalog = {"status": "not_attempted"}
     run_error = ""
     try:
         for arm in ("baseline", "after"):
             workspace = STATE / run_id / ("workspace-" + arm)
             fixture(workspace)
             workload_digests[arm] = workload_fingerprint(workspace)
+            if arm == "after":
+                try:
+                    catalog = capture_tool_catalog(workspace, plugin, values, run_id)
+                    print("TokenEconomizer catalog:", catalog["status"], flush=True)
+                except Exception as exc:
+                    catalog = {"status": "failed", "details": str(exc)}
+                    run_error = "TokenEconomizer catalog: " + str(exc)
+                    print("RUN ERROR:", run_error, file=sys.stderr, flush=True)
+                    break
             for index in range(1, task_limit + 1):
                 try:
                     result = one(arm, index, run_id, workspace, values,
@@ -772,6 +807,7 @@ def run():
         "run_id": run_id, "model": MODEL, "tokeneconomizer_sha": commit,
         "talon_release": TALON_RELEASE,
         "workload_sha256": workload_digests,
+        "tokeneconomizer_catalog": catalog,
         "task_limit": task_limit, "run_error": run_error,
         "tool_versions": versions, "comparison_policy": "separate $5 Talon agents",
         "token_economizer_hook_sessions": len(observed_hooks),
