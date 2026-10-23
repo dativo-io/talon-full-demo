@@ -316,6 +316,7 @@ tokeneconomizer-validate:
 	python3 scripts/tokeneconomizer-demo.py validate
 	python3 scripts/test-tokeneconomizer-proof.py
 	python3 scripts/test-tokeneconomizer-study.py
+	python3 scripts/test-tokeneconomizer-budget.py
 
 # Real Talon binary, local counted Anthropic-wire mock, no provider key or Claude CLI.
 # In CI install the pinned published Talon release; locally resolve the same binary.
