@@ -323,6 +323,52 @@ class ReferencePilotTest(unittest.TestCase):
             self.assertIn("'unreached': 1", output)
             self.assertIn("No API calls made", output)
 
+    def test_analyze_excludes_unreached_and_incomplete_pairs_without_proof(self):
+        import csv
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            idx = root / "official-results" / "copilot_webbench_sonnet5" / "index"
+            idx.mkdir(parents=True)
+            fields = ["arm", "repo", "seed", "instance", "webbench_attempts",
+                      "usage_incomplete", "usage_incomplete_reason", "not_graded",
+                      "resolved_p1", "resolved_p2", "cost_effective_tokens"]
+            with (idx / "all_rows.csv").open("w", newline="") as stream:
+                out = csv.DictWriter(stream, fieldnames=fields)
+                out.writeheader()
+                for arm in ("baseline", "trimech-web"):
+                    for n in range(1, 21):
+                        # Baseline completed 1..14 and failed 15;
+                        # experimental completed 1..9 and failed 10.
+                        reached = n <= (15 if arm == "baseline" else 10)
+                        incomplete = (n == 15 and arm == "baseline"
+                                      or n == 10 and arm == "trimech-web")
+                        resolved = reached and not incomplete
+                        out.writerow({
+                            "arm": arm, "repo": "expressjs", "seed": "0",
+                            "instance": f"task-{n}",
+                            "webbench_attempts": "2" if reached else "0",
+                            "usage_incomplete": str(incomplete),
+                            "usage_incomplete_reason": "tokens_source=mixed" if incomplete else "",
+                            "not_graded": "False", "resolved_p1": str(resolved),
+                            "resolved_p2": str(resolved),
+                            # Unrealistically cheap unreached rows MUST be excluded.
+                            "cost_effective_tokens":
+                                ("100" if arm == "baseline" else "80") if reached else "0",
+                        })
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                ref.analyze(str(root))
+            txt = output.getvalue()
+            self.assertIn("Both arms ATTEMPTED: 10", txt)
+            self.assertIn("Both attempted, graded, complete usage: 9", txt)
+            self.assertIn("Attempted but excluded from COST comparison: ['task-10']", txt)
+            self.assertIn("baseline: 900.0 effective tokens", txt)
+            self.assertIn("trimech-web: 720.0 effective tokens", txt)
+            self.assertIn("descriptive change: -20.0%", txt)
+            self.assertIn("MISSING (wrapper may be unfinished/failed)", txt)
+            self.assertIn("No model calls", txt)
+            self.assertNotIn("2,000.0 effective tokens", txt)
+
     def test_run_is_opt_in_before_any_dependencies_or_cost(self):
         with patch.dict(os.environ, {"TE_REFERENCE_PAID_CONFIRM": "",
                                      "TE_REFERENCE_FULL_STREAM_CONFIRM": "",
