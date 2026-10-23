@@ -351,6 +351,7 @@ TokenEconomizer plugin, and it does not replace the 24-ticket synthetic study.
 
 - **Prerequisite:** Web-Bench requires **Node.js 22+**, plus npm/npx. On Ubuntu, install Node 22 with [nvm](https://github.com/nvm-sh/nvm) if `node --version` fails, then run `nvm use 22`. The [setup guide](docs/TOKENECONOMIZER_REFERENCE.md#ubuntu-host-prerequisites) provides exact commands and Playwright troubleshooting.
 - **No spend:** `make tokeneconomizer-reference-plan`
+- **Pinned CLI prerequisite:** install standalone `copilot` v`1.0.84-7` (`curl -fsSL https://gh.io/copilot-install | VERSION=1.0.84-7 PREFIX="$HOME/.local" bash`) and ensure `$HOME/.local/bin` is on `PATH`. `gh` alone does not satisfy this requirement.
 - **Keyless data setup:** `make tokeneconomizer-reference-prepare` (downloads/builds upstream benchmark, but no provider calls)
 - **No-spend readiness:** `make tokeneconomizer-reference-check`
 - **Paid only with explicit opt-in:** `TE_REFERENCE_PAID_CONFIRM=YES make tokeneconomizer-reference-run`
