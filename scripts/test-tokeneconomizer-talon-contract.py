@@ -102,6 +102,15 @@ def signed_records(cwd, env, session, agent, dest):
 
 
 def main():
+    # Fail before fixture setup or subprocess calls if run without the
+    # repository's with-talon.sh resolver or an installed binary.
+    import shutil
+    if not shutil.which("talon"):
+        raise SystemExit(
+            "ERROR: Talon CLI not found. Run this check through "
+            "'make tokeneconomizer-contract' (uses scripts/with-talon.sh), "
+            "or install the reviewed Talon main binary and put it on PATH. "
+            "You can also set TALON_BIN=/absolute/path/to/talon for Make.")
     Provider.calls = 0
     with tempfile.TemporaryDirectory(prefix="talon-token-contract-") as tmp:
         root = Path(tmp)
