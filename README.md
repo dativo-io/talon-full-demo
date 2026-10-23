@@ -357,6 +357,7 @@ TokenEconomizer plugin, and it does not replace the 24-ticket synthetic study.
 - **No-spend diagnosis of existing runs:** `make tokeneconomizer-reference-diagnose` (or set `TE_REFERENCE_RUN_DIR=...`)
 - **No-spend valid task-pair comparison:** `make tokeneconomizer-reference-analyze` (also supports `TE_REFERENCE_RUN_DIR=...`), excluding unreached tasks and incomplete usage, even when the wrapper proof is absent.
 - **No-spend recovery of signed Talon receipts:** `TE_REFERENCE_RUN_DIR=... make tokeneconomizer-reference-recover` re-exports and verifies both arms from a saved Talon store, preserving the original proof/receipts and never invoking a model.
+- **No-spend root-cause diagnosis:** `TE_REFERENCE_RUN_DIR=... make tokeneconomizer-reference-model-failures` compares task-10 Copilot model failures and tool activity without printing raw errors or prompts.
 - **Paid full 20-task stream only:** `TE_REFERENCE_PAID_CONFIRM=YES TE_REFERENCE_FULL_STREAM_CONFIRM=YES make tokeneconomizer-reference-run` — default $5 estimated admission/arm, may terminate before the final task. Higher budgets require separately confirmed opt-in (see the guide).
 - **Long-run safety:** the full-project harness has a 4-hour timeout **per arm**, private live harness logs, and kills its process group on timeout; run from `tmux` if using SSH.
 - **Full setup and methodology:** [Original Web-Bench pilot](docs/TOKENECONOMIZER_REFERENCE.md).
