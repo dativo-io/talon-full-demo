@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keyless Talon-main gateway contract for the Claude Code × TokenEconomizer demo.
+"""Keyless stable Talon release gateway contract for Claude Code × TokenEconomizer.
 
 Uses the SAME two agent policies and signed-receipt parser as the paid demo,
 but a counted local Anthropic-wire fixture instead of Claude Code / Anthropic.
@@ -27,6 +27,7 @@ DEMO = runpy.run_path(str(ROOT / "scripts" / "tokeneconomizer-demo.py"))
 MODEL = DEMO["MODEL"]
 AGENTS = DEMO["ARM_AGENTS"]
 LIMIT = DEMO["ARM_BUDGET"]
+RELEASE = (ROOT / "config" / "tokeneconomizer-talon-release.txt").read_text().strip()
 
 
 def run(command, *, cwd, env, stdin=None):
@@ -109,8 +110,22 @@ def main():
         raise SystemExit(
             "ERROR: Talon CLI not found. Run this check through "
             "'make tokeneconomizer-contract' (uses scripts/with-talon.sh), "
-            "or install the reviewed Talon main binary and put it on PATH. "
+            "or install the supported Talon stable release and put it on PATH. "
             "You can also set TALON_BIN=/absolute/path/to/talon for Make.")
+    # Compatibility alone is insufficient: do not silently accept old Talon
+    # binaries merely because a local mock can exercise their budget subset.
+    if not RELEASE.startswith("v") or not RELEASE[1:].replace(".", "").isdigit():
+        raise RuntimeError("Invalid pinned Talon release tag: " + RELEASE)
+    installed = run(["talon", "version"], cwd=ROOT, env=DEMO["safe_env"]())
+    version_line = installed.splitlines()[0].strip() if installed.strip() else ""
+    if version_line != "Talon " + RELEASE:
+        raise RuntimeError(
+            "TokenEconomizer requires the reviewed Talon stable release "
+            + RELEASE + "; installed binary reports " + repr(version_line)
+            + ". Install with: go install "
+            "github.com/dativo-io/talon/cmd/talon@" + RELEASE
+            + " ; export PATH=\"$(go env GOPATH)/bin:$PATH\" "
+            "or set TALON_BIN to that release's binary.")
     Provider.calls = 0
     with tempfile.TemporaryDirectory(prefix="talon-token-contract-") as tmp:
         root = Path(tmp)
@@ -206,7 +221,7 @@ gateway:
                             raise AssertionError(f"{arm} denial not evidenced: {denied}")
                     if Provider.calls != 2:
                         raise AssertionError(f"denials reached mock provider: {Provider.calls}")
-                    print("PASS: merged Talon main compatibility — two separately budgeted "
+                    print("PASS: Talon stable release " + RELEASE + " compatibility — two separately budgeted "
                           "$5 agents; Anthropic-wire requests, priced usage, two preventive "
                           "denials (zero dispatch), verified signed evidence; no paid calls")
                 except Exception:
