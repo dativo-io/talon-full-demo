@@ -349,6 +349,7 @@ Anthropic BYOK routed **through Talon**. Both arms have separate $5 admission
 limits and verified signed cost exports. This is **not** the installable
 TokenEconomizer plugin, and it does not replace the 24-ticket synthetic study.
 
+- **Prerequisite:** Web-Bench requires **Node.js 22+**, plus npm/npx. On Ubuntu, install Node 22 with [nvm](https://github.com/nvm-sh/nvm) if `node --version` fails, then run `nvm use 22`. The [setup guide](docs/TOKENECONOMIZER_REFERENCE.md#ubuntu-host-prerequisites) provides exact commands and Playwright troubleshooting.
 - **No spend:** `make tokeneconomizer-reference-plan`
 - **Keyless data setup:** `make tokeneconomizer-reference-prepare` (downloads/builds upstream benchmark, but no provider calls)
 - **No-spend readiness:** `make tokeneconomizer-reference-check`
