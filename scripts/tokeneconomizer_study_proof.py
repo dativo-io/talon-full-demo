@@ -55,7 +55,8 @@ def assess(report):
     # Compare pass rates without expecting all real coding issues to be solved.
     passed_a = sum(bool(r.get("passed")) for r in a)
     passed_b = sum(bool(r.get("passed")) for r in b)
-    quality = passed_a >= 12 and passed_b >= passed_a
+    regression_failures = sum(r.get("regression_free") is not True for r in a+b)
+    quality = passed_a >= 12 and passed_b >= passed_a and regression_failures == 0
     full_a, full_b = _total(a,"cost"), _total(b,"cost")
     cheaper = full_a > 0 and full_b < full_a
     interventions = [
@@ -75,7 +76,7 @@ def assess(report):
         {"id":"explicit_execution_controls","pass":controlled,"detail":"Pinned provider/model/CLI, high effort, published plugin SHA and default no-paid-helpers configuration"},
         {"id":"completed_without_policy_failures","pass":completed and signed,"detail":f"{len(a)}/24 baseline and {len(b)}/24 plugin; attributable, verified signed sessions"},
         {"id":"full_and_measured_cost_reconciles","pass":costs_reconciled,"detail":"Every displayed USD total matches real signed task receipts"},
-        {"id":"independent_grader","pass":quality,"detail":f"Baseline {passed_a}/24 passed, plugin {passed_b}/24; require at least 12 baseline successes and no regression"},
+        {"id":"independent_grader","pass":quality,"detail":f"Baseline {passed_a}/24 passed, plugin {passed_b}/24; cumulative hidden regressions {regression_failures}; require >=12 baseline successes and no regression"},
         {"id":"plugin_setup","pass":catalog,"detail":"Upstream-recommended Claude tool catalog captured"},
         {"id":"plugin_mechanism_applied","pass":activated,"detail":f"{sum(bool(x['injected_facts'] or x['pruned_tools'] or x['nudges']) for x in interventions)} measured tasks received a recorded intervention"},
         {"id":"full_stream_cost_lower","pass":cheaper and compatible,"detail":f"Baseline USD {full_a:.4f}; plugin USD {full_b:.4f}"},
@@ -84,9 +85,12 @@ def assess(report):
     if not compatible:
         verdict = "INCONCLUSIVE"
         title = "Stream was not fully comparable or auditable; no cost claim is supported."
+    elif passed_a < 12:
+        verdict = "INCONCLUSIVE"
+        title = "Too few baseline issues passed to assess cost per meaningful successful work."
     elif not quality:
         verdict = "QUALITY_REGRESSION"
-        title = "Correctness preservation was not demonstrated; a lower bill is not a successful optimization."
+        title = "Previously working tickets regressed or the plugin resolved fewer tickets; cost savings are not sufficient."
     elif not cheaper:
         verdict = "NOT_DEMONSTRATED"
         title = "No net cost improvement across the entire repository stream."
