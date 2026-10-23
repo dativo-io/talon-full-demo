@@ -141,12 +141,44 @@ def prepare():
     print(">", " ".join(args), flush=True)
     subprocess.run(args, cwd=projects / "expressjs", env=build_env, check=True)
     rows = export_expressjs_tasks(projects, tasks, experiments)
+    playwright_preflight(projects)
     revision = subprocess.run(["git", "-C", str(checkout), "rev-parse", "HEAD"],
                               capture_output=True, text=True, env=build_env, check=True).stdout.strip()
     print("Original Web-Bench source:", revision)
     print("Original", len(rows), "expressjs tasks exported:", tasks)
     print("Evaluator:", evaluator)
     print("No model calls were made. Next: make tokeneconomizer-reference-check", flush=True)
+
+
+def playwright_preflight(projects):
+    """Run a LOCAL Playwright Chromium launch/close smoke test with zero API traffic.
+
+    Merely downloading the Chromium executable is not enough on minimal Ubuntu
+    servers: the browser can still exit 127 when libatk and other Linux
+    system libraries are absent. Check this before any billable model call.
+    """
+    target = projects / "expressjs"
+    if not target.is_dir():
+        raise RuntimeError("Web-Bench expressjs project not found: " + str(target))
+    smoke = (
+        "const {chromium}=require('@playwright/test');"
+        "(async()=>{const b=await chromium.launch({headless:true});"
+        "console.log('Chromium ' + b.version());await b.close();})()"
+        ".catch(e=>{console.error(e.message);process.exit(1);});"
+    )
+    proc = demo.execute(["node", "-e", smoke], cwd=target, env=demo.safe_env(),
+                        check=False, timeout=90)
+    if proc.returncode:
+        error = (proc.stderr or proc.stdout or "").strip()[-1500:]
+        raise RuntimeError(
+            "LOCAL Playwright Chromium launch failed (no model calls made). "
+            "The Oct 23 first paid experiment failed because Chromium could not "
+            "load libatk-1.0.so.0. On Ubuntu, run:\n"
+            "  cd " + str(target) + "\n"
+            "  npx playwright install-deps chromium\n"
+            "Then retry 'make tokeneconomizer-reference-check' BEFORE any paid run. "
+            "Playwright diagnostic: " + error)
+    print("PASS: local Playwright browser launch:", proc.stdout.strip(), flush=True)
 
 
 def copilot_preflight():
@@ -187,6 +219,7 @@ def check():
         if not shutil.which(name):
             raise RuntimeError("Missing " + name + "; no model calls made")
     cli = copilot_preflight()
+    playwright_preflight(projects)
     _, commit = demo.install_plugin()
     print("PASS: original Web-Bench evaluator, source task order and", len(selected),
           "selected tasks verified; Microsoft harness pinned to", commit)
@@ -428,6 +461,7 @@ def run():
     if demo.ARM_BUDGET != 5.0 or demo.MODEL != MODEL:
         raise RuntimeError("Reference study requires the $5/arm policy and claude-sonnet-5")
     projects, tasks, expected = inputs()
+    playwright_preflight(projects)
     copilot = copilot_preflight()
     for name in ("talon", "git", "node", "bash"):
         if not shutil.which(name):
