@@ -195,6 +195,19 @@ would authorize **up to $10 estimated admission per arm, $20 combined**; this is
 hard provider invoice ceiling. These flags are **not required for the default $5 per arm**.
 Changing the budget does not modify Talon OSS or the original research controller.
 
+**Long-run reliability:** Each original 20-task **arm has a four-hour default
+wall-clock deadline** (`TE_REFERENCE_ARM_TIMEOUT_S=14400`). You can choose
+3600–14400 seconds before the run. The two arms execute **sequentially**, so
+the overall run can be considerably longer than one arm. The wrapper streams
+the original harness output to a permission-restricted
+`baseline/harness.log` or `after/harness.log` as each arm progresses and
+prints the exact path at startup. On timeout it terminates the launched
+process **group**, rather than leaving detached billable evaluator/agent
+children running. This deadline is an operational cutoff, **not** a spending
+limit. Run the command inside `tmux` or a similar persistent terminal if your
+SSH connection is unreliable. Only launch after agreeing to the estimated
+provider budget and account-level controls.
+
 The real Anthropic key is sent to Talon's encrypted vault through stdin, not to Copilot CLI. Copilot uses two isolated BYOK identities to talk to Talon, which enforces the individually approved **estimated admission caps** per arm (default **$5**). Model calls require BOTH `TE_REFERENCE_PAID_CONFIRM=YES` and `TE_REFERENCE_FULL_STREAM_CONFIRM=YES`; higher budgets require an additional explicit confirmation.
 
 **These are admission-estimate budgets, not hard provider invoice ceilings.** Set an account-side Anthropic usage limit if you need a hard spending control. The reference harness may make billed preflight calls, which count in Talon's signed cost ledger and the $5 admission budgets.
