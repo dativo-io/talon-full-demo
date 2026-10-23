@@ -360,11 +360,7 @@ TokenEconomizer plugin, and it does not replace the 24-ticket synthetic study.
 
 The mini-pilot's shortened task sequence changes the upstream evaluator to
 stricter development-mode timeouts, so it is not directly comparable to full
-paper grading. **The first real operator run on 2026-10-23 resolved 0 tasks in both arms**;
-the comparison script hit a zero-median division error. Talon signed-cost
-attribution worked, but optimizer effectiveness is **unproven and inconclusive**.
-Diagnose which tasks were actually attempted before paying for a full-stream run.
-See the [original benchmark postmortem](docs/TOKENECONOMIZER_REFERENCE.md#diagnose-a-saved-reference-run-before-paying-for-another-one).
+paper grading. **The first real operator run on 2026-10-23 was invalidated by a missing Ubuntu Chromium dependency (`libatk-1.0.so.0`).** Both arms attempted only task 1 twice before Web-Bench stopped; the five later rows per arm were `unreached`, not coding attempts. Talon signed-cost attribution worked, but optimizer effectiveness remains **unmeasured**. The demo now performs a local Chromium launch/close smoke test in `prepare`, `check` and before any paid run. See the [original benchmark postmortem and repair](docs/TOKENECONOMIZER_REFERENCE.md#required-browser-smoke-test-do-not-pay-for-broken-chromium).
 
 
 
