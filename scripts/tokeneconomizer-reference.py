@@ -287,6 +287,83 @@ def official_rows(results, arm):
     return found
 
 
+def diagnose(run_location=None):
+    """Offline postmortem of saved *original* Web-Bench rows. Never makes model calls."""
+    if run_location:
+        root = Path(run_location).expanduser().resolve()
+    else:
+        candidates = sorted(p for p in demo.STATE.glob("reference-*")
+                            if (p / "reference-proof.json").is_file())
+        if not candidates:
+            raise RuntimeError("No Web-Bench reference-proof.json found; provide a run path")
+        root = candidates[-1]
+    proof_file = root / "reference-proof.json"
+    if not proof_file.is_file():
+        raise RuntimeError("Missing completed reference proof: " + str(proof_file))
+    proof = json.loads(proof_file.read_text())
+    results = root / "official-results"
+    rows = {arm: official_rows(results, name) for arm, name in ARMS}
+    expected = proof.get("task_ids", [])
+    if not expected or any(not rows[arm] for arm in rows):
+        raise RuntimeError("Missing original graded rows in " + str(results))
+    print("ORIGINAL WEB-BENCH OFFLINE DIAGNOSIS")
+    print("Run:", root)
+    print("Paper controller: ", proof.get("upstream_sha"))
+    print("No API calls made; only local saved artifacts read.")
+    print("NOTE: a stored row is NOT necessarily an attempted or resolved task.")
+    print("task       arm         attempts outcomes   resolved unreached turns  usage")
+    totals = {}
+    for arm, name in ARMS:
+        current = rows[arm]
+        counts = {"rows": len(current), "attempted": 0, "resolved": 0,
+                  "unreached": 0, "usage_incomplete": 0}
+        for identity in expected:
+            row = current.get(identity)
+            if not row:
+                print(f"{identity:<10} {name:<11} MISSING ROW")
+                continue
+            attempts = int(row.get("webbench_attempts") or 0)
+            if attempts:
+                counts["attempted"] += 1
+            if row.get("resolved") is True:
+                counts["resolved"] += 1
+            if row.get("unreached"):
+                counts["unreached"] += 1
+            if row.get("usage_incomplete"):
+                counts["usage_incomplete"] += 1
+            outcomes = "".join("Y" if status else "N"
+                               for status in row.get("webbench_attempt_results", [])) or "-"
+            print(f"{identity:<10} {name:<11} {attempts:<8} {outcomes:<10} "
+                  f"{str(row.get('resolved')):<8} {str(bool(row.get('unreached'))):<9} "
+                  f"{str(row.get('num_turns', '-')):<6} "
+                  f"{str(row.get('tokens_source', '-'))}")
+            if attempts and row.get("resolved") is not True:
+                location = Path(row.get("run_dir") or "")
+                config = location / "run_config.json"
+                if config.is_file():
+                    cfg = json.loads(config.read_text())
+                    evaluator_log = ((cfg.get("webbench") or {}).get("evaluator_log"))
+                    if evaluator_log:
+                        print("  Failed task evaluator log:", evaluator_log)
+                print("  Failed task row:", location / "row.json")
+                print("  Failed task agent transcript:", location / "transcript.jsonl")
+                print("  Agent-side error:", bool(row.get("is_error")),
+                      "stream_broken:", bool(row.get("stream_broken")),
+                      "timed_out:", bool(row.get("timed_out")))
+        totals[arm] = counts
+        print(f"{arm}: {counts}")
+    if any(t["unreached"] for t in totals.values()):
+        print("DIAGNOSIS: STREAM CENSORED. After a Web-Bench task fails both attempts,")
+        print("the evaluator stops; later 'unreached' rows are not additional tasks.")
+        print("DO NOT infer success rate or benchmark savings from this truncated stream.")
+    elif any(t["resolved"] == 0 for t in totals.values()):
+        print("DIAGNOSIS: NO SUCCESSFUL TASKS in at least one arm.")
+        print("Investigate official grader and agent logs before spending more.")
+    else:
+        print("Both arms resolved at least one task; inspect per-task differences and mechanisms.")
+    print("Raw run files and evaluator logs may contain prompts and code; review before sharing.")
+
+
 def audit_agent(values, run_id, arm, out):
     """Verify ALL signed records, including direct controller side calls."""
     out.mkdir(parents=True, exist_ok=True)
@@ -469,10 +546,12 @@ def main():
             prepare()
         elif action == "check":
             check()
+        elif action == "diagnose":
+            diagnose(sys.argv[2] if len(sys.argv) > 2 else None)
         elif action == "run":
             run()
         else:
-            raise RuntimeError("Use plan, prepare, check, or run")
+            raise RuntimeError("Use plan, prepare, check, diagnose, or run")
     except Exception as exc:
         print("ERROR:", exc, file=sys.stderr)
         sys.exit(1)
