@@ -4,13 +4,14 @@ Every tool call travels through Talon. The model has no direct URL, DB credentia
 or access to the HR service. There is deliberately no ungoverned fallback path.
 """
 import json
+import os
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from runtime_trace import trace, previews_enabled
 
 
 def chat_completion(url, key, body, session):
-    trace("llm.gateway.request", session, provider_mode="external-configured",
+    trace("llm.gateway.request", session, provider_mode=os.getenv("HR_DEMO_PROVIDER_KIND", "unverified upstream; inspect Talon gateway config"),
           gateway="Talon LLM", model=body.get("model"),
           offered_tools=[x["function"]["name"] for x in body.get("tools", [])],
           message_roles=[m.get("role") for m in body.get("messages", [])],
