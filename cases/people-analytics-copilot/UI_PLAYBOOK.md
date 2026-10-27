@@ -68,7 +68,7 @@ Paste the one-time operator token from Terminal B into the password field and se
 
 Use **Go to next incomplete check** to move between checks. Commands don't run automatically; sensitive BEFORE and RESET actions require additional confirmation.
 
-For a terminal demonstration of any action, copy its displayed command, after setting up the \`dc\` shortcut shown in the console. The shell and UI actions use exactly the same Docker containers and underlying verification functions.
+For a terminal demonstration of any action, copy its displayed command, after setting up the `dc` shortcut shown in the console. The shell and UI actions use exactly the same Docker containers and underlying verification functions.
 
 ## 4. Follow seven stages and show the evidence
 
@@ -77,9 +77,9 @@ For a terminal demonstration of any action, copy its displayed command, after se
 | **1. Direct access** | **Privileged direct employee export**, then **Read independent HR execution counters** | A fictional employee name/salary; export count increases. This call **bypasses Talon** |
 | **2. Measurement reset** | **Explicitly reset synthetic HR counters** | All counters become zero. This **does not change any permission** |
 | **3. Deployment perimeter** | Inspect AI/Talon/HR networks and app mounts, then **Verify network isolation and working dashboard** | UI cannot access the HR DuckDB volume or direct private backend; aggregate dashboard still works. **Docker** enforces separation |
-| **4. Effective boundaries** | Inspect agent + proxy policy, then **Discover available tools through Talon** | Only \`hr_attrition_summary\`, \`hr_headcount_summary\`, \`hr_tenure_summary\` appear |
-| **5. Authorized analytics** | **Execute approved aggregate tool; inspect receipt** | Real DuckDB aggregate result plus \`decision=allow\`, committed evidence ID |
-| **6. Forbidden operation** | **Force employee export through Talon**, then **Verify backend export remained at zero** | \`decision=deny\`, \`provenance=not_dispatched\`, committed receipt; HR backend shows **zero export executions since Stage 2** |
+| **4. Effective boundaries** | Inspect agent + proxy policy, then **Discover available tools through Talon** | Only `hr_attrition_summary`, `hr_headcount_summary`, `hr_tenure_summary` appear |
+| **5. Authorized analytics** | **Execute approved aggregate tool; inspect receipt** | Real DuckDB aggregate result plus `decision=allow`, committed evidence ID |
+| **6. Forbidden operation** | **Force employee export through Talon**, then **Verify backend export remained at zero** | `decision=deny`, `provenance=not_dispatched`, committed receipt; HR backend shows **zero export executions since Stage 2** |
 | **7. Independent evidence** | **Export signed presenter session**, then **Verify exported signatures** | CLI reports no invalid records, missing signatures or parse errors |
 
 **Do not skip Stage 2.** A BEFORE export is *supposed* to succeed. If you leave its counter nonzero and then run the AFTER check, you will produce a misleading result. The operator resets only counters, never data or permissions.
@@ -118,7 +118,7 @@ The provider key is passed to Talon's initialization container via environment v
 - **Console says Locked:** paste the token printed by Terminal B; verify port 8502 is forwarded if remote. The token does not appear in the repository or URLs.
 - **Console shows a failed check:** expand actual output; inspect the displayed exact command. You can reproduce it in a host terminal as documented in [PRESENTER_COMMANDS.md](PRESENTER_COMMANDS.md).
 - **Business UI says counters unavailable:** expected in isolated mode; independent HR counters belong in the operator console, not the unprivileged browser app.
-- **Dashboard fails:** inspect \`bash scripts/people-analytics-isolated.sh logs\` on the host and check the Docker Compose containers.
+- **Dashboard fails:** inspect `bash scripts/people-analytics-isolated.sh logs` on the host and check the Docker Compose containers.
 - **Progress resets when refreshing:** intentional; the proof records live in Talon, not in your browser's progress state. Re-run only the checks you need. Avoid repeating the BEFORE action after the reset.
 - **Port conflict:** stop a previously running demo instance; don't expose ports publicly or kill unrelated processes.
 
@@ -128,7 +128,7 @@ Stop the operator console with **Ctrl+C in Terminal B**. Then stop the isolated 
 bash scripts/people-analytics-isolated.sh down
 ~~~
 
-For a fresh start, \`bash scripts/people-analytics-isolated.sh reset\` destroys **synthetic** HR and Talon demo volumes. It is not needed for ordinary cleanup.
+For a fresh start, `bash scripts/people-analytics-isolated.sh reset` destroys **synthetic** HR and Talon demo volumes. It is not needed for ordinary cleanup.
 
 ## The message to leave with the reviewer
 
