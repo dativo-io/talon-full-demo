@@ -91,6 +91,19 @@ The dashboard itself reads from a **separate, fixed aggregate service**; chart t
 
 This is **not a Talon on/off switch or migration of the same agent**. The direct BEFORE call does not appear in Talon evidence because Talon never saw it. The negative test is an **operator probe**, not an autonomous model attempting the export.
 
+## See the infrastructure and requests live
+
+The **operator proof console** (port **8502**) is now a technical workbench, not just a sequence of buttons. After unlocking it with the one-time token, open **Technical inspection**:
+
+- **Docker:** inspect the actual Compose services, private/app networks, persistent DuckDB volume, and database schema/row count. DuckDB is an **embedded file**, not a separate database server container.
+- **Talon startup and configuration:** view the real `talon-init` scaffold/validation output, mounted agent/MCP/gateway YAML, and execute `talon validate`. Changes to Git-managed policy require an explicit redeploy; there is no fake UI policy switch.
+- **Live process logs:** select `talon-mcp`, `talon-gateway` (when LIVE is running), `hr-server`, `ui` or the filtered `trace` stream, and enable the bounded ~2-second refresh.
+- **Request/response correlation:** `HR_AI_TRACE` lines expose the actual UI→Talon MCP requests, decisions and evidence IDs. In LIVE mode they also show app-observed LLM gateway request/response metadata, model/response IDs, tool calls and usage.
+
+**Not a packet capture:** LLM logs describe messages actually sent **to Talon's LLM gateway** and responses returned through that gateway. They do not independently capture TLS traffic at OpenAI. The optional provider is real only when LIVE mode is enabled with a real credential and its separate smoke test has passed. In normal CI, the upstream model is a **fake** provider.
+
+Raw prompts/responses are **not logged by default**. On a trusted synthetic-only demo host, explicitly opt in with `HR_DEMO_TRACE_PAYLOADS=1 bash scripts/people-analytics-isolated.sh live`. That reveals bounded, redacted request/response previews in Docker's AI application logs; never do this with real HR or other sensitive prompts.
+
 ## Guided versus live AI
 
 | Mode | What is real | Extra setup |
