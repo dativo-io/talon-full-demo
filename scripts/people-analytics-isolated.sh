@@ -38,6 +38,8 @@ case "$ACTION" in
     export HR_DEMO_AI_MODE=live
     dc --profile live up --build --force-recreate -d talon-init talon-mcp talon-gateway ui
     echo "External provider is enabled through Talon; billable calls possible."
+    echo "Live structured request/response metadata: authenticated proof console -> trace logs."
+    echo "Optional full synthetic-only payload preview: HR_DEMO_TRACE_PAYLOADS=1 bash scripts/people-analytics-isolated.sh live"
     echo "Live dashboard: http://127.0.0.1:8501"
     ;;
   verify)
