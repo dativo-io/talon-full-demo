@@ -27,6 +27,13 @@ def main():
                 expect(page.locator("#sqlResult")).to_contain_text("EXECUTED",timeout=30000)
                 expect(page.locator("#sqlResult")).to_contain_text("minimum_cohort_size")
                 expect(page.locator("#receipt")).to_contain_text("Decision: allow")
+                # Reproduce the exact class of department filter tried in the UI.
+                page.get_by_role("button",name="Customer departments").click()
+                expect(page.locator("#sql")).to_have_value(re.compile(r"department LIKE '%Customer%'"))
+                page.get_by_role("button",name="Run SQL through Talon").click()
+                expect(page.locator("#sqlResult")).to_contain_text("EXECUTED",timeout=30000)
+                expect(page.locator("#sqlResult")).to_contain_text("active_department_like")
+                expect(page.locator("#receipt")).to_contain_text("Decision: allow")
                 sql=page.locator("#sql")
                 sql.fill("SELECT employee_id, full_name, monthly_salary_mxn FROM employees")
                 page.get_by_role("button",name="Run SQL through Talon").click()
