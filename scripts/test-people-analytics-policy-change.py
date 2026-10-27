@@ -9,7 +9,6 @@ from urllib.request import Request, urlopen
 
 ROOT=Path(__file__).resolve().parent.parent
 POLICY=ROOT/"cases/people-analytics-copilot/.state/policy/proxy.isolated.talon.yaml"
-LAUNCHER=ROOT/"scripts/people-analytics-isolated.sh"
 CASE=ROOT/"cases/people-analytics-copilot"
 SQL="SELECT department, COUNT(*) AS employees FROM employees GROUP BY department ORDER BY department"
 SESSION="hr-demo-policy-change"
@@ -24,13 +23,16 @@ def post():
             if attempt==29:raise
             time.sleep(1)
 def dc(*args):
-    return subprocess.check_output(["docker","compose","-f",str(CASE/"compose.isolated.yaml"),
-        "--env-file",str(CASE/".state/isolated.env"),*args],text=True)
+    return subprocess.check_output(["docker","compose","-f","compose.isolated.yaml",*args],cwd=CASE,text=True)
 def count():
     code="import json;from urllib.request import urlopen;print(json.load(urlopen('http://127.0.0.1:9091/debug/counters'))['hr_aggregate_sql'])"
     return int(dc("exec","-T","hr-server","python3","-c",code).strip())
 def reload():
-    subprocess.run(["bash",str(LAUNCHER),"reapply"],check=True,cwd=str(ROOT))
+    # Use the same native Talon CLI and Compose command documented in README.
+    subprocess.run(["docker","compose","-f","compose.isolated.yaml","run","--rm",
+                    "talon-cli","talon","validate"],check=True,cwd=CASE)
+    subprocess.run(["docker","compose","-f","compose.isolated.yaml","up","--no-deps",
+                    "-d","--force-recreate","talon-mcp"],check=True,cwd=CASE)
 def assert_receipt(r,decision):
     receipt=r.get("receipt") or {}
     assert receipt.get("decision")==decision and receipt.get("evidence",{}).get("committed") is True,r

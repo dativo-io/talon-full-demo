@@ -1,5 +1,5 @@
-# prospective customer before/after topology: UI has neither HR DB volume nor backend network.
-# Only talon-mcp joins the app and HR backend networks.
+# Existing workforce stack, with Talon introduced as a separate policy boundary.
+# UI cannot mount DuckDB or connect directly to the privileged HR service.
 name: hr-copilot-isolated
 
 x-case-image: &case-image
@@ -10,12 +10,12 @@ x-case-image: &case-image
 
 x-talon-environment: &talon-environment
   TALON_DATA_DIR: /state
-  TALON_SECRETS_KEY: ${HR_DEMO_SECRETS_KEY:?Run secure launcher}
+  TALON_SECRETS_KEY: ${HR_DEMO_SECRETS_KEY:?Set the vault/signing keys in .env}
   TALON_SIGNING_KEY: ${HR_DEMO_SIGNING_KEY:?Run secure launcher}
   TALON_ADMIN_KEY: ${HR_DEMO_ADMIN_KEY:?Run secure launcher}
 
 x-talon-volumes: &talon-volumes
-  - talon_state:/state
+  - ./.state/talon:/state
   - ./:/case:ro
   - ./.state/policy:/policies:ro
   - ${HR_DEMO_TALON_BIN:?Supply absolute Talon binary path}:/usr/local/bin/talon:ro
@@ -82,8 +82,6 @@ services:
   talon-mcp:
     image: debian:bookworm-slim
     depends_on:
-      talon-init:
-        condition: service_completed_successfully
       hr-server:
         condition: service_started
     environment: *talon-environment
@@ -131,7 +129,6 @@ services:
 
 volumes:
   hr_data:
-  talon_state:
 
 networks:
   app_net:

@@ -26,7 +26,8 @@ All real-provider cases require `make real-prepare`, `make real-start`, and a he
 
 ## People Analytics Copilot (standalone)
 
-Use the [terminal-led setup](../cases/people-analytics-copilot/README.md), [one-browser walkthrough](../cases/people-analytics-copilot/UI_PLAYBOOK.md), and [15-minute policy-change story](../cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md). One workforce browser at port 8501; real Talon configuration, process logs, upstream counters and signed evidence remain in the terminal. Docker isolates the backend and the HR service validates SQL shapes; Talon governs only calls routed through its model and MCP boundaries.
+An existing [DuckDB workforce application](../cases/people-analytics-copilot/README.md) integrates Talon with its regular CLI and YAML. The app has one browser on port 8501; Docker keeps it away from the private HR database. Talon governs routed LLM/MCP calls, and the HR backend independently validates SQL. Changing a Talon MCP allowlist changes the result of the same SQL request, without modifying the app.
+
 
 ## 1. Customer-support gateway
 

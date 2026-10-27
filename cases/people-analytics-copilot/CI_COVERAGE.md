@@ -1,28 +1,28 @@
-# People Analytics · CI acceptance
+# People Analytics tests
 
-| Check | Verified behavior |
+The normal integration path is documented in [README](README.md): Docker Compose for the existing infrastructure and the **real Talon CLI** for initialization, secrets, policy and evidence. There is no custom Talon lifecycle wrapper.
+
+| Test | What it checks |
 |---|---|
-| Python unit + docs | Fictional DuckDB metrics, two exact approved SQL queries, unsafe SQL refusal, HTTP path, backend counters, model tool-loop fail-closed, JavaScript syntax and documentation links |
-| Talon MCP integration | Released Talon proxy, allowed aggregate tools, denied privileged export, verified signed receipts |
-| Credential-free model integration | Real Talon LLM+MCP, fake provider model tool selection, session traces and signatures—not paid OpenAI |
-| Docker isolation | Workforce app has no DB volume or private backend route; privileged BEFORE is intentionally separate |
-| Chromium | **One** workforce dashboard (8501), actual allowed SQL, HR SQL-validator rejection, guided MCP aggregate and export denial |
-| Policy flip | Edit writable runtime Talon MCP policy; restart Talon; same SQL changes allow→deny; HR dispatch counter unchanged; restore allow; export/verify signed evidence |
+| Python + docs | DuckDB fixture, aggregate SQL allowlist, bad SQL rejection, HTTP contracts, live tool-loop limits, docs and UI script syntax |
+| MCP contract | Released Talon binary, allowed aggregate tools, export denied pre-dispatch, signed evidence |
+| Model contract | Actual Talon LLM and MCP processes using a **fake OpenAI-compatible model**, not external inference |
+| Docker + Chromium | Only one browser (:8501), existing charts, real SQL MCP request, HR-level SQL rejection and Talon denial |
+| Policy change | Same SQL allow → edit the Talon proxy YAML → restart only Talon → deny with zero HR dispatch → restore allow and verify signatures |
 
-## Run
+CI prepares its own isolated `.env` and uses `docker compose run --rm talon-cli talon init`, `talon validate`, `talon secrets set` and `talon serve`. It does not rely on a custom application-specific launcher. The policy-flip test edits/restores only the example MCP policy.
+
+From the demo repository root:
 
 ```bash
 make people-analytics-validate
 bash scripts/test-people-analytics-talon.sh
-bash scripts/people-analytics-isolated.sh up
-bash scripts/people-analytics-isolated.sh verify
-python scripts/test-people-analytics-browser.py
-python scripts/test-people-analytics-policy-change.py
-bash scripts/people-analytics-isolated.sh down
 ```
 
-Playwright Chromium must be installed for browser E2E. CI uses a hosted Chromium-compatible browser and saves a fictional-data-only screenshot on failure. The automated policy-change test restores the original editable policy in a `finally` block.
+Chromium and the policy-flip check run in CI with a locally started Docker stack; see `.github/workflows/ci.yml`. The **separate real-provider smoke** needs a disposable `OPENAI_API_KEY` and may incur charges:
 
-**Not proved by mandatory CI:** a real OpenAI provider, model quality or latency, production employee IAM, arbitrary SQL safety, production DLP, legal compliance, or universal control over direct calls bypassing Talon.
+```bash
+bash scripts/test-people-analytics-real-provider.sh
+```
 
-See [quickstart](README.md), [terminal playbook](PRESENTER_COMMANDS.md) and [external provider smoke](ADVANCED_SETUP.md).
+Not proven by no-key CI: real OpenAI model selection, production IAM/row security, legal compliance, arbitrary SQL safety or interception of direct bypass paths. Application-observed gateway traces are not OpenAI wire captures.
