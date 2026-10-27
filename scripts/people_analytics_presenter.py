@@ -138,82 +138,160 @@ def perform(action):
 
 PAGE = r'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Talon · People Analytics Proof Console</title>
+<title>People Analytics · Operator Proof Console</title>
 <style>
-*{box-sizing:border-box}body{font:15px system-ui,Arial;background:#f3f6fa;color:#20324e;margin:0}
-header{background:#142e53;color:white;padding:23px max(24px,calc((100vw - 1120px)/2))}
-header h1{margin:0 0 7px;font-size:24px}a{color:inherit}
-main{max-width:1120px;margin:auto;padding:22px}section{background:white;border:1px solid #dae4f0;border-radius:12px;padding:20px;margin-bottom:16px}
-h2{font-size:19px;margin:0 0 6px}h3{font-size:15px;margin:0 0 5px}.muted{font-size:13px;color:#61748c}
-button{border:0;background:#155db1;color:white;border-radius:7px;padding:9px 14px;cursor:pointer;font:inherit}
-button:disabled{opacity:.5;cursor:wait}.secondary{background:#e5eefb;color:#165ba5}
-input{padding:9px;border:1px solid #b5c5d8;border-radius:7px;max-width:400px;width:100%;font:inherit}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:800px){.grid{grid-template-columns:1fr}}
-.item{border:1px solid #dae4f0;border-radius:9px;padding:13px;min-width:0}
-pre{white-space:pre-wrap;word-break:break-word;background:#f3f6fa;border:1px solid #e4e9f2;padding:11px;border-radius:8px;max-height:330px;overflow:auto;font:12px/1.6 ui-monospace,monospace}
-.label{font-size:12px;color:#4f6988}.pass{color:#176646}.fail{color:#a12f32}.small{font-size:12px;color:#596b82}
-.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+*{box-sizing:border-box}body{font:15px/1.5 system-ui,-apple-system,Segoe UI,Arial;background:#f4f7fb;color:#213249;margin:0}
+header{background:#142e53;color:white;padding:22px max(24px,calc((100vw - 1120px)/2))}
+header h1{font-size:25px;margin:0 0 4px}header p{margin:4px 0;color:#d3e0ef}
+header a{color:#d8e9ff}main{max-width:1120px;margin:auto;padding:24px}
+section{background:white;border:1px solid #d9e4ef;border-radius:14px;padding:22px;margin-bottom:18px}
+h2{font-size:20px;margin:0 0 8px}h3{font-size:16px;margin:0 0 6px}
+p{margin:7px 0 14px}.muted{font-size:13px;color:#63738a}
+button{border:0;background:#155db1;color:white;border-radius:8px;padding:10px 15px;cursor:pointer;font:inherit}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #e5a32d;outline-offset:2px}
+button:disabled{opacity:.5;cursor:wait}.secondary{background:#e8f0fb;color:#144e96}
+input{padding:10px;border:1px solid #b5c5d8;border-radius:8px;max-width:400px;width:100%;font:inherit}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
+.action{border:1px solid #dce6f0;border-radius:10px;padding:15px;min-width:0}
+.action h3{margin-top:0}.action header{background:none;color:inherit;padding:0}
+.line{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.small{font-size:12px;color:#5a6c85}.tag{font-size:12px;display:inline-block;border-radius:20px;background:#e7eef9;padding:4px 9px}
+.ok{color:#176344;font-weight:600}.bad{color:#a62d35;font-weight:600}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f5f7fa;border:1px solid #e4e9f1;border-radius:9px;padding:12px;font:12px/1.6 ui-monospace,SFMono-Regular,monospace;max-height:400px;overflow:auto}
+details{margin-top:11px}summary{cursor:pointer;color:#165a9d;font-weight:600}
+#progress{background:#e9eff7;height:10px;border-radius:9px;overflow:hidden;margin:12px 0}
+#progressFill{background:#17866f;height:100%;width:0;transition:width .25s}
+.phase{border-left:5px solid #ccdbed}.phase[data-complete="true"]{border-left-color:#17866f}
+.phaseTitle{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.phaseNote{background:#f3f7fc;border-radius:8px;padding:12px;color:#445c77;font-size:14px}
+.warning{border-left:4px solid #bd7340;background:#fff6eb;padding:11px 13px;margin:12px 0}
+#walkthrough[hidden],#overview[hidden]{display:none}
+@media(max-width:650px){main{padding:12px}section{padding:16px}.cards{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>People Analytics · Proof Console</h1>
-<p>Operator-only, localhost-bound · Same commands and source of truth as the terminal demo</p>
-<nav><a href="http://127.0.0.1:8501/">Workforce dashboard</a> · <a href="#walkthrough">Walkthrough</a></nav>
-</header><main>
-<section><h2>Operator authentication</h2>
-<p class="muted">This console runs on the Docker host, not inside the isolated AI application. Copy the access token printed by the console launcher. The token stays in this tab's memory.</p>
-<div class="bar"><input type="password" id="token" placeholder="Paste operator token" autocomplete="off"><button onclick="connect()">Unlock presenter checks</button></div>
-<p class="small" id="authStatus">Locked · the AI application cannot invoke these privileged commands.</p></section>
-<section><h2>What the comparison proves</h2>
-<p><strong>BEFORE:</strong> a privileged synthetic HR backend can export employee-level rows directly, without Talon. <strong>RESET:</strong> only execution counters reset; no permissions change. <strong>AFTER:</strong> the separate AI app lacks HR DB and network access; Talon allows approved aggregates and denies exports.</p>
-<p class="muted">Docker isolation is not Talon policy. Operator commands do not travel through Talon unless they explicitly call its MCP endpoint. No real employee records are involved.</p></section>
-<div id="walkthrough"></div>
-</main><script>
-var operatorToken='', catalog=[],busy=false;
-function elem(name,text,cls){var e=document.createElement(name);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
+<header><h1>People Analytics · Operator Proof Console</h1>
+<p>Seven-stage evidence walkthrough · Synthetic HR data · Real Docker, DuckDB and Talon</p>
+<nav><a href="http://127.0.0.1:8501/">Open workforce dashboard</a> · <a href="#guide">What this proves</a></nav></header>
+<main>
+<section id="auth"><h2>1. Unlock operator checks</h2>
+<p class="muted">Runs separately on the trusted Docker host, never inside the AI app. Use the one-time token printed by the console launcher. The token stays only in this browser tab's memory.</p>
+<div class="line"><label for="token">Operator token</label><input type="password" id="token" placeholder="Paste token" autocomplete="off"><button id="connect" onclick="connect()">Unlock</button></div>
+<p id="authStatus" role="status" aria-live="polite" class="small">Locked. No privileged actions are available until authentication.</p>
+</section>
+<section id="guide"><h2>2. Understand the claim</h2>
+<p><strong>Before:</strong> a privileged HR process calls employee export directly without Talon. <strong>Reset:</strong> only synthetic execution counters reset. <strong>After:</strong> a separate AI app has no HR data volume or direct backend network path; Talon allows safe aggregates and blocks export through its MCP endpoint.</p>
+<div class="warning"><strong>No runtime switch:</strong> this compares two workloads with different access, not a live agent migration. Docker enforces network/volume separation; Talon enforces routed model/tool policy. Guided mode is not a real LLM.</div>
+<p class="muted">Each check reveals the corresponding shell command, its actual exit code and stdout/stderr. The console never fabricates approval receipts, HR counts or evidence validation.</p></section>
+<section id="overview" hidden>
+<h2>3. Run the seven proof stages</h2>
+<p class="muted">Follow the stages in order for an auditable story. Nothing runs automatically. Individual diagnostics can be repeated; rerunning the privileged BEFORE export increases its counter. Reset is a deliberate separate action.</p>
+<div id="progress" role="progressbar" aria-label="Checks completed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progressFill"></div></div>
+<p id="progressText" class="small" aria-live="polite">No checks run yet</p>
+<div class="line"><button class="secondary" onclick="goNext()">Go to next incomplete check</button><button class="secondary" onclick="copySetup()">Copy shell setup</button></div>
+<details><summary>Terminal equivalent: initialize the dc shortcut</summary>
+<pre id="shellSetup"># Run from the demo repository root:
+export CASE="$PWD/cases/people-analytics-copilot"
+dc() {
+  docker compose -f "$CASE/compose.isolated.yaml" \
+    --env-file "$CASE/.state/isolated.env" "$@"
+}</pre>
+<p class="small">The shell alias is needed for commands displayed below. The browser uses an explicit allowlist and does not execute shell strings supplied by the user.</p>
+</details>
+</section>
+<div id="walkthrough" hidden></div>
+</main>
+<script>
+let operatorToken='',catalog=[],busy=false,results={};
+const notes={
+'Setup':{why:'Inspect which containers are actually running.',expect:'HR, dashboard, Talon and AI app containers are running.'},
+'1 · Direct access':{why:'Demonstrate the problem: a trusted HR process has more authority than a reporting AI use case should inherit.',expect:'An actual synthetic employee export returns a name and salary; the HR backend counter rises.'},
+'2 · Measurement reset':{why:'Start the AFTER measurement at zero, without claiming that privileges were changed.',expect:'All synthetic HR counters reset. The prior direct call still happened.'},
+'3 · Deployment perimeter':{why:'Prove the restricted AI workload cannot directly reach raw HR data, while the dashboard still works.',expect:'UI network and mounts exclude the private HR backend and DuckDB file; the live boundary check succeeds.'},
+'4 · Effective boundaries':{why:'Inspect actual configured agent/proxy permissions and the tools offered at runtime.',expect:'Only three aggregate HR tools appear. Sensitive export is absent from discovery.'},
+'5 · Authorized analytics':{why:'Execute an approved aggregate through Talon and show the committed allow receipt.',expect:'DuckDB results and a real signed evidence ID; no individual employee rows.'},
+'6 · Forbidden operation':{why:'Deliberately force an employee export through Talon, then independently check the backend.',expect:'A pre-dispatch Talon denial and zero export executions since the reset.'},
+'7 · Independent evidence':{why:'Export the actual Talon session and independently validate signatures.',expect:'No invalid or unsigned records. The BEFORE direct call is intentionally absent.'}
+};
+const risks={before:'This actually executes a direct synthetic employee export outside Talon. It will increase the BEFORE export counter.',reset:'This clears demonstration counters only. It does not undo the BEFORE execution or change access privileges.'};
+function el(tag,text,cls){const v=document.createElement(tag);if(text!==undefined)v.textContent=text;if(cls)v.className=cls;return v;}
+function announce(s,ok){const n=document.getElementById('authStatus');n.textContent=s;n.className=ok?'ok':'bad';}
 async function connect(){
-operatorToken=document.getElementById('token').value.trim();
-try{
-const response=await fetch('/api/actions',{headers:{'X-Presenter-Token':operatorToken}});
-if(!response.ok)throw Error('Token rejected (HTTP '+response.status+')');
-catalog=await response.json();document.getElementById('authStatus').textContent='Unlocked · run individual checks in any order. They operate on the real running services.';
-document.getElementById('token').value='';
-draw();
-}catch(error){operatorToken='';document.getElementById('authStatus').textContent=error.message;}
+const candidate=document.getElementById('token').value.trim();
+if(!candidate){announce('Enter the operator token from the host terminal.',false);return;}
+try{const response=await fetch('/api/actions',{headers:{'X-Presenter-Token':candidate}});
+ if(!response.ok)throw Error('Authentication failed (HTTP '+response.status+').');
+ catalog=await response.json();operatorToken=candidate;results={};
+ document.getElementById('token').value='';document.getElementById('overview').hidden=false;
+ document.getElementById('walkthrough').hidden=false;announce('Unlocked. Commands run only when you select Run.',true);draw();
+}catch(error){operatorToken='';announce(error.message,false);}
+}
+function copyText(s){
+ if(navigator.clipboard && navigator.clipboard.writeText){return navigator.clipboard.writeText(s);}
+ const input=document.createElement('textarea');input.value=s;document.body.append(input);input.select();
+ document.execCommand('copy');input.remove();return Promise.resolve();
+}
+function copySetup(){copyText(document.getElementById('shellSetup').textContent);}
+function updateProgress(){
+const complete=Object.keys(results).filter(k=>results[k]===true).length;
+const pct=catalog.length?Math.round(100*complete/catalog.length):0;
+document.getElementById('progressFill').style.width=pct+'%';
+document.getElementById('progress').setAttribute('aria-valuenow',pct);
+document.getElementById('progressText').textContent=complete+' / '+catalog.length+' checks succeeded in this browser tab; failures remain visible. This is UI progress, not signed evidence.';
+for(const section of document.querySelectorAll('.phase')) {
+const ids=(section.dataset.actions||'').split(',');
+section.dataset.complete=ids.every(id=>results[id]===true)?'true':'false';
+}
+}
+function goNext(){
+const next=catalog.find(x=>results[x.id]!==true);
+if(next){const target=document.getElementById('action-'+next.id);if(target)target.scrollIntoView({behavior:'smooth',block:'center'});}
 }
 function draw(){
-const main=document.getElementById('walkthrough');main.replaceChildren();
+const dest=document.getElementById('walkthrough');dest.replaceChildren();
 const phases=[...new Set(catalog.map(a=>a.phase))];
 for(const phase of phases){
-const section=elem('section');section.append(elem('h2',phase));
-const grid=elem('div',undefined,'grid');
-for(const action of catalog.filter(a=>a.phase===phase)){
-const card=elem('div',undefined,'item');card.append(elem('h3',action.title));
-card.append(elem('div','Exact shell command (dc is Docker Compose alias):','label'));
-const command=elem('pre',action.command);card.append(command);
-const toolbar=elem('div',undefined,'bar');
-const button=elem('button','Run actual check');
-const copy=elem('button','Copy command','secondary');
-copy.onclick=()=>navigator.clipboard.writeText(action.command);
-const status=elem('span','Not run','small');
-toolbar.append(button,copy,status);card.append(toolbar);
-const output=elem('pre','No execution yet');card.append(output);
-button.onclick=async()=>{
-if(busy)return;busy=true;
-for(const b of main.querySelectorAll('button'))b.disabled=true;
-status.textContent='Executing...';
-try{
-const response=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-Presenter-Token':operatorToken},
-body:JSON.stringify({action:action.id})});
-const result=await response.json();
-if(!response.ok)throw Error(result.error||'Operator request failed');
-status.textContent=result.ok?'PASS · exit 0':'FAILED · exit '+result.exit_code;
-status.className=result.ok?'pass':'fail';
-output.textContent=(result.stdout||'')+(result.stderr?'\nSTDERR:\n'+result.stderr:'')||'(no stdout)';
-}catch(error){status.textContent='FAILED';status.className='fail';output.textContent=error.message;}
-busy=false;for(const b of main.querySelectorAll('button'))b.disabled=false;
-};
-grid.append(card);
-}section.append(grid);main.append(section);
+ const group=catalog.filter(a=>a.phase===phase),note=notes[phase]||{};
+ const section=el('section',undefined,'phase');section.dataset.actions=group.map(a=>a.id).join(',');
+ const top=el('div',undefined,'phaseTitle');top.append(el('h2',phase));
+ top.append(el('span',group.length+' individual checks','tag'));section.append(top);
+ section.append(el('p',note.why||'Run the real check.','muted'));
+ section.append(el('p','Expected: '+(note.expect||'See command output.'),'phaseNote'));
+ const cards=el('div',undefined,'cards');
+ for(const a of group){
+  const card=el('article',undefined,'action');card.id='action-'+a.id;
+  card.append(el('h3',a.title));
+  if(risks[a.id])card.append(el('p',risks[a.id],'warning'));
+  const commands=el('details');commands.append(el('summary','View exact terminal command'));
+  commands.append(el('pre',a.command));card.append(commands);
+  const controls=el('div',undefined,'line');
+  const run=el('button','Run check');run.type='button';
+  const copy=el('button','Copy command','secondary');copy.type='button';
+  copy.onclick=()=>copyText(a.command).then(()=>{copy.textContent='Copied';setTimeout(()=>copy.textContent='Copy command',1400);}).catch(()=>{copy.textContent='Copy manually from above';commands.open=true;});
+  const state=el('span','Not run','small');state.setAttribute('role','status');
+  controls.append(run,copy,state);card.append(controls);
+  const outputWrap=el('details');outputWrap.open=true;outputWrap.append(el('summary','Actual process output (not run yet)'));
+  const output=el('pre','No execution yet');output.setAttribute('aria-live','polite');outputWrap.append(output);
+  card.append(outputWrap);
+  run.onclick=async()=>{
+   if(busy)return;
+   if(risks[a.id]&&!window.confirm(risks[a.id]+' Continue?'))return;
+   busy=true;for(const b of dest.querySelectorAll('button'))b.disabled=true;
+   state.textContent='Executing…';state.className='small';
+   try{
+    const response=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json','X-Presenter-Token':operatorToken},body:JSON.stringify({action:a.id})});
+    const result=await response.json();
+    if(!response.ok)throw Error(result.error||'Operator request failed');
+    results[a.id]=result.ok===true;updateProgress();
+    state.textContent=result.ok?'Exit 0 · command succeeded':'Exit '+result.exit_code+' · failed';
+    state.className=result.ok?'ok':'bad';
+    output.textContent=('Exit code: '+result.exit_code+'\n'+(result.stdout||'')+(result.stderr?'\nSTDERR:\n'+result.stderr:''))||'No output';
+   }catch(error){results[a.id]=false;updateProgress();state.textContent='Request failed';state.className='bad';output.textContent=error.message;}
+   busy=false;for(const b of dest.querySelectorAll('button'))b.disabled=false;
+  };
+  cards.append(card);
+ }
+ section.append(cards);dest.append(section);
 }
+updateProgress();
 }
 </script></body></html>'''
 
