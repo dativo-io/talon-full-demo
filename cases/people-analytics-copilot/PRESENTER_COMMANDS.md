@@ -1,6 +1,6 @@
 # People Analytics — transparent presenter commands
 
-For a conversation with prospective customer, **do not hide the demonstration behind a single
+For a People Analytics customer presentation, **do not hide the demonstration behind a single
 success message.** These commands call the actual running containers and print
 the original Talon governance decisions and the independent HR execution counters.
 
@@ -16,6 +16,10 @@ privileges**, not a before/after policy flip, rollout, or identity migration.
   intentionally forced employee-export MCP request.
 
 ## Choose your interface: browser or shell
+
+**Browser-first?** Use the [UI playbook](UI_PLAYBOOK.md), which walks through the dashboard and seven-stage authenticated proof console with expected outcomes, confirmation steps and troubleshooting. **Terminal-first?** Continue below: these are the exact same operations against the same Docker containers and Talon receipts.
+
+
 
 **Both interfaces run exactly the same allowlisted commands against the same
 Docker containers, DuckDB dataset, independent backend counters and signed
@@ -45,7 +49,7 @@ If Ubuntu is on a remote host, forward **both** services through SSH from
 your laptop:
 
 ~~~bash
-ssh -N -L 8501:127.0.0.1:8501 -L 8502:127.0.0.1:8502 sergey@178.62.232.131
+ssh -N -L 8501:127.0.0.1:8501 -L 8502:127.0.0.1:8502 user@demo-host
 ~~~
 
 Open the app at http://127.0.0.1:8501 and choose **Open the 7-stage presenter
@@ -101,10 +105,10 @@ Expected: hr-server, dashboard, talon-mcp and ui are running; seed and talon-ini
 
 **Why separate commands?** Each step deliberately displays the state of an actual process, using either the backend, the restricted app, Docker metadata, or Talon's CLI. None of the presenter results rely on the browser's green status label. The shell shortcut dc is defined **only in this terminal**; define it again in a new shell.
 
-From your laptop, open the UI with SSH forwarding (keep the tunnel open):
+From your laptop, open the UI with SSH forwarding (keep the tunnel open). The two-port command above also exposes the operator proof console:
 
 ~~~bash
-ssh -N -L 8501:127.0.0.1:8501 user@demo-host
+ssh -N -L 8501:127.0.0.1:8501 -L 8502:127.0.0.1:8502 user@demo-host
 ~~~
 
 Then browse to http://127.0.0.1:8501. This does not expose the app's port publicly.

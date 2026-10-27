@@ -16,12 +16,13 @@ The intended experience is a **10–15 minute narrated walkthrough**. The establ
 
 See [Audience-specific demo views](docs/AUDIENCE_DEMOS.md) for the full command matrix and truth boundaries.
 
-## People Analytics / prospective customer — which demonstration?
+## People Analytics — choose your demo interface
 
 The [People Analytics case](cases/people-analytics-copilot/README.md) is **standalone**: it does not require running the broader support/n8n demo fleet or preparing all vendor API keys.
 
-- **Customer story (12–15 min):** [prospective customer demo plan](cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) — existing HR governance, privileged baseline, isolated AI, Talon allow/deny and signed evidence.
-- **Present one command at a time:** [Presenter commands](cases/people-analytics-copilot/PRESENTER_COMMANDS.md) — the privileged BEFORE request is direct and **not governed by Talon**. Then reset counters explicitly; the separate, isolated AFTER workload uses Talon and cannot route directly to the privileged HR service.
+- **Customer story (12–15 min):** [People Analytics demo plan](cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) — existing HR governance, privileged baseline, isolated AI, Talon allow/deny and signed evidence.
+- **Browser-first walkthrough:** [UI playbook](cases/people-analytics-copilot/UI_PLAYBOOK.md) — dashboard, authenticated operator proof console, step progression, real stdout/stderr and evidence; no terminal expertise required beyond starting services.
+- **Terminal-first walkthrough:** [CLI commands](cases/people-analytics-copilot/PRESENTER_COMMANDS.md) — the privileged BEFORE request is direct and **not governed by Talon**. Then reset counters explicitly; the separate, isolated AFTER workload uses Talon and cannot route directly to the privileged HR service.
 - **No API key:** isolated GUIDED dashboard plus real Talon MCP, or a separate protocol test with a deterministic fake model. Neither is actual LLM-generated analysis.
 - **Real OpenAI (optional):** the external-model smoke must be run explicitly with a real provider key before claiming live model inference. It incurs provider cost and is not part of the normal CI gates.
 

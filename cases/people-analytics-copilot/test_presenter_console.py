@@ -90,9 +90,32 @@ class PresenterHTTPTests(unittest.TestCase):
     def test_public_page_contains_description_but_no_secret(self):
         with self.request("/") as response:
             html = response.read().decode()
-        self.assertIn("Operator authentication", html)
-        self.assertIn("same", html.lower())
+        self.assertIn("Unlock operator checks", html)
+        self.assertIn("seven", html.lower())
+        self.assertIn("View exact terminal command", html)
+        self.assertIn("Go to next incomplete check", html)
+        self.assertIn("Copy shell setup", html)
+        self.assertIn("actual", html.lower())
+        self.assertIn("confirm(", html)  # explicit confirmation for the privileged BEFORE/reset actions
+        self.assertIn("exit code", html.lower())
         self.assertNotIn("test-operator-secret", html)
+
+    def test_ui_explains_docker_and_talon_distinct_boundaries(self):
+        html = presenter.PAGE
+        for phrase in ("Docker enforces network/volume separation",
+                       "Talon enforces routed model/tool policy",
+                       "Before:", "Reset:", "After:",
+                       "This is UI progress, not signed evidence"):
+            self.assertIn(phrase, html)
+
+    def test_ui_exposes_same_action_ids_as_cli(self):
+        html = presenter.PAGE
+        for action in ("before", "reset", "boundary", "discover", "allow", "deny",
+                       "backend_counts", "evidence_verify"):
+            self.assertIn(action, presenter.CATALOG)
+        # API exposes the exact same CATALOG, not a separate browser action list.
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("for a,b,c,d in ACTIONS", source)
 
     def test_catalog_requires_token_and_includes_exact_shell_text(self):
         with self.assertRaises(HTTPError) as exc:

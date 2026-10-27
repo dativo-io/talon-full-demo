@@ -24,9 +24,9 @@ The optional OpenShell case also uses `make real-prepare` / `real-start` / `real
 
 All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first. Every n8n case additionally requires Docker. The quarterly and vendor-review cases require Anthropic; the support-resolution case requires OpenAI and a literal operator decision before it can complete.
 
-## People Analytics Copilot — prospective customer (standalone case)
+## People Analytics Copilot — standalone customer demonstration
 
-**Not yet a formal buyer/technical evidence-projection pair.** Use the [12–15 minute buyer plan](../cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) and [granular operator commands](../cases/people-analytics-copilot/PRESENTER_COMMANDS.md). The [complete case README](../cases/people-analytics-copilot/README.md) covers configuration, deployment and troubleshooting.
+**Not yet a formal buyer/technical evidence-projection pair.** Use the [12–15 minute buyer plan](../cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) and either the [browser-first walkthrough](../cases/people-analytics-copilot/UI_PLAYBOOK.md) or [terminal-first commands](../cases/people-analytics-copilot/PRESENTER_COMMANDS.md). The [complete case README](../cases/people-analytics-copilot/README.md) covers configuration, deployment and troubleshooting.
 
 | Proof | Actual mechanism | Validation |
 |---|---|---|
@@ -38,7 +38,7 @@ All real-provider cases require `make real-prepare`, `make real-start`, and a he
 | Real LLM gateway integration | Real Talon LLM/MCP with a fake upstream model | CI verifies the protocol/model-to-tool roundtrip; **not AI quality** |
 | Actual provider-backed model | Optional OpenAI via a separately configured Talon LLM gateway | **Not yet provider-tested**; opt-in smoke needed before any live-LLM claim |
 
-Evidence must be independently signed and verified. The default isolated browser assistant is **GUIDED (non-LLM)**. The isolated LIVE mode requires an actual provider credential and may incur model charges. The demo does not govern arbitrary SQL, direct warehouse bypasses or external application activity.
+Both interfaces execute the same allowlisted Docker/Talon proof checks; the separate authenticated operator UI exposes actual process output and never changes the AI app's permissions. Evidence must be independently signed and verified. The default isolated browser assistant is **GUIDED (non-LLM)**. The isolated LIVE mode requires an actual provider credential and may incur model charges. The demo does not govern arbitrary SQL, direct warehouse bypasses or external application activity.
 
 
 ## 1. Customer-support gateway
