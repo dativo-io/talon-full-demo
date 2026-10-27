@@ -11,8 +11,8 @@ x-case-image: &case-image
 x-talon-environment: &talon-environment
   TALON_DATA_DIR: /state
   TALON_SECRETS_KEY: ${HR_DEMO_SECRETS_KEY:?Set the vault/signing keys in .env}
-  TALON_SIGNING_KEY: ${HR_DEMO_SIGNING_KEY:?Run secure launcher}
-  TALON_ADMIN_KEY: ${HR_DEMO_ADMIN_KEY:?Run secure launcher}
+  TALON_SIGNING_KEY: ${HR_DEMO_SIGNING_KEY:?Set the vault/signing keys in .env}
+  TALON_ADMIN_KEY: ${HR_DEMO_ADMIN_KEY:?Set the vault/signing keys in .env}
 
 x-talon-volumes: &talon-volumes
   - ./.state/talon:/state
@@ -56,26 +56,14 @@ services:
     networks: [app_net]
     restart: unless-stopped
 
-  talon-init:
+  # A normal Talon CLI environment; initialization is never scripted by Compose.
+  talon-cli:
     image: debian:bookworm-slim
-    environment:
-      <<: *talon-environment
-      HR_DEMO_OPENAI_KEY: ${HR_DEMO_OPENAI_KEY:-}
+    profiles: ["setup"]
+    environment: *talon-environment
     volumes: *talon-volumes
-    command:
-      - /bin/sh
-      - -euc
-      - |
-        cd /state
-        if [ ! -f talon.config.yaml ]; then
-          talon init --scaffold --name hr-analytics-assistant
-        fi
-        cp /policies/agent.talon.yaml /state/agent.talon.yaml
-        talon validate
-        talon secrets set hr-analytics-assistant-talon-key talon-hr-demo-key-0001
-        if [ -n "$HR_DEMO_OPENAI_KEY" ]; then
-          talon secrets set openai-api-key "$HR_DEMO_OPENAI_KEY"
-        fi
+    working_dir: /state
+    command: ["talon", "version"]
     networks: [app_net]
     restart: "no"
 
@@ -94,9 +82,6 @@ services:
   talon-gateway:
     image: debian:bookworm-slim
     profiles: ["live"]
-    depends_on:
-      talon-init:
-        condition: service_completed_successfully
     environment: *talon-environment
     volumes: *talon-volumes
     working_dir: /state
