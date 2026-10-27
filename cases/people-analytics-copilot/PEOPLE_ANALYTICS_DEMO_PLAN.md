@@ -12,14 +12,14 @@ AFTER — a separated browser and AI application has no DuckDB volume and no rou
 
 The **container network / missing DuckDB mount** prevents the browser/agent from accessing raw HR data directly. That is a **deployment boundary, not Talon enforcement**. Talon governs routed model and tool requests. The HR backend enforces parameterized SQL and minimum reporting cohorts. The fixed aggregate dashboard service does not expose arbitrary SQL.
 
-The "before" is an operator executing a direct call *inside the privileged HR container*. It illustrates what an agent with inherited broad credentials could do; it does not claim an actual Grab or Workday agent had those privileges.
+The "before" is an operator executing a direct call *inside the privileged HR container*. It illustrates what an agent with inherited broad credentials could do; it does not claim an actual a customer or Workday agent had those privileges.
 
 ## Presenter track: choose honestly
 
 - **No provider key (fully CI-tested):** run the isolated GUIDED scenario. The seven granular commands demonstrate the actual backend, Docker isolation, Talon MCP allow/deny, counters and signatures. The assistant is **not** real AI inference. The credential-free *separate* LLM protocol test uses a fake upstream model.
 - **Real AI track (opt-in):** **first** pass the external-provider smoke using an actual OpenAI credential; then start the isolated stack in LIVE mode. Real model-generated analysis is a valuable extra scene, but is **not an already-passed CI guarantee**. If any provider step fails, switch back to the guided track and explicitly label it.
 
-Use [PRESENTER_COMMANDS.md](PRESENTER_COMMANDS.md) for the full command-by-command procedure. **BEFORE/AFTER is a comparison of two workloads, not a runtime switch or an agent migration.** Resetting the mock counters never changes privileges.
+Use [UI_PLAYBOOK.md](UI_PLAYBOOK.md) for the complete browser walkthrough, or [PRESENTER_COMMANDS.md](PRESENTER_COMMANDS.md) for the full terminal command-by-command procedure. **BEFORE/AFTER is a comparison of two workloads, not a runtime switch or an agent migration.** Resetting the mock counters never changes privileges.
 
 ## Updated 12–15 minute customer walkthrough
 
@@ -44,7 +44,7 @@ restricted AI process**. Every UI proof action displays the exact corresponding
 command and real process output, so the presenter can switch freely between
 browser and terminal. The privileged BEFORE call and the explicit counter
 RESET stay visible as separate actions. No "before/after Talon enable switch"
-exists. [Detailed UI and CLI steps](PRESENTER_COMMANDS.md).
+exists. Use the [browser-first playbook](UI_PLAYBOOK.md) or [terminal-first playbook](PRESENTER_COMMANDS.md).
 
 ## Release and presentation gates
 
@@ -66,7 +66,7 @@ Use mock-provider mode only when visibly labelled; don't call scripted text a re
 
 ## Boundaries
 
-- No official Workday/Grab integration, real employees, SSO or production IAM.
+- No production HR platform integration, real employees, SSO or production IAM.
 - A compromised privileged HR service could still extract synthetic rows; the isolation keeps that privileged component off the AI application's network.
 - No arbitrary query authorization, formal GDPR compliance claim or broad DLP guarantee. The demo's PII redaction is disabled.
 - The ordinary dashboard read is intentionally a separate fixed aggregate API; it does not pass through Talon.
