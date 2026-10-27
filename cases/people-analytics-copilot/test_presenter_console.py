@@ -35,7 +35,7 @@ class PresenterMappingTests(unittest.TestCase):
             self.assertNotIn("; rm ", shell)
             args = presenter.build_command(name, runner=lambda _: "synthetic-container-id\n")
             self.assertTrue(args)
-            self.assertEqual(args[0], "docker")
+            self.assertEqual(args[0], "cat" if name == "compose_spec" else "docker")
             self.assertFalse(any("sh -c" in x for x in args))
             if name in ("before", "reset"):
                 self.assertIn("hr-server", args)
