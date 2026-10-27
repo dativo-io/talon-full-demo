@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import secrets
 import sys
 import threading
@@ -81,10 +82,14 @@ def exercise_business_ui(page):
     expect(page.locator("#probe")).to_have_text("DENIED — not dispatched", timeout=30000)
     expect(page.locator("#receipt")).to_contain_text("Decision: deny")
     expect(page.locator("#receipt")).to_contain_text("Committed: true")
+    session_label = page.locator("#sessionLabel").inner_text()
+    match = re.search(r"hr-demo-[a-z0-9_-]+", session_label)
+    assert match, session_label
     print("PASS: real Chromium dashboard, filter, guided Talon aggregate and forbidden-tool receipt")
+    return match.group(0)
 
 
-def exercise_operator_console(page, token: str):
+def exercise_operator_console(page, token: str, business_session: str):
     page.goto(CONSOLE_URL + "/", wait_until="domcontentloaded")
     expect(page.get_by_role("heading", name="People Analytics · Operator Proof Console")).to_be_visible()
     expect(page.get_by_text("No runtime switch:", exact=False)).to_be_visible()
@@ -98,9 +103,11 @@ def exercise_operator_console(page, token: str):
     page.get_by_role("button", name="Refresh logs").click()
     expect(page.locator("#logStatus")).to_contain_text("Talon", timeout=15000)
     page.locator("#logSource").select_option("trace")
+    page.locator("#traceSession").fill(business_session)
     page.get_by_role("button", name="Refresh logs").click()
     expect(page.locator("#liveLogs")).to_contain_text("HR_AI_TRACE", timeout=15000)
     expect(page.locator("#liveLogs")).to_contain_text("mcp.response")
+    expect(page.locator("#liveLogs")).to_contain_text('"session":"'+business_session+'"')
     actions = presenter.ACTIONS
     cards = page.locator("article.action")
     expect(cards).to_have_count(len(actions))
@@ -165,8 +172,8 @@ def main():
                 page = context.new_page()
                 page.set_default_timeout(15000)
                 try:
-                    exercise_business_ui(page)
-                    exercise_operator_console(page, token)
+                    session = exercise_business_ui(page)
+                    exercise_operator_console(page, token, session)
                 except Exception:
                     # Fictional data only. Token field is cleared after auth.
                     screenshot = ROOT / "cases" / "people-analytics-copilot" / ".state" / "browser-failure.png"
