@@ -117,6 +117,9 @@ services:
       TALON_AGENT_KEY: talon-hr-demo-key-0001
       HR_DASHBOARD_URL: http://dashboard:9093
       HR_MOCK_URL: ""
+      HR_DEMO_TRACE: "1"
+      HR_DEMO_PROVIDER_KIND: "openai-via-talon-when-live"
+      HR_DEMO_TRACE_PAYLOADS: ${HR_DEMO_TRACE_PAYLOADS:-0}
       TALON_AI_MODE: ${HR_DEMO_AI_MODE:-guided}
       TALON_LLM_URL: http://talon-gateway:8082/v1/proxy/openai/v1/chat/completions
     networks: [app_net]
