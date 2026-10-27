@@ -192,9 +192,29 @@ def presenter_deny():
     print("TALON GOVERNANCE RECEIPT:", json.dumps(detail, indent=2))
 
 
+
+def warehouse_info():
+    """Inspectable DuckDB metadata from private HR service; no employee rows."""
+    import duckdb
+    import warehouse
+    path = warehouse.database_path()
+    with duckdb.connect(str(path), read_only=True) as conn:
+        tables = [row[0] for row in conn.execute("SHOW TABLES").fetchall()]
+        fields = [row[1] for row in conn.execute("PRAGMA table_info('employees')").fetchall()]
+        count = conn.execute("SELECT COUNT(*) FROM employees").fetchone()[0]
+    print(json.dumps({"engine": "embedded DuckDB (not a separate database server)",
+                      "path": str(path), "read_only_inspection": True,
+                      "tables": tables, "employee_columns": fields,
+                      "synthetic_employee_rows": count,
+                      "note": "Metadata only; no direct SQL capability is offered to AI."},
+                     indent=2))
+    assert count == 1200
+
+
 if __name__ == "__main__":
     actions = {
         "baseline": baseline, "app": app, "backend-counts": backend_counts,
+        "warehouse-info": warehouse_info,
         "before": presenter_before, "counters": presenter_counters,
         "reset": presenter_reset, "boundary": presenter_boundary,
         "discover": presenter_discover, "allow": presenter_allow, "deny": presenter_deny,
