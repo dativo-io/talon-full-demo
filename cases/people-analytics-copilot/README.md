@@ -98,7 +98,7 @@ The **operator proof console** (port **8502**) is now a technical workbench, not
 - **Docker:** inspect the actual Compose services, private/app networks, persistent DuckDB volume, and database schema/row count. DuckDB is an **embedded file**, not a separate database server container.
 - **Talon startup and configuration:** view the real `talon-init` scaffold/validation output, mounted agent/MCP/gateway YAML, and execute `talon validate`. Changes to Git-managed policy require an explicit redeploy; there is no fake UI policy switch.
 - **Live process logs:** select `talon-mcp`, `talon-gateway` (when LIVE is running), `hr-server`, `ui` or the filtered `trace` stream, and enable the bounded ~2-second refresh.
-- **Request/response correlation:** `HR_AI_TRACE` lines expose the actual UI→Talon MCP requests, decisions and evidence IDs. In LIVE mode they also show app-observed LLM gateway request/response metadata, model/response IDs, tool calls and usage.
+- **Request/response correlation:** copy the session ID displayed in the workforce app into the technical inspector's **Optional exact AI session** filter. `HR_AI_TRACE` lines then expose only that session's actual UI→Talon MCP requests, decisions and evidence IDs. In LIVE mode they also show app-observed LLM gateway request/response metadata, model/response IDs, tool calls and usage.
 
 **Not a packet capture:** LLM logs describe messages actually sent **to Talon's LLM gateway** and responses returned through that gateway. They do not independently capture TLS traffic at OpenAI. The optional provider is real only when LIVE mode is enabled with a real credential and its separate smoke test has passed. In normal CI, the upstream model is a **fake** provider.
 
