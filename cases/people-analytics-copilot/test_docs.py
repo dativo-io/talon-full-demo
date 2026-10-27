@@ -70,6 +70,18 @@ class DocumentationContract(unittest.TestCase):
             for fragment in ("BEFORE", "RESET", "Talon", "Docker", "since reset"):
                 self.assertIn(fragment.lower(), doc.lower())
 
+    def test_technical_inspector_and_live_provider_scope(self):
+        readme = (CASE / "README.md").read_text(encoding="utf-8")
+        ui = (CASE / "UI_PLAYBOOK.md").read_text(encoding="utf-8")
+        advanced = (CASE / "ADVANCED_SETUP.md").read_text(encoding="utf-8")
+        for term in ("Talon", "Docker", "HR_AI_TRACE", "LIVE"):
+            self.assertIn(term, readme)
+        for term in ("DuckDB", "Talon", "mcp.request", "mcp.response",
+                     "llm.gateway.request", "llm.gateway.response"):
+            self.assertIn(term, ui)
+        self.assertIn("HR_DEMO_TRACE_PAYLOADS=1", advanced)
+        self.assertIn("not a packet capture", advanced.lower())
+
     def test_guide_is_truthful_and_easy_to_find(self):
         readme = (CASE / "README.md").read_text(encoding="utf-8")
         plan = (CASE / "PEOPLE_ANALYTICS_DEMO_PLAN.md").read_text(encoding="utf-8")
