@@ -94,10 +94,13 @@ _REDACTIONS = (
      "[redacted-environment-secret]"),
 )
 
-def read_service_logs(source):
-    """Bounded log snapshots, live via short UI polling. Never follow indefinitely."""
+def read_service_logs(source, session=None):
+    """Bounded live snapshots; optional exact session filter on app-generated traces."""
     if source not in LOG_SOURCES:
         raise ValueError("Unrecognized log source")
+    if session is not None:
+        if source != "trace" or not re.fullmatch(r"hr-demo-[A-Za-z0-9_-]{1,74}", session):
+            raise ValueError("Only an exact HR demo session may filter the trace stream")
     _environment()
     service = "ui" if source == "trace" else source
     command = _dc_prefix() + ["logs", "--no-color", "--timestamps", "--tail", "110", service]
@@ -109,7 +112,8 @@ def read_service_logs(source):
                 "explanation": "Service is not running or logs unavailable. Start LIVE mode for talon-gateway."}
     log = out.stdout
     if source == "trace":
-        log = "\n".join(line for line in log.splitlines() if "HR_AI_TRACE " in line)
+        log = "\n".join(line for line in log.splitlines() if "HR_AI_TRACE " in line
+                        and (session is None or '"session":"' + session + '"' in line))
     for pattern, replacement in _REDACTIONS:
         log = pattern.sub(replacement, log)
     log = log[-28000:]
@@ -292,6 +296,8 @@ Only Talon MCP bridges app_net to private_hr. Tool policy is enforced by Talon.
 </select>
 <button id="refreshLogs" class="secondary" onclick="refreshLogs()">Refresh logs</button>
 <label class="small"><input id="autoRefresh" type="checkbox" onchange="toggleAutoRefresh(this.checked)"> Auto-refresh ~2s</label>
+<label class="small" for="traceSession">Optional exact AI session (trace only)</label>
+<input id="traceSession" placeholder="hr-demo-…" autocomplete="off" style="width:200px" aria-label="Trace session filter">
 </div>
 <p id="logStatus" class="small" role="status" aria-live="polite">Unlock to inspect real process logs.</p>
 <pre id="liveLogs" style="min-height:180px">Select a source and click Refresh logs.</pre>
@@ -340,8 +346,11 @@ async function refreshLogs(){
  logBusy=true;
  const source=document.getElementById('logSource').value;
  const state=document.getElementById('logStatus');
+ const session=(source==='trace'?document.getElementById('traceSession').value.trim():'');
+ const query='/api/logs?source='+encodeURIComponent(source)+
+   (session?'&session='+encodeURIComponent(session):'');
  try {
-   const r=await fetch('/api/logs?source='+encodeURIComponent(source),{
+   const r=await fetch(query,{
      headers:{'X-Presenter-Token':operatorToken}
    });
    const info=await r.json();
@@ -460,8 +469,12 @@ def handler_factory(token):
                 source = args.get("source", [""])[0]
                 if source not in LOG_SOURCES:
                     return self._send(400, {"error": "Unknown fixed log source"})
+                session = args.get("session", [""])[0] or None
                 try:
-                    return self._send(200, read_service_logs(source))
+                    return self._send(200, read_service_logs(source, session=session)
+                                      if session else read_service_logs(source))
+                except ValueError:
+                    return self._send(400, {"error": "Invalid trace session filter"})
                 except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
                     return self._send(503, {"error": str(exc)[:200]})
             if self.path == "/api/actions":
