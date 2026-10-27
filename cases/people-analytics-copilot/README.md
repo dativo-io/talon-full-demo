@@ -109,33 +109,60 @@ This includes Talon process output and the application's separately labeled `HR_
 
 No OpenAI key? Start `talon-mcp` alone, then start `ui` with the default **GUIDED · NO LLM** mode. SQL/MCP policy and signed evidence are still real, but the guided assistant uses deterministic wording. Don't present guided results as model-generated.
 
-## 4. See how policy changes execution
+## 4. Explore workforce analytics and see what policy changes
 
-Keep the browser open and use the SQL workspace's first example:
+The workforce application can answer several useful questions without exposing employee-level rows:
+
+| Workforce question | Application path | What happens with the example Talon policy |
+|---|---|---|
+| How is the workforce distributed across departments? | **All employees** SQL preset → `hr_aggregate_sql` | Talon allows the MCP tool; the HR backend returns department counts (cohorts of at least 10). |
+| How many active employees are in each department? | **Active employees** SQL preset → `hr_aggregate_sql` | Talon allows; the HR backend returns active headcount by department. |
+| How many active employees work in customer-facing departments? | **Customer departments** SQL preset → `hr_aggregate_sql` | Talon allows; the HR backend applies a bounded, parameterized `department LIKE '%Customer%'` filter. |
+| Which departments had the highest attrition over the last six months? | **Workforce AI** → `hr_attrition_summary` | The aggregate tool is available. In LIVE mode, the model can request it through Talon; GUIDED mode uses it without an LLM. |
+| Can I retrieve individual employees' names and salaries? | Employee-level SQL in the **SQL workspace** | Talon can allow the tool call, but **HR rejects the SQL**. The separate `hr_employee_export` MCP tool is explicitly forbidden by Talon. |
+
+For example, the Customer departments query is:
 
 ```sql
-SELECT department, COUNT(*) AS employees
+SELECT department, COUNT(*) AS active_headcount
 FROM employees
+WHERE termination_date IS NULL
+  AND department LIKE '%Customer%'
 GROUP BY department
 ORDER BY department;
 ```
 
-It executes through `hr_aggregate_sql`, and Talon returns a committed allow receipt. You can also filter active headcount with `AND department LIKE '%Customer%'` (single-quoted literal; only this reviewed filter shape is supported). Now remove **only** this line from `.state/policy/proxy.isolated.talon.yaml`:
+It is not general-purpose SQL access: the HR backend accepts only the reviewed aggregate shapes, binds the department filter as data, and suppresses groups below the minimum cohort size.
+
+### Change one permission; keep the application and queries unchanged
+
+Suppose the workforce team decides that its AI application should still analyze attrition but should **no longer submit SQL**. In `.state/policy/proxy.isolated.talon.yaml`, remove this entry from `proxy.allowed_tools`:
 
 ```yaml
     - name: hr_aggregate_sql
 ```
 
-Validate the agent policy and restart the MCP process so it loads the edited proxy policy:
+Revalidate the agent policy and restart the Talon MCP service to load the edited proxy configuration:
 
 ```bash
 docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
 docker compose -f compose.isolated.yaml up --no-deps -d --force-recreate talon-mcp
 ```
 
-Submit **the identical SQL** again. Talon now denies the MCP operation before dispatch. Neither the workforce application nor the HR backend changed. Restore the line, recreate `talon-mcp`, and the query works again.
+Now compare the same requests:
 
-Compare that with an individual-salary SQL query such as `SELECT full_name, monthly_salary_mxn FROM employees`. Talon may allow the **tool invocation**, but the HR backend rejects the SQL because it is not one of the reviewed aggregate shapes. A Talon denial, an HR SQL rejection and Docker isolation are **different controls**.
+| Request | Before: SQL tool permitted | After: SQL tool removed |
+|---|---|---|
+| Department distribution SQL | Allowed; counts returned | **Talon denies before HR dispatch** |
+| Active headcount SQL | Allowed; counts returned | **Talon denies before HR dispatch** |
+| Customer department SQL | Allowed; filtered counts returned | **Talon denies before HR dispatch** |
+| Six-month attrition using `hr_attrition_summary` | Still permitted | **Still permitted**; this tool was not removed |
+| Existing dashboard charts | Render from the fixed aggregate API | **Unchanged**; chart traffic does not go through Talon |
+| Employee-level SQL | **HR validator rejects** an authorized tool dispatch | **Talon denies** the tool call before HR can validate it |
+
+This is the key distinction: **Talon controls which intercepted operations the AI application can invoke; the HR service controls which SQL those operations may execute.** Talon does not inspect an arbitrary SQL statement and determine whether it is safe. A denial from Talon carries a committed `not_dispatched` evidence record, and the HR backend's execution counter does not increase.
+
+Restore the `hr_aggregate_sql` entry and recreate `talon-mcp` to permit the same queries again. No changes to the workforce application's code, DuckDB data, or chart API are needed.
 
 ## 5. Inspect the evidence
 
