@@ -4,6 +4,8 @@ A customer-facing, synthetic **Workforce Intelligence** dashboard. A persistent 
 
 **Buyer story:** The People Analytics team already operates a governed HR warehouse. Business users need an AI assistant to analyze attrition, headcount and tenure. Talon adds **use-case-specific AI runtime permissions** and signed evidence, without replacing the HR warehouse's access controls.
 
+For an exact mapping between demo claims and automated validation, see the [CI acceptance matrix](CI_COVERAGE.md). The browser and terminal experiences have separate tests against the **same** real Talon/Docker services.
+
 ## Start here: choose the correct demo mode
 
 | Mode | What you see | External LLM key? | Main proof |
