@@ -44,8 +44,8 @@ class DocumentationContract(unittest.TestCase):
     def test_docs_have_diagrams_and_current_branch(self):
         readme = (CASE / "README.md").read_text(encoding="utf-8")
         plan = (CASE / "PEOPLE_ANALYTICS_DEMO_PLAN.md").read_text(encoding="utf-8")
-        self.assertIn("~~~mermaid\nflowchart", readme)
-        self.assertIn("~~~mermaid\nflowchart", plan)
+        self.assertIn("```mermaid\nflowchart", readme)
+        self.assertIn("```mermaid\nflowchart", plan)
         self.assertIn("feat/people-analytics-governed-demo", readme)
         self.assertIn("feat/people-analytics-governed-demo",
                       (CASE / "PRESENTER_COMMANDS.md").read_text(encoding="utf-8"))
