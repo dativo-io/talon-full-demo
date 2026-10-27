@@ -140,8 +140,19 @@ def main():
                                               locale="en-US", accept_downloads=False)
                 page = context.new_page()
                 page.set_default_timeout(15000)
-                exercise_business_ui(page)
-                exercise_operator_console(page, token)
+                try:
+                    exercise_business_ui(page)
+                    exercise_operator_console(page, token)
+                except Exception:
+                    # Fictional data only. Token field is cleared after auth.
+                    screenshot = ROOT / "cases" / "people-analytics-copilot" / ".state" / "browser-failure.png"
+                    screenshot.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        page.screenshot(path=str(screenshot), full_page=True, timeout=10000)
+                        print("Browser failure screenshot:", screenshot, file=sys.stderr)
+                    except Exception as screenshot_error:
+                        print("Could not capture screenshot:", screenshot_error, file=sys.stderr)
+                    raise
             finally:
                 browser.close()
     finally:
