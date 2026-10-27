@@ -76,6 +76,19 @@ class DemoSmoke(unittest.TestCase):
         self.assertIn('employees', data)
         self.assertIn('monthly_salary_mxn', data['employees'][0])
 
+    def test_sql_is_exactly_two_approved_aggregates(self):
+        for name, sql in warehouse.SQL_PRESETS.items():
+            data=warehouse.approved_sql(sql+";")
+            self.assertEqual(data["query_id"],name)
+            self.assertTrue(data["rows"])
+            self.assertGreaterEqual(data["minimum_cohort_size"],1)
+            self.assertNotIn("full_name",json.dumps(data))
+        for sql in ("SELECT * FROM employees",
+                    "SELECT full_name, monthly_salary_mxn FROM employees",
+                    "SELECT department, COUNT(*) AS employees FROM employees GROUP BY department; DROP TABLE employees"):
+            with self.assertRaises(ValueError):
+                warehouse.approved_sql(sql)
+
     def test_browser_rejects_uncommitted_receipt(self):
         class TestBrowser(demo.Browser):
             pass

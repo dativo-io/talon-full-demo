@@ -112,17 +112,10 @@ jobs:
         run: bash scripts/people-analytics-isolated.sh up
       - name: Verify direct-access baseline and governed non-bypass
         run: bash scripts/people-analytics-isolated.sh verify
-      - name: Run granular presenter commands end-to-end
+      - name: Terminal E2E — original backend counters and signed evidence
         run: |
-          export HR_DEMO_TALON_BIN="$(command -v talon)"
           CASE="$PWD/cases/people-analytics-copilot"
-          dc() {
-            docker compose -f "$CASE/compose.isolated.yaml" \
-              --env-file "$CASE/.state/isolated.env" "$@"
-          }
-          dc exec -T hr-server python3 verify_isolation.py before
-          dc exec -T hr-server python3 verify_isolation.py counters
-          dc exec -T hr-server python3 verify_isolation.py reset
+          dc() { docker compose -f "$CASE/compose.isolated.yaml" --env-file "$CASE/.state/isolated.env" "$@"; }
           dc exec -T ui python3 verify_isolation.py boundary
           dc exec -T ui python3 verify_isolation.py discover
           dc exec -T ui python3 verify_isolation.py allow
@@ -130,8 +123,10 @@ jobs:
           dc exec -T hr-server python3 verify_isolation.py backend-counts
           dc exec -T talon-mcp talon audit export --format signed-json --session hr-demo-presenter --output /tmp/hr-presenter-evidence.json
           dc exec -T talon-mcp talon audit verify --file /tmp/hr-presenter-evidence.json
-      - name: Browser E2E — real guided AI, operator UI, before/after and signed evidence
+      - name: Browser E2E — single workforce UI, SQL, HR validator and Talon denial
         run: python scripts/test-people-analytics-browser.py
+      - name: Policy flip E2E — identical SQL, permission changed, verified evidence
+        run: python scripts/test-people-analytics-policy-change.py
       - name: Upload browser failure screenshot
         if: failure()
         uses: actions/upload-artifact@v4

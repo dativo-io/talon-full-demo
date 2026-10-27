@@ -60,7 +60,7 @@ services:
     image: debian:bookworm-slim
     environment:
       <<: *talon-environment
-      HR_DEMO_OPENAI_KEY: ${HR_DEMO_OPENAI_KEY:-sk-not-configured-fake}
+      HR_DEMO_OPENAI_KEY: ${HR_DEMO_OPENAI_KEY:-}
     volumes: *talon-volumes
     command:
       - /bin/sh
@@ -73,7 +73,9 @@ services:
         cp /policies/agent.talon.yaml /state/agent.talon.yaml
         talon validate
         talon secrets set hr-analytics-assistant-talon-key talon-hr-demo-key-0001
-        talon secrets set openai-api-key "$$HR_DEMO_OPENAI_KEY"
+        if [ -n "$HR_DEMO_OPENAI_KEY" ]; then
+          talon secrets set openai-api-key "$HR_DEMO_OPENAI_KEY"
+        fi
     networks: [app_net]
     restart: "no"
 
