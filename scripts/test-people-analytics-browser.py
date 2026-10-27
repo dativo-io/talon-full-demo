@@ -138,7 +138,12 @@ def main():
     try:
         check_http_isolation(token)
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+            # CI uses hosted Google Chrome when available; local users may
+            # install Playwright's bundled Chromium instead.
+            import os
+            channel = os.environ.get("HR_BROWSER_CHANNEL") or None
+            browser = p.chromium.launch(headless=True, channel=channel,
+                                        args=["--no-sandbox"])
             try:
                 context = browser.new_context(viewport={"width": 1365, "height": 950},
                                               locale="en-US", accept_downloads=False)
