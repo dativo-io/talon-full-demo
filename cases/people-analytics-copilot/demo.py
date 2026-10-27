@@ -27,7 +27,7 @@ TOOLS = [
   'inputSchema':{'type':'object','properties':{'department':{'type':'string'}},'additionalProperties':False}},
  {'name':'hr_tenure_summary','description':'Aggregate tenure bands and average tenure.',
   'inputSchema':{'type':'object','properties':{'department':{'type':'string'}},'additionalProperties':False}},
- {'name':'hr_aggregate_sql','description':'Execute one of two approved aggregate SQL queries; never raw employee rows.',
+ {'name':'hr_aggregate_sql','description':'Execute reviewed department-count aggregates with an optional bounded department filter; no employee rows.',
   'inputSchema':{'type':'object','properties':{'sql':{'type':'string'}},'required':['sql'],'additionalProperties':False}},
  {'name':'hr_employee_export','description':'Privileged export of employee names and salaries; forbidden.',
   'inputSchema':{'type':'object','properties':{'scope':{'type':'string'}},'required':['scope'],'additionalProperties':False}},
