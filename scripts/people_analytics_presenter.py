@@ -30,6 +30,10 @@ EVIDENCE_FILE = "/tmp/hr-presenter-evidence.json"
 # Tuple: id, phase, descriptive name, command displayed as a shell instruction.
 ACTIONS = (
     ("services", "Setup", "Inspect running services", "dc ps"),
+    ("warehouse_info", "Setup", "Inspect embedded DuckDB schema and synthetic row count",
+     "dc exec -T hr-server python3 verify_isolation.py warehouse-info"),
+    ("compose_spec", "Setup", "View actual Docker Compose services and network mounts",
+     "cat cases/people-analytics-copilot/compose.isolated.yaml"),
     ("before", "1 · Direct access", "Privileged direct employee export (synthetic)",
      "dc exec -T hr-server python3 verify_isolation.py before"),
     ("counters", "1 · Direct access", "Read independent HR execution counters",
@@ -136,6 +140,8 @@ def build_command(action, runner=None):
         raise ValueError("Action is not in the presenter allowlist")
     if action == "services":
         return _dc_prefix() + ["ps"]
+    if action == "compose_spec":
+        return ["cat", str(COMPOSE)]
     if action in ("ui_networks", "talon_networks", "hr_networks", "ui_mounts"):
         service = {"ui_networks": "ui", "talon_networks": "talon-mcp",
                    "hr_networks": "hr-server", "ui_mounts": "ui"}[action]
@@ -161,9 +167,9 @@ def build_command(action, runner=None):
                 if action == "evidence_export"
                 else ["audit", "verify", "--file", EVIDENCE_FILE])
         return _dc_prefix() + ["exec", "-T", "talon-mcp", "talon"] + verb
-    service = ("hr-server" if action in ("before", "counters", "reset", "backend_counts")
+    service = ("hr-server" if action in ("before", "counters", "reset", "backend_counts", "warehouse_info")
                else "ui")
-    cli_action = "backend-counts" if action == "backend_counts" else action
+    cli_action = {"backend_counts": "backend-counts", "warehouse_info": "warehouse-info"}.get(action, action)
     return _dc_prefix() + ["exec", "-T", service, "python3",
                            "verify_isolation.py", cli_action]
 
