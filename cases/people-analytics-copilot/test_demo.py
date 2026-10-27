@@ -83,6 +83,9 @@ class DemoSmoke(unittest.TestCase):
             self.assertTrue(data["rows"])
             self.assertGreaterEqual(data["minimum_cohort_size"],1)
             self.assertNotIn("full_name",json.dumps(data))
+            # A real presenter types SQL with newlines; matching must normalize whitespace.
+            multiline=sql.replace(" FROM ", "\nFROM ").replace(" GROUP BY ", "\nGROUP BY ")
+            self.assertEqual(warehouse.approved_sql(multiline+";")["query_id"],name)
         for sql in ("SELECT * FROM employees",
                     "SELECT full_name, monthly_salary_mxn FROM employees",
                     "SELECT department, COUNT(*) AS employees FROM employees GROUP BY department; DROP TABLE employees"):
