@@ -71,7 +71,9 @@ The three relevant files are:
 | `.state/policy/proxy.isolated.talon.yaml` | Which MCP tools can reach the private HR service |
 | `.state/policy/gateway.talon.yaml` | OpenAI endpoint and secret name for model requests |
 
-Review `allowed_tools` and `forbidden_tools` in the MCP policy. The default configuration permits headcount, attrition, tenure and **two reviewed aggregate SQL shapes**. It blocks `hr_employee_export`.
+The choices matter because they change behavior. In `agent.talon.yaml`, `agent.key.secret_name` binds requests to this AI use case; `capabilities.allowed_tools` names the capabilities it is meant to have; `policies.cost_limits` bounds model expenditure; and `audit.include_prompts: false` avoids storing raw prompts. In the MCP proxy YAML, `proxy.allowed_tools` limits what can actually reach the HR backend, while `proxy.forbidden_tools` explicitly blocks `hr_employee_export`. The gateway file names the OpenAI endpoint and its **vault secret reference**, rather than embedding the provider key.
+
+These restrictions are complementary: the SQL tool is callable only when Talon allows it, and the HR service independently accepts **exactly two reviewed aggregate SQL shapes**.
 
 If you want genuine OpenAI inference, enter a **disposable API key** and store it in Talon's encrypted vault:
 
@@ -85,20 +87,21 @@ The CLI's `secrets set` command accepts a positional value: Docker administrator
 
 ## 3. Start Talon and connect the application
 
-For real model calls, start both the MCP proxy and LLM gateway:
+For real model calls, start the MCP proxy and LLM gateway **in the foreground** so their actual `talon serve` output remains visible:
 
 ```bash
-docker compose -f compose.isolated.yaml --profile live up -d talon-mcp talon-gateway
+docker compose -f compose.isolated.yaml --profile live up talon-mcp talon-gateway
+```
+
+In another terminal, from this same directory and with `HR_DEMO_TALON_BIN` exported:
+
+```bash
 HR_DEMO_AI_MODE=live docker compose -f compose.isolated.yaml up --no-deps -d ui
 ```
 
-Open **http://127.0.0.1:8501**. Its charts remain backed by DuckDB. SQL requests now invoke the `hr_aggregate_sql` MCP tool through Talon, and the AI questions use Talon's OpenAI-compatible gateway.
+Open **http://127.0.0.1:8501**. Its charts remain backed by DuckDB. SQL requests invoke the `hr_aggregate_sql` MCP tool through Talon, and AI questions use Talon's OpenAI-compatible gateway.
 
-In another terminal (from this same directory, with `HR_DEMO_TALON_BIN` exported):
-
-```bash
-docker compose -f compose.isolated.yaml logs -f talon-mcp talon-gateway hr-server ui
-```
+You can also follow the HR backend and application traces with `docker compose -f compose.isolated.yaml logs -f hr-server ui`. The actual Talon commands are declared in `compose.isolated.yaml`: `talon serve --proxy-config ...` and `talon serve --gateway --gateway-config ...`.
 
 This includes Talon process output and the application's separately labeled `HR_AI_TRACE` events. The latter describe requests observed at the application/Talon boundary, **not** a packet capture inside OpenAI. Full prompt and response bodies are not logged by default.
 
