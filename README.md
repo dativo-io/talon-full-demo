@@ -16,17 +16,11 @@ The intended experience is a **10–15 minute narrated walkthrough**. The establ
 
 See [Audience-specific demo views](docs/AUDIENCE_DEMOS.md) for the full command matrix and truth boundaries.
 
-## People Analytics — choose your demo interface
+## People Analytics (standalone)
 
-The [People Analytics case](cases/people-analytics-copilot/README.md) is **standalone**: it does not require running the broader support/n8n demo fleet or preparing all vendor API keys.
+Start with the **[5-minute quickstart and architecture diagram](cases/people-analytics-copilot/README.md)**. Choose the [browser playbook](cases/people-analytics-copilot/UI_PLAYBOOK.md) or [terminal playbook](cases/people-analytics-copilot/PRESENTER_COMMANDS.md)—both run the same governed operations and evidence checks.
 
-- **Customer story (12–15 min):** [People Analytics demo plan](cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) — existing HR governance, privileged baseline, isolated AI, Talon allow/deny and signed evidence.
-- **Browser-first walkthrough:** [UI playbook](cases/people-analytics-copilot/UI_PLAYBOOK.md) — dashboard, authenticated operator proof console, step progression, real stdout/stderr and evidence; no terminal expertise required beyond starting services.
-- **Terminal-first walkthrough:** [CLI commands](cases/people-analytics-copilot/PRESENTER_COMMANDS.md) — the privileged BEFORE request is direct and **not governed by Talon**. Then reset counters explicitly; the separate, isolated AFTER workload uses Talon and cannot route directly to the privileged HR service.
-- **No API key:** isolated GUIDED dashboard plus real Talon MCP, or a separate protocol test with a deterministic fake model. Neither is actual LLM-generated analysis.
-- **Real OpenAI (optional):** the external-model smoke must be run explicitly with a real provider key before claiming live model inference. It incurs provider cost and is not part of the normal CI gates.
-
-The Docker boundary removes direct HR routes; **Talon does not revoke warehouse credentials or control traffic that bypasses it**.
+The [15-minute presentation plan](cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) explains the privileged BEFORE versus isolated AFTER comparison. **Docker** prevents direct HR bypass; **Talon** controls allowed/denied model and MCP traffic. Default GUIDED mode uses no LLM; real model inference is optional and requires a separate provider smoke test.
 
 ## Start here
 
