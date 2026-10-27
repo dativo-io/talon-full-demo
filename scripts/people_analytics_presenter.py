@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 import secrets
 import shutil
@@ -44,6 +46,12 @@ ACTIONS = (
      "docker inspect \"$(dc ps -q ui)\" --format '{{json .Mounts}}'"),
     ("boundary", "3 · Deployment perimeter", "Verify network isolation and working dashboard",
      "dc exec -T ui python3 verify_isolation.py boundary"),
+    ("bootstrap_logs", "Setup", "Show Talon scaffold, validation and key setup log",
+     "dc logs --tail 70 talon-init"),
+    ("gateway_policy", "4 · Effective boundaries", "Inspect LIVE gateway provider configuration",
+     "dc exec -T talon-mcp cat /case/gateway.talon.yaml"),
+    ("validate_policy", "4 · Effective boundaries", "Validate active Talon config",
+     "dc exec -T talon-mcp talon validate"),
     ("agent_policy", "4 · Effective boundaries", "Inspect agent allowlist",
      "dc exec -T talon-mcp cat /state/agent.talon.yaml"),
     ("proxy_policy", "4 · Effective boundaries", "Inspect MCP proxy allow/deny policy",
@@ -64,6 +72,47 @@ ACTIONS = (
 )
 CATALOG = {item[0]: item for item in ACTIONS}
 RUN_LOCK = threading.Lock()
+
+# Host-only log readers: no generic Docker exec, shell or arbitrary service names.
+LOG_SOURCES = {
+    "talon-mcp": "Talon MCP proxy — live process output",
+    "talon-gateway": "Talon LLM gateway — LIVE profile only",
+    "talon-init": "Talon scaffold / validation / vault initialization",
+    "ui": "AI app — structured MCP + model gateway exchanges",
+    "trace": "AI request/response trace — app-observed, not provider wire capture",
+    "hr-server": "Private HR backend — actual dispatched operations",
+    "dashboard": "Aggregate dashboard API",
+}
+_REDACTIONS = (
+    (re.compile(r"\bBearer\s+\S+", re.I), "Bearer [redacted]"),
+    (re.compile(r"\bsk-[A-Za-z0-9_-]{8,}"), "[redacted-api-key]"),
+    (re.compile(r"(?i)(?:TALON_SECRETS_KEY|TALON_SIGNING_KEY|TALON_ADMIN_KEY|HR_DEMO_OPENAI_KEY|OPENAI_API_KEY)\s*[:=]\s*\S+"),
+     "[redacted-environment-secret]"),
+)
+
+def read_service_logs(source):
+    """Bounded log snapshots, live via short UI polling. Never follow indefinitely."""
+    if source not in LOG_SOURCES:
+        raise ValueError("Unrecognized log source")
+    _environment()
+    service = "ui" if source == "trace" else source
+    command = _dc_prefix() + ["logs", "--no-color", "--timestamps", "--tail", "110", service]
+    out = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=8,
+                         env=_environment(), check=False)
+    if out.returncode:
+        # Gateway profile may not be started yet.
+        return {"source": source, "available": False, "lines": "",
+                "explanation": "Service is not running or logs unavailable. Start LIVE mode for talon-gateway."}
+    log = out.stdout
+    if source == "trace":
+        log = "\n".join(line for line in log.splitlines() if "HR_AI_TRACE " in line)
+    for pattern, replacement in _REDACTIONS:
+        log = pattern.sub(replacement, log)
+    log = log[-28000:]
+    return {"source": source, "available": True, "lines": log,
+            "explanation": ("Application-observed request/response summaries through Talon. "
+                            "These are NOT a packet capture of OpenAI HTTPS; provider is real ONLY in LIVE mode."
+                            if source == "trace" else LOG_SOURCES[source])}
 
 
 def _environment():
@@ -97,8 +146,14 @@ def build_command(action, runner=None):
             raise RuntimeError(service + " has no running container")
         format_arg = "{{json .Mounts}}" if action == "ui_mounts" else "{{json .NetworkSettings.Networks}}"
         return ["docker", "inspect", cid.strip(), "--format", format_arg]
-    if action in ("agent_policy", "proxy_policy"):
-        name = "/state/agent.talon.yaml" if action == "agent_policy" else "/case/proxy.isolated.talon.yaml"
+    if action == "bootstrap_logs":
+        return _dc_prefix() + ["logs", "--tail", "70", "talon-init"]
+    if action == "validate_policy":
+        return _dc_prefix() + ["exec", "-T", "talon-mcp", "talon", "validate"]
+    if action in ("agent_policy", "proxy_policy", "gateway_policy"):
+        name = {"agent_policy": "/state/agent.talon.yaml",
+                "proxy_policy": "/case/proxy.isolated.talon.yaml",
+                "gateway_policy": "/case/gateway.talon.yaml"}[action]
         return _dc_prefix() + ["exec", "-T", "talon-mcp", "cat", name]
     if action in ("evidence_export", "evidence_verify"):
         verb = (["audit", "export", "--format", "signed-json",
@@ -322,6 +377,18 @@ def handler_factory(token):
         def do_GET(self):
             if self.path == "/":
                 return self._send(200, PAGE, True)
+            route = urlparse(self.path)
+            if route.path == "/api/logs":
+                if not self._authorized() or not self._local_origin():
+                    return self._send(401, {"error": "Operator token required"})
+                args = parse_qs(route.query)
+                source = args.get("source", [""])[0]
+                if source not in LOG_SOURCES:
+                    return self._send(400, {"error": "Unknown fixed log source"})
+                try:
+                    return self._send(200, read_service_logs(source))
+                except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
+                    return self._send(503, {"error": str(exc)[:200]})
             if self.path == "/api/actions":
                 if not self._authorized():
                     return self._send(401, {"error": "Operator token required"})
