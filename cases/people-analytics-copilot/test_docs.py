@@ -14,6 +14,7 @@ DOCS = [
     CASE / "README.md",
     CASE / "PRESENTER_COMMANDS.md",
     CASE / "UI_PLAYBOOK.md",
+    CASE / "CI_COVERAGE.md",
     CASE / "PEOPLE_ANALYTICS_DEMO_PLAN.md",
     ROOT / "README.md",
     ROOT / "docs" / "AUDIENCE_DEMOS.md",
@@ -65,6 +66,7 @@ class DocumentationContract(unittest.TestCase):
         self.assertIn("PRESENTER_COMMANDS.md", readme)
         self.assertIn("PEOPLE_ANALYTICS_DEMO_PLAN.md", readme)
         self.assertIn("UI_PLAYBOOK.md", readme)
+        self.assertIn("CI_COVERAGE.md", readme)
         ui = (CASE / "UI_PLAYBOOK.md").read_text(encoding="utf-8")
         for evidence in ("BEFORE", "RESET", "decision=allow", "decision=deny",
                          "signed", "8501", "8502"):
