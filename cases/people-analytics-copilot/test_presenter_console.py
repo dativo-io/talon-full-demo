@@ -27,7 +27,8 @@ class PresenterMappingTests(unittest.TestCase):
                     "talon_networks", "hr_networks", "ui_mounts", "boundary",
                     "agent_policy", "proxy_policy", "discover", "allow", "deny",
                     "backend_counts", "evidence_export", "evidence_verify",
-                    "bootstrap_logs", "gateway_policy", "validate_policy"}
+                    "bootstrap_logs", "gateway_policy", "validate_policy",
+                    "warehouse_info", "compose_spec"}
         self.assertEqual(set(presenter.CATALOG), expected)
         for name, phase, title, shell in presenter.ACTIONS:
             self.assertTrue(phase and title and shell)
@@ -41,6 +42,14 @@ class PresenterMappingTests(unittest.TestCase):
             if name in ("deny", "allow", "discover"):
                 self.assertIn("ui", args)
                 self.assertEqual(args[-1], name)
+            if name == "warehouse_info":
+                self.assertIn("hr-server", args)
+                self.assertEqual(args[-1], "warehouse-info")
+            if name == "compose_spec":
+                self.assertEqual(args[0], "cat")
+                self.assertEqual(args[-1], str(presenter.COMPOSE))
+            if name in ("gateway_policy", "agent_policy", "proxy_policy"):
+                self.assertIn("talon-mcp", args)
             if name == "backend_counts":
                 self.assertIn("hr-server", args)
                 self.assertEqual(args[-1], "backend-counts")
@@ -160,7 +169,7 @@ class PresenterHTTPTests(unittest.TestCase):
             presenter.read_service_logs("../../secrets")
         class Fake:
             returncode = 0
-            stdout = "ui | HR_AI_TRACE trace_id=1\nui | Authorization: Bearer sk-demoexample123456789"
+            stdout = "ui | HR_AI_TRACE trace_id=1 Authorization: Bearer sk-demoexample123456789"
             stderr = ""
         with patch.object(presenter, "_environment", return_value={}), \
              patch.object(presenter.subprocess, "run", return_value=Fake()):
