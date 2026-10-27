@@ -8,7 +8,7 @@ The scenario uses 1,200 **fictional** employee records in DuckDB. The goal is to
 
 ## Before and after: two different workloads
 
-~~~mermaid
+```mermaid
 flowchart LR
     subgraph BEFORE["BEFORE · privileged HR process"]
         P["Trusted HR operator"] -->|"Direct employee export"| H1["HR backend"]
@@ -20,7 +20,7 @@ flowchart LR
         A -. "Direct access blocked by Docker" .-> H2
         T -. "Employee export denied" .-> H2
     end
-~~~
+```
 
 **Not a runtime switch:** we don't toggle Talon or migrate one running agent. The BEFORE call executes *directly* inside the privileged HR service and succeeds without Talon. We then **reset counters only**, and test a separate AI workload isolated by Docker networking and mounts. Talon enforces the permitted/denied operations routed through its proxy.
 
