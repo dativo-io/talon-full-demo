@@ -6,19 +6,36 @@ or access to the HR service. There is deliberately no ungoverned fallback path.
 import json
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from runtime_trace import trace, previews_enabled
 
 
 def chat_completion(url, key, body, session):
+    trace("llm.gateway.request", session, provider_mode="external-configured",
+          gateway="Talon LLM", model=body.get("model"),
+          offered_tools=[x["function"]["name"] for x in body.get("tools", [])],
+          message_roles=[m.get("role") for m in body.get("messages", [])],
+          tool_choice=body.get("tool_choice"),
+          request_payload=body if previews_enabled() else "[metadata only; enable HR_DEMO_TRACE_PAYLOADS=1 for synthetic fixtures]")
     req = Request(url, data=json.dumps(body).encode("utf-8"), method="POST",
                   headers={"Content-Type": "application/json",
                            "Authorization": "Bearer " + key,
                            "X-Talon-Session-ID": session})
     try:
         with urlopen(req, timeout=90) as response:
-            return json.load(response)
+            result = json.load(response)
+            choice = (result.get("choices") or [{}])[0]
+            msg = choice.get("message") or {}
+            trace("llm.gateway.response", session, model=result.get("model"),
+                  provider_response_id=result.get("id"),
+                  finish_reason=choice.get("finish_reason"),
+                  usage=result.get("usage"),
+                  tool_calls=[x.get("function", {}).get("name") for x in msg.get("tool_calls") or []],
+                  response_payload=result if previews_enabled() else "[metadata only]")
+            return result
     except HTTPError as error:
         message = error.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Talon LLM gateway returned HTTP {error.code}: {message[:350]}") from error
+        trace("llm.gateway.error", session, http_status=error.code)
+        raise RuntimeError(f"Talon LLM gateway returned HTTP {error.code}; see authenticated operator logs") from error
 
 
 def run_live_chat(prompt, tools, session, model, llm_url, llm_key, call_tool):
@@ -78,12 +95,18 @@ def run_live_chat(prompt, tools, session, model, llm_url, llm_key, call_tool):
                 raise RuntimeError("Invalid model tool arguments") from error
             if not isinstance(args, dict):
                 raise RuntimeError("Tool arguments must be an object")
+            trace("llm.tool.request", session, tool=name,
+                  arguments=args if previews_enabled() else "[metadata only]")
             status, out = call_tool(name, args, session)
             extension = out.get("result", {}).get("_meta", {}).get("io.dativo.talon/governance")
             if (status != 200 or "result" not in out or not extension
                     or extension.get("decision") != "allow"
                     or extension.get("evidence", {}).get("committed") is not True):
                 raise RuntimeError("Talon did not authorize the MCP operation")
+            trace("llm.tool.response", session, tool=name, http_status=status,
+                  decision=extension.get("decision"),
+                  evidence_id=extension.get("evidence", {}).get("id"),
+                  evidence_committed=extension.get("evidence", {}).get("committed"))
             evidence.append({"name": name, "governance": extension})
             messages.append({"role": "tool", "tool_call_id": call["id"],
                              "content": json.dumps(out["result"]["content"])})
