@@ -114,8 +114,8 @@ jobs:
           cd cases/people-analytics-copilot
           umask 077
           mkdir -p .state/policy .state/talon
-          printf 'HR_DEMO_SECRETS_KEY=%s\nHR_DEMO_SIGNING_KEY=%s\nHR_DEMO_ADMIN_KEY=%s\n' \
-            "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" > .env
+          printf 'HR_DEMO_SECRETS_KEY=%s\nHR_DEMO_SIGNING_KEY=%s\nHR_DEMO_ADMIN_KEY=%s\nHR_DEMO_UID=%s\nHR_DEMO_GID=%s\n' \
+            "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(id -u)" "$(id -g)" > .env
           cp proxy.isolated.talon.yaml .state/policy/proxy.isolated.talon.yaml
           cp gateway.talon.yaml .state/policy/gateway.talon.yaml
           docker compose -f compose.isolated.yaml up --build -d seed hr-server dashboard
