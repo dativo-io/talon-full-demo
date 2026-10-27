@@ -205,7 +205,8 @@ h2{font-size:20px;margin:0 0 8px}h3{font-size:16px;margin:0 0 6px}
 p{margin:7px 0 14px}.muted{font-size:13px;color:#63738a}
 button{border:0;background:#155db1;color:white;border-radius:8px;padding:10px 15px;cursor:pointer;font:inherit}
 button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid #e5a32d;outline-offset:2px}
-button:disabled{opacity:.5;cursor:wait}.secondary{background:#e8f0fb;color:#144e96}
+button:disabled{opacity:.5;cursor:wait}
+select{padding:9px;border:1px solid #b5c5d8;border-radius:7px;max-width:100%;background:white;color:inherit}.secondary{background:#e8f0fb;color:#144e96}
 input{padding:10px;border:1px solid #b5c5d8;border-radius:8px;max-width:400px;width:100%;font:inherit}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}
 .action{border:1px solid #dce6f0;border-radius:10px;padding:15px;min-width:0}
@@ -253,12 +254,37 @@ dc() {
 <p class="small">The shell alias is needed for commands displayed below. The browser uses an explicit allowlist and does not execute shell strings supplied by the user.</p>
 </details>
 </section>
+<section id="technicalLab" hidden>
+<h2>4. Technical inspection — see the system working</h2>
+<p>Inspect <strong>actual Docker services</strong>, Talon configuration, bootstrap logs and real request/response traces. This does not create mock answers or turn on unrestricted logging. Use this panel while performing a step in the workforce UI or proof console.</p>
+<div class="warning"><strong>Provider truth:</strong> the default GUIDED mode has no LLM request. The LIVE gateway sends calls to an external provider, but requires a real API key and an independently passed smoke test. Traces marked <code>llm.gateway.*</code> are observed by the application at Talon's gateway boundary—not HTTPS packets captured inside OpenAI. Model content is hidden unless synthetic-only payload previews were explicitly enabled when starting LIVE.</div>
+<div class="line">
+<label for="logSource">Running service / event source</label>
+<select id="logSource" aria-label="Running service logs">
+<option value="talon-init">Talon bootstrap / configuration creation</option>
+<option value="talon-mcp">Talon MCP live logs</option>
+<option value="talon-gateway">Talon LLM gateway (LIVE only)</option>
+<option value="trace">AI request / response exchanges (structured trace)</option>
+<option value="ui">AI application raw logs</option>
+<option value="hr-server">Private HR backend execution logs</option>
+<option value="dashboard">DuckDB aggregate dashboard logs</option>
+</select>
+<button id="refreshLogs" class="secondary" onclick="refreshLogs()">Refresh logs</button>
+<label class="small"><input id="autoRefresh" type="checkbox" onchange="toggleAutoRefresh(this.checked)"> Auto-refresh ~2s</label>
+</div>
+<p id="logStatus" class="small" role="status" aria-live="polite">Unlock to inspect real process logs.</p>
+<pre id="liveLogs" style="min-height:180px">Select a source and click Refresh logs.</pre>
+<details><summary>Where Talon configuration actually comes from</summary>
+<p>The <strong>talon-init</strong> container runs Talon scaffold, copies the reviewed <code>agent.talon.yaml</code>, validates it, and writes demo keys to Talon's encrypted vault. The Talon MCP and optional LLM gateway containers use the same mounted Talon state. These are real files/processes, not a policy simulated in this page.</p>
+<p>Select the fixed actions <strong>Inspect agent allowlist</strong>, <strong>Inspect MCP proxy allow/deny policy</strong>, <strong>Inspect LIVE gateway provider configuration</strong>, and <strong>Validate active Talon config</strong> in Stage 4. Each action shows the exact command and its stdout. The policy is Git-managed: editing it is a separate, explicit redeploy, not a secret UI toggle.</p>
+</details>
+</section>
 <div id="walkthrough" hidden></div>
 </main>
 <script>
 let operatorToken='',catalog=[],busy=false,results={};
 const notes={
-'Setup':{why:'Inspect which containers are actually running.',expect:'HR, dashboard, Talon and AI app containers are running.'},
+'Setup':{why:'Inspect actual containers and Talon scaffold/validation logs before trusting any outcome.',expect:'HR, dashboard, Talon and AI app containers are running.'},
 '1 · Direct access':{why:'Demonstrate the problem: a trusted HR process has more authority than a reporting AI use case should inherit.',expect:'An actual synthetic employee export returns a name and salary; the HR backend counter rises.'},
 '2 · Measurement reset':{why:'Start the AFTER measurement at zero, without claiming that privileges were changed.',expect:'All synthetic HR counters reset. The prior direct call still happened.'},
 '3 · Deployment perimeter':{why:'Prove the restricted AI workload cannot directly reach raw HR data, while the dashboard still works.',expect:'UI network and mounts exclude the private HR backend and DuckDB file; the live boundary check succeeds.'},
@@ -277,7 +303,8 @@ try{const response=await fetch('/api/actions',{headers:{'X-Presenter-Token':cand
  if(!response.ok)throw Error('Authentication failed (HTTP '+response.status+').');
  catalog=await response.json();operatorToken=candidate;results={};
  document.getElementById('token').value='';document.getElementById('overview').hidden=false;
- document.getElementById('walkthrough').hidden=false;announce('Unlocked. Commands run only when you select Run.',true);draw();
+ document.getElementById('walkthrough').hidden=false;
+ document.getElementById('technicalLab').hidden=false;announce('Unlocked. Commands run only when you select Run.',true);draw();
 }catch(error){operatorToken='';announce(error.message,false);}
 }
 function copyText(s){
@@ -286,6 +313,33 @@ function copyText(s){
  document.execCommand('copy');input.remove();return Promise.resolve();
 }
 function copySetup(){copyText(document.getElementById('shellSetup').textContent);}
+let logTimer=null,logBusy=false;
+async function refreshLogs(){
+ if(!operatorToken || logBusy) return;
+ logBusy=true;
+ const source=document.getElementById('logSource').value;
+ const state=document.getElementById('logStatus');
+ try {
+   const r=await fetch('/api/logs?source='+encodeURIComponent(source),{
+     headers:{'X-Presenter-Token':operatorToken}
+   });
+   const info=await r.json();
+   if(!r.ok)throw Error(info.error||'Log request failed');
+   state.textContent=info.explanation+(info.available?' · live snapshot':' · not running');
+   document.getElementById('liveLogs').textContent=
+     info.lines || (info.available?'No matching events yet. Trigger a real UI action.':'Service not started.');
+ } catch(error){
+   state.textContent='Log inspection failed: '+error.message;
+ }
+ logBusy=false;
+}
+function toggleAutoRefresh(enabled){
+ if(logTimer){clearInterval(logTimer);logTimer=null;}
+ if(enabled){refreshLogs();logTimer=setInterval(()=>{
+   if(document.visibilityState==='visible')refreshLogs();
+ },2200);}
+}
+
 function updateProgress(){
 const complete=Object.keys(results).filter(k=>results[k]===true).length;
 const pct=catalog.length?Math.round(100*complete/catalog.length):0;
