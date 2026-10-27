@@ -40,6 +40,11 @@ class PresenterMappingTests(unittest.TestCase):
             if name in ("deny", "allow", "discover"):
                 self.assertIn("ui", args)
                 self.assertEqual(args[-1], name)
+            if name == "backend_counts":
+                self.assertIn("hr-server", args)
+                self.assertEqual(args[-1], "backend-counts")
+            if name in ("before", "counters", "reset", "boundary"):
+                self.assertEqual(args[-1], name)
 
     def test_rejects_arbitrary_container_execution(self):
         with self.assertRaises(ValueError):
