@@ -102,8 +102,12 @@ def exercise_operator_console(page, token: str):
         if action in ("before", "reset"):
             page.once("dialog", lambda dialog: dialog.accept())
         card.get_by_role("button", name="Run check").click()
-        expect(card.get_by_role("status")).to_have_text("Exit 0 · command succeeded", timeout=65000)
+        status = card.get_by_role("status")
+        expect(status).to_contain_text("Exit ", timeout=65000)
         output = card.locator("pre").last.inner_text()
+        assert status.inner_text() == "Exit 0 · command succeeded", (
+            f"UI action {action} failed: {status.inner_text()}\n{output[:1600]}")
+
         assert "Exit code: 0" in output, (action, output[:500])
         if action == "before":
             assert "Synthetic employee example" in output
