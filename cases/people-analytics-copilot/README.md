@@ -14,7 +14,7 @@ A customer-facing, synthetic **Workforce Intelligence** dashboard. A persistent 
 
 **Two different transitions:** "BEFORE → AFTER" compares a privileged HR backend with a **separately deployed, restricted AI application**. It is *not* a Talon on/off switch, runtime policy change, or migration of one agent. "GUIDED → LIVE" changes the response mode, *not* employee-data access permissions.
 
-**Presenting to prospective customer?** Use [granular presenter commands](PRESENTER_COMMANDS.md) to show direct HR access, explicitly reset counters, inspect network boundaries, display Talon allow/deny responses and verify signed evidence. Follow the [12–15 minute plan](PEOPLE_ANALYTICS_DEMO_PLAN.md) for the narrative.
+**Presenting the demo?** Choose the [browser-first playbook](UI_PLAYBOOK.md) or [terminal-first playbook](PRESENTER_COMMANDS.md) to show direct HR access, explicitly reset counters, inspect network boundaries, display Talon allow/deny responses and verify signed evidence. Follow the [12–15 minute plan](PEOPLE_ANALYTICS_DEMO_PLAN.md) for the narrative.
 
 ### Fastest customer setup (Docker)
 
@@ -29,7 +29,7 @@ bash scripts/people-analytics-isolated.sh up
 bash scripts/people-analytics-isolated.sh verify
 ~~~
 
-This starts in **GUIDED** mode, with fictional employees and no LLM provider key. For customer presentation, use individual commands in [PRESENTER_COMMANDS.md](PRESENTER_COMMANDS.md), not just the combined test. Open **http://127.0.0.1:8501**; from a remote VM forward that port using SSH, for example:
+This starts in **GUIDED** mode, with fictional employees and no LLM provider key. For customer presentation, use the guided browser steps in [UI_PLAYBOOK.md](UI_PLAYBOOK.md) or the individual commands in [PRESENTER_COMMANDS.md](PRESENTER_COMMANDS.md), not just the combined test. Open **http://127.0.0.1:8501**; from a remote VM forward that port using SSH, for example:
 
 ~~~bash
 ssh -N -L 8501:127.0.0.1:8501 user@demo-host
@@ -264,7 +264,7 @@ bash scripts/people-analytics-isolated.sh presenter
 To connect from a remote laptop, tunnel both ports:
 
 ~~~bash
-ssh -N -L 8501:127.0.0.1:8501 -L 8502:127.0.0.1:8502 sergey@178.62.232.131
+ssh -N -L 8501:127.0.0.1:8501 -L 8502:127.0.0.1:8502 user@demo-host
 ~~~
 
 You can switch between the UI and documented shell commands at any point.
@@ -293,9 +293,9 @@ For a trust-building **command-by-command** version showing raw HR backend outpu
 | Starting from scratch | The reset action removes the synthetic HR and Talon persistent volumes. This is destructive; use only for disposable demo state |
 | Real-provider smoke fails | Confirm the correct OpenAI API key is supplied to Talon's vault, the gateway is running on the documented port and the model supports tool calling; check the gateway logs without exposing secrets |
 
-**Do not overclaim:** Docker networks and mounts—not Talon—prevent direct HR bypass in the isolated topology. The HR backend enforces SQL parameterization and the cohort threshold. The operator-initiated denied export is not evidence that a real model attempted it. Signed Talon evidence only covers traffic Talon saw and is tamper-evident, not immutable. PII redaction is **disabled** in this scenario. No Workday integration, actual Grab access, production IAM, GDPR compliance or universal DLP guarantee is demonstrated.
+**Do not overclaim:** Docker networks and mounts—not Talon—prevent direct HR bypass in the isolated topology. The HR backend enforces SQL parameterization and the cohort threshold. The operator-initiated denied export is not evidence that a real model attempted it. Signed Talon evidence only covers traffic Talon saw and is tamper-evident, not immutable. PII redaction is **disabled** in this scenario. No Workday integration, actual a customer access, production IAM, GDPR compliance or universal DLP guarantee is demonstrated.
 
 **Follow-up work (not v1 claims):** More comprehensive PII/data-classification controls, provider egress/budget proof, production authentication and warehouse-scoped identities, and an optional Workday integration.
 
-For the customer, use [PEOPLE_ANALYTICS_DEMO_PLAN.md](PEOPLE_ANALYTICS_DEMO_PLAN.md) for the narrative and [PRESENTER_COMMANDS.md](PRESENTER_COMMANDS.md) for exact commands.
+For the customer narrative, use [PEOPLE_ANALYTICS_DEMO_PLAN.md](PEOPLE_ANALYTICS_DEMO_PLAN.md). Choose [UI_PLAYBOOK.md](UI_PLAYBOOK.md) for a browser-led journey or [PRESENTER_COMMANDS.md](PRESENTER_COMMANDS.md) for terminal-led checks. Both produce the same real Talon evidence.
 
