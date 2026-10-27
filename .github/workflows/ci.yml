@@ -145,10 +145,6 @@ jobs:
           docker compose -f compose.isolated.yaml exec -T hr-server python3 verify_isolation.py baseline
           docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py app
           docker compose -f compose.isolated.yaml exec -T hr-server python3 verify_isolation.py backend-counts
-          # The real Talon session rollup is the source of truth for tool decisions.
-          docker compose -f compose.isolated.yaml run --rm talon-cli talon audit list --session hr-demo-proof-checks
-          docker compose -f compose.isolated.yaml run --rm talon-cli talon costs --session hr-demo-proof-checks --json
-          docker compose -f compose.isolated.yaml run --rm talon-cli talon audit verify --session hr-demo-proof-checks
           docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit export --format signed-json --session hr-demo-isolated-boundary --output /tmp/hr-boundary-evidence.json
           docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit verify --file /tmp/hr-boundary-evidence.json
       - name: Verify independent HR counters and signed Talon evidence
@@ -159,6 +155,10 @@ jobs:
           docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py allow
           docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py deny
           docker compose -f compose.isolated.yaml exec -T hr-server python3 verify_isolation.py backend-counts
+          # The real Talon session rollup is the source of truth for tool decisions.
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon audit list --session hr-demo-proof-checks
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon costs --session hr-demo-proof-checks --json
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon audit verify --session hr-demo-proof-checks
           docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit export --format signed-json --session hr-demo-proof-checks --output /tmp/hr-check.json
           docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit verify --file /tmp/hr-check.json
       - name: Browser E2E — single workforce UI, SQL, HR validator and Talon denial
