@@ -92,6 +92,15 @@ def exercise_operator_console(page, token: str):
     page.get_by_label("Operator token").fill(token)
     page.get_by_role("button", name="Unlock", exact=True).click()
     expect(page.get_by_text("Unlocked. Commands run only when you select Run.")).to_be_visible()
+    # Technical inspector fetches actual Docker logs (not synthetic PASS data).
+    expect(page.locator("#technicalLab")).to_be_visible()
+    page.locator("#logSource").select_option("talon-init")
+    page.get_by_role("button", name="Refresh logs").click()
+    expect(page.locator("#logStatus")).to_contain_text("Talon", timeout=15000)
+    page.locator("#logSource").select_option("trace")
+    page.get_by_role("button", name="Refresh logs").click()
+    expect(page.locator("#liveLogs")).to_contain_text("HR_AI_TRACE", timeout=15000)
+    expect(page.locator("#liveLogs")).to_contain_text("mcp.response")
     actions = presenter.ACTIONS
     cards = page.locator("article.action")
     expect(cards).to_have_count(len(actions))
@@ -109,6 +118,12 @@ def exercise_operator_console(page, token: str):
             f"UI action {action} failed: {status.inner_text()}\n{output[:1600]}")
 
         assert "Exit code: 0" in output, (action, output[:500])
+        if action == "warehouse_info":
+            assert "embedded DuckDB" in output and "synthetic_employee_rows" in output
+        if action == "compose_spec":
+            assert "talon-mcp:" in output and "private_hr:" in output
+        if action == "bootstrap_logs":
+            assert "hr-analytics-assistant" in output or "validate" in output
         if action == "before":
             assert "Synthetic employee example" in output
         elif action == "reset":
