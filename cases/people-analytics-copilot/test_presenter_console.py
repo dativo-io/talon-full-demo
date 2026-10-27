@@ -56,6 +56,16 @@ class PresenterMappingTests(unittest.TestCase):
             if name in ("before", "counters", "reset", "boundary"):
                 self.assertEqual(args[-1], name)
 
+    def test_presenter_phases_have_stable_contiguous_order(self):
+        phases = [row[1] for row in presenter.ACTIONS]
+        seen = set()
+        previous = None
+        for phase in phases:
+            if phase != previous:
+                self.assertNotIn(phase, seen, "Phase was split in the catalog: " + phase)
+                seen.add(phase)
+            previous = phase
+
     def test_rejects_arbitrary_container_execution(self):
         with self.assertRaises(ValueError):
             presenter.build_command("exec -T hr-server cat /data/hr.duckdb")
