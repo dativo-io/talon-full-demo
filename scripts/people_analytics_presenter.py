@@ -108,8 +108,9 @@ def build_command(action, runner=None):
         return _dc_prefix() + ["exec", "-T", "talon-mcp", "talon"] + verb
     service = ("hr-server" if action in ("before", "counters", "reset", "backend_counts")
                else "ui")
+    cli_action = "backend-counts" if action == "backend_counts" else action
     return _dc_prefix() + ["exec", "-T", service, "python3",
-                           "verify_isolation.py", action]
+                           "verify_isolation.py", cli_action]
 
 
 def perform(action):
