@@ -51,7 +51,7 @@ ORDER BY department;</textarea>
 <h2>Tool decisions in this session</h2>
 <pre id="activity">No governed tool calls yet.</pre>
 <h2>Session spending and budget</h2>
-<p class="muted">Talon enforces a per-session cost cap of 0.10 in the example agent policy (in the configured pricing currency); the actual spend is derived from signed Talon evidence, not calculated in this browser.</p>
+<p class="muted">The example agent YAML starts with a 0.10 per-session cost limit (in the configured pricing currency). Edited policies can change this limit. Actual spend and enforced decisions come from Talon's signed evidence, not this browser.</p>
 <pre id="sessionCommands">Session ID initializing…</pre></section>
 </div></div>
 <footer>Fictional data only. Docker prevents direct HR access from this application. Talon controls intercepted calls; the HR backend validates SQL. Verify receipts with the Talon CLI.</footer>
