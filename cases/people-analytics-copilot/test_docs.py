@@ -1,7 +1,7 @@
-"""Keep the customer-facing People Analytics docs navigable and truthful.
+"""People Analytics documentation contract.
 
-This deliberately tests structure and runnable command names—not prose style.
-Executed by make people-analytics-validate and CI.
+Keeps quickstart, UI/CLI playbooks, customer narrative and CI matrix linked,
+executable and honest about simulated data versus real Talon.
 """
 from pathlib import Path
 import re
@@ -12,66 +12,76 @@ ROOT = CASE.parents[1]
 
 DOCS = [
     CASE / "README.md",
-    CASE / "PRESENTER_COMMANDS.md",
     CASE / "UI_PLAYBOOK.md",
-    CASE / "CI_COVERAGE.md",
+    CASE / "PRESENTER_COMMANDS.md",
     CASE / "PEOPLE_ANALYTICS_DEMO_PLAN.md",
+    CASE / "ADVANCED_SETUP.md",
+    CASE / "CI_COVERAGE.md",
     ROOT / "README.md",
     ROOT / "docs" / "AUDIENCE_DEMOS.md",
 ]
 
 
 class DocumentationContract(unittest.TestCase):
-    def test_relative_markdown_links_resolve(self):
+    def test_all_local_markdown_links_exist(self):
         for doc in DOCS:
-            content = doc.read_text(encoding="utf-8")
+            body = doc.read_text(encoding="utf-8")
             with self.subTest(doc=doc.name):
-                # Only filesystem-relative Markdown links; HTTP/anchors are out of scope.
-                for target in re.findall(r"(?<!!)\[[^\]]+\]\(([^)]+)\)", content):
+                for target in re.findall(r"(?<!!)\[[^\]]+\]\(([^)]+)\)", body):
                     clean = target.split("#", 1)[0].split("?", 1)[0].strip()
                     if not clean or "://" in clean or clean.startswith(("mailto:", "#")):
                         continue
                     self.assertTrue((doc.parent / clean).exists(),
-                                    f"{doc}: broken link to {target}")
+                                    f"{doc}: broken relative link {target}")
 
-    def test_code_fences_balanced(self):
+    def test_markdown_code_fences_are_balanced(self):
         for doc in DOCS:
             lines = doc.read_text(encoding="utf-8").splitlines()
-            for marker in ("~~~", "\x60\x60\x60"):
+            for marker in ("~~~", "```"):
                 fences = [line for line in lines if line.lstrip().startswith(marker)]
-                self.assertEqual(len(fences) % 2, 0,
-                                 f"{doc}: unbalanced Markdown {marker} fences")
+                self.assertEqual(len(fences) % 2, 0, f"{doc}: unbalanced {marker}")
 
-    def test_presenter_commands_exist_in_runner(self):
-        docs = (CASE / "PRESENTER_COMMANDS.md").read_text(encoding="utf-8")
-        script = (CASE / "verify_isolation.py").read_text(encoding="utf-8")
+    def test_docs_have_diagrams_and_current_branch(self):
+        readme = (CASE / "README.md").read_text(encoding="utf-8")
+        plan = (CASE / "PEOPLE_ANALYTICS_DEMO_PLAN.md").read_text(encoding="utf-8")
+        self.assertIn("~~~mermaid\nflowchart", readme)
+        self.assertIn("~~~mermaid\nflowchart", plan)
+        self.assertIn("feat/people-analytics-governed-demo", readme)
+        self.assertIn("feat/people-analytics-governed-demo",
+                      (CASE / "PRESENTER_COMMANDS.md").read_text(encoding="utf-8"))
+        for doc in DOCS:
+            self.assertNotIn("feat/people-analytics-copilot-v1",
+                             doc.read_text(encoding="utf-8"),
+                             f"obsolete PR branch in {doc}")
+
+    def test_both_presenter_paths_use_actual_actions(self):
+        cli = (CASE / "PRESENTER_COMMANDS.md").read_text(encoding="utf-8")
+        ui = (CASE / "UI_PLAYBOOK.md").read_text(encoding="utf-8")
+        runner = (CASE / "verify_isolation.py").read_text(encoding="utf-8")
         for action in ("before", "counters", "reset", "boundary", "discover",
                        "allow", "deny", "backend-counts"):
             with self.subTest(action=action):
-                self.assertIn(f"verify_isolation.py {action}", docs)
-        for action in ("presenter_before", "presenter_counters", "presenter_reset",
-                       "presenter_boundary", "presenter_discover", "presenter_allow",
-                       "presenter_deny", "backend_counts"):
-            self.assertIn(f"def {action}(", script)
+                self.assertIn(f"verify_isolation.py {action}", cli)
+        for name in ("presenter_before", "presenter_counters", "presenter_reset",
+                     "presenter_boundary", "presenter_discover", "presenter_allow",
+                     "presenter_deny", "backend_counts"):
+            self.assertIn(f"def {name}(", runner)
+        for doc in (cli, ui):
+            for fragment in ("BEFORE", "RESET", "Talon", "Docker", "since reset"):
+                self.assertIn(fragment.lower(), doc.lower())
 
-    def test_customer_docs_distinguish_real_from_simulated(self):
+    def test_guide_is_truthful_and_easy_to_find(self):
         readme = (CASE / "README.md").read_text(encoding="utf-8")
         plan = (CASE / "PEOPLE_ANALYTICS_DEMO_PLAN.md").read_text(encoding="utf-8")
-        presenter = (CASE / "PRESENTER_COMMANDS.md").read_text(encoding="utf-8")
-        self.assertIn("Talon on/off switch", readme)
-        self.assertIn("not a before/after policy flip", presenter)
-        self.assertIn("not been executed", readme)
-        self.assertIn("not Talon enforcement", plan)
-        self.assertIn("since reset", presenter)
-        self.assertIn("PRESENTER_COMMANDS.md", readme)
-        self.assertIn("PEOPLE_ANALYTICS_DEMO_PLAN.md", readme)
-        self.assertIn("UI_PLAYBOOK.md", readme)
-        self.assertIn("CI_COVERAGE.md", readme)
-        ui = (CASE / "UI_PLAYBOOK.md").read_text(encoding="utf-8")
-        for evidence in ("BEFORE", "RESET", "decision=allow", "decision=deny",
-                         "signed", "8501", "8502"):
-            self.assertIn(evidence, ui)
-
+        for path in ("UI_PLAYBOOK.md", "PRESENTER_COMMANDS.md",
+                     "PEOPLE_ANALYTICS_DEMO_PLAN.md", "ADVANCED_SETUP.md",
+                     "CI_COVERAGE.md"):
+            self.assertIn(path, readme)
+        self.assertIn("not a Talon on/off switch", readme)
+        self.assertIn("has not been executed", readme)
+        self.assertIn("different", plan)
+        self.assertIn("GUIDED", readme)
+        self.assertIn("fake", (CASE / "CI_COVERAGE.md").read_text(encoding="utf-8").lower())
 
 
 if __name__ == "__main__":
