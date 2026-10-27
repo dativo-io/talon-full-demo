@@ -106,7 +106,7 @@ def exercise_operator_console(page, token: str):
     expect(cards).to_have_count(len(actions))
 
     for index, (action, phase, title, _command) in enumerate(actions):
-        card = cards.nth(index)
+        card = page.locator("#action-" + action)
         expect(card.get_by_role("heading", name=title)).to_be_visible()
         if action in ("before", "reset"):
             page.once("dialog", lambda dialog: dialog.accept())
