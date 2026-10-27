@@ -1,74 +1,72 @@
-# People Analytics — updated demonstration plan
+# People Analytics — 15-minute demonstration plan
 
-**Purpose:** Show how an already-governed HR warehouse can be exposed to AI with narrower runtime permissions, verified execution and consistent use-case identity. Talon does not replace existing HR platform permissions, warehouse RBAC, or network segmentation.
+## One-sentence story
 
-**Buyer hypothesis:** the customer's People Analytics organization has governed HR data, but some AI use cases operate under service identities broader than they require. Leadership needs evidence that agents cannot freely retrieve employees' private records, and wants accountability for the models and operations they use. We have not connected to his real environment.
+**The HR warehouse is already governed. Talon governs which operations an AI use case may perform, and records verifiable evidence of what it actually did.**
 
-## Before and after
+The scenario uses 1,200 **fictional** employee records in DuckDB. The goal is to show useful aggregate analytics alongside preventive tool restrictions—not to replace warehouse access control.
 
-BEFORE — legacy-style broad privileges: a privileged HR process calls the synthetic backend directly and receives individual employee names and salary records. Talon does not see or stop this path.
+## Before and after: two different workloads
 
-AFTER — a separated browser and AI application has no DuckDB volume and no route to the private HR backend. It can request safe dashboard aggregates and talk to Talon's LLM/MCP processes. The MCP proxy alone bridges into the private HR network. Talon offers only three aggregate tools (attrition, headcount and tenure), refuses the employee export, and produces signed evidence.
+~~~mermaid
+flowchart LR
+    subgraph BEFORE["BEFORE · privileged HR process"]
+        P["Trusted HR operator"] -->|"Direct employee export"| H1["HR backend"]
+        H1 -->|"Fictional salary rows"| P
+    end
+    subgraph AFTER["AFTER · isolated AI app"]
+        A["AI app<br/>no HR database/route"] -->|"Approved tools"| T["Talon MCP"]
+        T -->|"Aggregate only"| H2["Private HR backend"]
+        A -. "Direct access blocked by Docker" .-> H2
+        T -. "Employee export denied" .-> H2
+    end
+~~~
 
-The **container network / missing DuckDB mount** prevents the browser/agent from accessing raw HR data directly. That is a **deployment boundary, not Talon enforcement**. Talon governs routed model and tool requests. The HR backend enforces parameterized SQL and minimum reporting cohorts. The fixed aggregate dashboard service does not expose arbitrary SQL.
+**Not a runtime switch:** we don't toggle Talon or migrate one running agent. The BEFORE call executes *directly* inside the privileged HR service and succeeds without Talon. We then **reset counters only**, and test a separate AI workload isolated by Docker networking and mounts. Talon enforces the permitted/denied operations routed through its proxy.
 
-The "before" is an operator executing a direct call *inside the privileged HR container*. It illustrates what an agent with inherited broad credentials could do; it does not claim an actual a customer or Workday agent had those privileges.
+## Choose your presentation surface
 
-## Presenter track: choose honestly
+- **[Browser-first](UI_PLAYBOOK.md):** workforce dashboard on 8501, authenticated operator proof console on 8502. Click through seven stages while showing actual command output.
+- **[Terminal-first](PRESENTER_COMMANDS.md):** run the same seven stages as Docker/Talon commands, inspect original receipts and signatures.
+- **[Quickstart and architecture](README.md):** shortest setup instructions and the full control-boundary diagram.
 
-- **No provider key (fully CI-tested):** run the isolated GUIDED scenario. The seven granular commands demonstrate the actual backend, Docker isolation, Talon MCP allow/deny, counters and signatures. The assistant is **not** real AI inference. The credential-free *separate* LLM protocol test uses a fake upstream model.
-- **Real AI track (opt-in):** **first** pass the external-provider smoke using an actual OpenAI credential; then start the isolated stack in LIVE mode. Real model-generated analysis is a valuable extra scene, but is **not an already-passed CI guarantee**. If any provider step fails, switch back to the guided track and explicitly label it.
+**Default mode: GUIDED · NO LLM.** Metrics and Talon calls are real; the assistant's wording is deterministic. A real provider is optional only after the [paid smoke test](ADVANCED_SETUP.md#optional-test-a-real-external-model) succeeds.
 
-Use [UI_PLAYBOOK.md](UI_PLAYBOOK.md) for the complete browser walkthrough, or [PRESENTER_COMMANDS.md](PRESENTER_COMMANDS.md) for the full terminal command-by-command procedure. **BEFORE/AFTER is a comparison of two workloads, not a runtime switch or an agent migration.** Resetting the mock counters never changes privileges.
+## Talk track
 
-## Updated 12–15 minute customer walkthrough
-
-| Time | What prospective customer sees | Why it matters |
+| Time | On screen | Explain |
 |---|---|---|
-| 0–2 min | Synthetic workforce dashboard with real DuckDB aggregate metrics | Existing HR analytics remains useful and governed, Talon is not a data platform replacement |
-| 2–4 min | BEFORE: deliberate direct employee export from a privileged backend process (fictional names and salaries) | Shows the cost of broad service-account privileges when inherited by an AI runtime |
-| 4–6 min | AFTER: prove AI app has no database file and cannot reach HR private service; dashboard aggregate still works | Revoked bypass is enforced by network and deployment isolation |
-| 6–9 min | Ask: "Which department has highest attrition for September 2026? Compare six months, don't invent causes." In **LIVE** mode, use a real provider only after the smoke passes; otherwise use the transparently labelled GUIDED assistant | Real LLM path when enabled, or deterministic aggregate-tool demonstration without a provider |
-| 9–11 min | User requests names/salaries; separately labelled operator forces forbidden employee-export call | Tool unavailable to model; forced MCP operation is denied pre-dispatch, upstream export counter stays zero |
-| 11–13 min | Verify the signed Talon session for the allowed/denied MCP operations; in live mode, also inspect verified LLM records from the same use-case identity | Buyer can independently validate only what traversed Talon |
-| 13–15 min | Map the boundary to the customer's service accounts, warehouse roles, tool infrastructure and use-case budgets | Opens a concrete scoped pilot conversation |
+| **0–2 min** | Workforce dashboard with department filter | Realistic, aggregate workforce analysis from fictional DuckDB data |
+| **2–4 min** | **BEFORE** direct employee export and its backend counter | Broad service privileges are risky *if inherited by an AI workload*. Talon did not see this direct call |
+| **4–6 min** | Explicit **RESET**, then Docker networks and mounts | Measurement starts from zero; the AI app cannot bypass the private HR service through its deployment |
+| **6–9 min** | Talon discovery and permitted attrition analysis | Only three aggregate tools; the permitted operation returns a committed allow receipt |
+| **9–11 min** | Forced `hr_employee_export` request and independent backend counter | Talon denies the request **before dispatch**; HR reports zero export executions **since reset** |
+| **11–13 min** | Signed session export and CLI verification | Validate what Talon saw; no record exists for the earlier direct bypass |
+| **13–15 min** | Architecture and boundaries | Identify one candidate AI use case whose direct warehouse access can be narrowed |
 
-Key line: "You've already governed who can read the data. Talon governs which actions a particular AI use case can execute, and gives you verifiable evidence. The existing HR permissions and deployment perimeter prevent bypass."
+The operator export probe is **not** proof that a model spontaneously attempted an unsafe action. The demo also does not prove causal explanations for attrition trends.
 
-## Two interchangeable demonstration interfaces
+## The two trust mechanisms
 
-The business dashboard on localhost:8501 offers an explicit link to the
-**Presenter Proof Console** on localhost:8502. This is a separate, token-gated
-host operator service with Docker privileges; it is **not available to the
-restricted AI process**. Every UI proof action displays the exact corresponding
-command and real process output, so the presenter can switch freely between
-browser and terminal. The privileged BEFORE call and the explicit counter
-RESET stay visible as separate actions. No "before/after Talon enable switch"
-exists. Use the [browser-first playbook](UI_PLAYBOOK.md) or [terminal-first playbook](PRESENTER_COMMANDS.md).
+| Question | Real mechanism | Evidence |
+|---|---|---|
+| Can the AI app bypass the HR backend? | Docker private network + no DB mount | Network and mount inspection, failed direct connection |
+| Can the AI agent invoke forbidden tools? | Talon MCP tool policy | Filtered discovery, committed denial, zero upstream export calls |
+| Was permitted analytics actually executed? | HR aggregate service behind Talon | Returned DuckDB metrics and independent tool execution counter |
+| Can the session be independently checked? | Talon signed audit | Exported session; signature verification by Talon CLI |
 
-## Release and presentation gates
+The fixed aggregate dashboard API is **separate from Talon**; ordinary chart reads aren't AI operations.
 
-1. **Local:** Run make people-analytics-validate. Verify deterministic DuckDB metrics, read-only SQL reporting, browser routes and model loop fail-closed tests.
-2. **Real Talon with fake model:** Run bash scripts/test-people-analytics-talon.sh. Uses real Talon LLM/MCP gateways, a deterministic fake OpenAI-compatible upstream, synthetic DuckDB and verified signed evidence. This does *not* prove real OpenAI inference.
-3. **Before/after with network isolation:** Run bash scripts/people-analytics-isolated.sh up and then bash scripts/people-analytics-isolated.sh verify. Docker Compose proves the AI app has no database mount and no path to the private HR service, while Talon's aggregate call succeeds and the employee export is denied. This is also exercised in CI.
-4. **Real external model (explicit opt-in):** Export a real OPENAI_API_KEY in the operator shell and run bash scripts/test-people-analytics-real-provider.sh. This invokes a real provider through Talon, requires a model-selected data tool, independently checks dispatch counts, and verifies the signed session. It incurs provider cost. This gate cannot be claimed to have passed until run in the intended environment.
+## Presentation checklist
 
-Use mock-provider mode only when visibly labelled; don't call scripted text a real AI answer. Attrition metrics are descriptive, never evidence of causation. Never present this synthetic data as a real HR dataset.
+- Use a trusted host with Docker Compose v2, OpenSSL and a compatible Talon build.
+- Run `bash scripts/people-analytics-isolated.sh up`; rehearse with `verify`, but **don't run the combined verifier mid-presentation** because it includes a reset.
+- If presenting in the browser, start `bash scripts/people-analytics-isolated.sh presenter` on the host, and use private SSH port forwarding. Never publish port 8502 or reveal its operator token.
+- Explicitly reset instrumentation after the BEFORE export. Then run discovery, allow, deny, backend counters and signed audit in one presenter sequence.
+- Only label an answer **LIVE AI** after the opt-in real-provider smoke succeeds; normal CI uses a fake upstream model for LLM protocol testing.
 
-## Presenter prep
+## What we are not claiming
 
-- Checkout the PR branch, verify Talon and Docker Compose v2, and confirm the synthetic DuckDB seed process has succeeded. The Docker launcher seeds the DB automatically; manual multi-terminal mode requires explicit seeding.
-- Stop stale services before starting the isolated deployment (UI exposed only on 127.0.0.1:8501); SSH tunnel from your laptop.
-- Rehearse with the combined before/after verifier, then use the [granular presenter commands](PRESENTER_COMMANDS.md) in the meeting. The BEFORE baseline prints fictional employee information; the reset is explicit, visible and mandatory before post-denial counters.
-- For genuine AI, first validate the external-provider smoke (paid, opt-in) and then launch isolated LIVE mode with the same Talon agent identity; this may restart demo services. Otherwise do not describe guided or mock-provider output as model-generated.
-- After denial, show an independently checked backend counter and the Talon evidence export. Use exactly what was verified.
-- Ask which current agents retain direct warehouse credentials and whether those can be removed; identify one approved HR analytics pilot.
+No real employee data, no production HR platform integration, no production IAM/row-level authorization, no comprehensive PII/DLP protection, and no privacy-law certification. PII redaction is disabled in this scenario. The privileged HR backend retains access to its database; Docker isolates the AI workload from it. **Talon cannot control direct paths that bypass Talon.**
 
-## Boundaries
-
-- No production HR platform integration, real employees, SSO or production IAM.
-- A compromised privileged HR service could still extract synthetic rows; the isolation keeps that privileged component off the AI application's network.
-- No arbitrary query authorization, formal GDPR compliance claim or broad DLP guarantee. The demo's PII redaction is disabled.
-- The ordinary dashboard read is intentionally a separate fixed aggregate API; it does not pass through Talon.
-- The static demo agent key is suitable only for synthetic loopback/container testing. The isolated LIVE launcher passes a real provider key via environment variables to the Talon initialization container before storing it in Talon's vault. Environment variables may be visible to privileged Docker operators: never use this convenience workflow for production HR data or shared infrastructure.
-- Signed evidence covers traffic that traverses Talon, not direct bypass traffic; the latter requires independent deployment checks.
+The demo is a basis for a scoped customer pilot, not a finished HR security architecture.
