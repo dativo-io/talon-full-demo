@@ -24,22 +24,13 @@ The optional OpenShell case also uses `make real-prepare` / `real-start` / `real
 
 All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first. Every n8n case additionally requires Docker. The quarterly and vendor-review cases require Anthropic; the support-resolution case requires OpenAI and a literal operator decision before it can complete.
 
-## People Analytics Copilot — standalone customer demonstration
+## People Analytics Copilot (standalone)
 
-**Not yet a formal buyer/technical evidence-projection pair.** Use the [12–15 minute buyer plan](../cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) and either the [browser-first walkthrough](../cases/people-analytics-copilot/UI_PLAYBOOK.md) or [terminal-first commands](../cases/people-analytics-copilot/PRESENTER_COMMANDS.md). The [complete case README](../cases/people-analytics-copilot/README.md) covers configuration, deployment and troubleshooting.
+Use the [quickstart and architecture](../cases/people-analytics-copilot/README.md), [browser walkthrough](../cases/people-analytics-copilot/UI_PLAYBOOK.md), or [terminal commands](../cases/people-analytics-copilot/PRESENTER_COMMANDS.md). The [15-minute presentation plan](../cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) provides the narrative.
 
-| Proof | Actual mechanism | Validation |
-|---|---|---|
-| Existing governed HR analytics | Synthetic DuckDB with parameterized, cohort-limited aggregate queries | Offline tests |
-| Privileged BEFORE export | Deliberate direct request from trusted HR service; **bypasses Talon** | Docker isolation CI |
-| Restricted AFTER workload | Browser/AI has neither raw DB mount nor network route to private HR service | Docker network and mount checks; **not a Talon feature** |
-| Tool capability boundary | Only attrition, headcount and tenure tools shown/allowed by real Talon MCP | Filtered discovery and allowed MCP receipt |
-| Forced forbidden employee export | Separate operator probe through Talon MCP, not an autonomous model attempt | Committed deny, provenance not_dispatched, independent zero backend exports **since explicit reset** |
-| Real LLM gateway integration | Real Talon LLM/MCP with a fake upstream model | CI verifies the protocol/model-to-tool roundtrip; **not AI quality** |
-| Actual provider-backed model | Optional OpenAI via a separately configured Talon LLM gateway | **Not yet provider-tested**; opt-in smoke needed before any live-LLM claim |
+**Truth boundaries:** The privileged BEFORE export bypasses Talon. The AFTER AI workload is isolated by **Docker**, while **Talon** permits aggregate MCP operations, denies employee export before dispatch and signs evidence for traffic it sees. The independent HR counter verifies zero post-reset export calls. The default assistant is **GUIDED, not an LLM**. Real model inference is optional, not covered by mandatory CI.
 
-Both interfaces execute the same allowlisted Docker/Talon proof checks; the separate authenticated operator UI exposes actual process output and never changes the AI app's permissions. Evidence must be independently signed and verified. The default isolated browser assistant is **GUIDED (non-LLM)**. The isolated LIVE mode requires an actual provider credential and may incur model charges. The demo does not govern arbitrary SQL, direct warehouse bypasses or external application activity.
-
+This case provides real CLI/browser proof, but not yet the formal buyer/technical evidence projections used by the older demo cases.
 
 ## 1. Customer-support gateway
 
