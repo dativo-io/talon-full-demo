@@ -20,7 +20,7 @@ def _scrub(value, level=0):
         return [_scrub(x, level + 1) for x in value[:15]]
     if isinstance(value, str):
         value = re.sub(r"sk-[A-Za-z0-9_-]{8,}", "[redacted key]", value)
-        value = re.sub(r"Bearer\\s+\\S+", "Bearer [redacted]", value, flags=re.I)
+        value = re.sub(r"Bearer\s+\S+", "Bearer [redacted]", value, flags=re.I)
         return value[:1600] + ("…[truncated]" if len(value) > 1600 else "")
     return value
 
