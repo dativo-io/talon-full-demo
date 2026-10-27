@@ -44,7 +44,7 @@ Stop services with `bash scripts/people-analytics-isolated.sh down`. The separat
 
 ## How the architecture works
 
-~~~mermaid
+```mermaid
 flowchart TB
     U["Workforce UI + AI assistant<br/>app network · no HR database mount"]
     D["Aggregate dashboard API<br/>fixed queries"]
@@ -67,7 +67,7 @@ flowchart TB
     classDef private fill:#f7f7f7,stroke:#687587,color:#25313f
     class MCP,GW guarded
     class HR,DB private
-~~~
+```
 
 **Who enforces what?**
 
