@@ -8,6 +8,12 @@ x-case-image: &case-image
     dockerfile: Dockerfile
   image: hr-copilot-synthetic:local
 
+x-talon-image: &talon-image
+  build:
+    context: .
+    dockerfile: Dockerfile.talon
+  image: hr-copilot-talon-runtime:local
+
 x-talon-environment: &talon-environment
   TALON_DATA_DIR: /state
   HOME: /state
@@ -59,7 +65,7 @@ services:
 
   # A normal Talon CLI environment; initialization is never scripted by Compose.
   talon-cli:
-    image: debian:bookworm-slim
+    <<: *talon-image
     profiles: ["setup"]
     user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
     environment: *talon-environment
@@ -70,7 +76,7 @@ services:
     restart: "no"
 
   talon-mcp:
-    image: debian:bookworm-slim
+    <<: *talon-image
     user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
     depends_on:
       hr-server:
@@ -83,7 +89,7 @@ services:
     restart: unless-stopped
 
   talon-gateway:
-    image: debian:bookworm-slim
+    <<: *talon-image
     user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
     profiles: ["live"]
     environment: *talon-environment

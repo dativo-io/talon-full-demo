@@ -5,7 +5,7 @@ or access to the HR service. There is deliberately no ungoverned fallback path.
 """
 import json
 import os
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from runtime_trace import trace, previews_enabled
 
@@ -23,7 +23,18 @@ def chat_completion(url, key, body, session):
                            "X-Talon-Session-ID": session})
     try:
         with urlopen(req, timeout=90) as response:
-            result = json.load(response)
+            try:
+                result = json.load(response)
+                if (not isinstance(result, dict) or
+                        not isinstance(result.get("choices"), list) or
+                        not result["choices"]):
+                    raise ValueError("Missing OpenAI-compatible choices")
+            except (ValueError, UnicodeDecodeError) as error:
+                trace("llm.gateway.error", session, failure="invalid_json_response")
+                raise RuntimeError(
+                    "Talon LLM gateway returned an empty or invalid JSON response; "
+                    "inspect talon-gateway logs for the upstream failure"
+                ) from error
             choice = (result.get("choices") or [{}])[0]
             msg = choice.get("message") or {}
             trace("llm.gateway.response", session, model=result.get("model"),
@@ -34,9 +45,16 @@ def chat_completion(url, key, body, session):
                   response_payload=result if previews_enabled() else "[metadata only]")
             return result
     except HTTPError as error:
-        message = error.read().decode("utf-8", errors="replace")
+        # Do not forward upstream error bodies: they may contain sensitive headers
+        # or prompt fragments, and may not be JSON.
+        error.read()
         trace("llm.gateway.error", session, http_status=error.code)
-        raise RuntimeError(f"Talon LLM gateway returned HTTP {error.code}; see authenticated operator logs") from error
+        hint = ("; check upstream HTTPS trust/connection in talon-gateway logs"
+                if error.code in (502, 503, 504) else "; inspect talon-gateway logs")
+        raise RuntimeError(f"Talon LLM gateway returned HTTP {error.code}{hint}") from error
+    except URLError as error:
+        trace("llm.gateway.error", session, failure="transport")
+        raise RuntimeError("Talon LLM gateway is unreachable; check talon-gateway container logs") from error
 
 
 def run_live_chat(prompt, tools, session, model, llm_url, llm_key, call_tool):

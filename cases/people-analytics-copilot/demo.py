@@ -245,7 +245,7 @@ class Browser(HTTPBase):
                     raise RuntimeError('SQL tool returned no authorized result')
                 if result['result'].get('isError'):
                     return self.reply(200, {'status':'hr_sql_rejected', 'receipt':g,
-                                             'message':'HR backend rejected this SQL shape'})
+                                             'message':'HR SQL accepts only approved department COUNT aggregates (and a bounded department LIKE filter). SQL string literals need single quotes.'})
                 value = json.loads(result['result']['content'][0]['text'])
                 return self.reply(200, {'status':'executed', 'data':value, 'receipt':g})
             query = payload.get('query', '')

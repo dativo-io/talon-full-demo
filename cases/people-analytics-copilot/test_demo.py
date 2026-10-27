@@ -86,8 +86,19 @@ class DemoSmoke(unittest.TestCase):
             # A real presenter types SQL with newlines; matching must normalize whitespace.
             multiline=sql.replace(" FROM ", "\nFROM ").replace(" GROUP BY ", "\nGROUP BY ")
             self.assertEqual(warehouse.approved_sql(multiline+";")["query_id"],name)
+        filtered = warehouse.approved_sql(
+            "SELECT department, COUNT(*) AS active_headcount "
+            "FROM employees WHERE termination_date IS NULL "
+            "AND department LIKE '%Customer%' "
+            "GROUP BY department ORDER BY department;")
+        self.assertEqual(filtered["query_id"], "active_department_like")
+        self.assertNotIn("full_name", json.dumps(filtered))
+        self.assertEqual(filtered["columns"], ["department", "active_headcount"])
         for sql in ("SELECT * FROM employees",
                     "SELECT full_name, monthly_salary_mxn FROM employees",
+                    'SELECT department, COUNT(*) AS active_headcount FROM employees WHERE termination_date IS NULL AND department LIKE "%Customer%" GROUP BY department ORDER BY department',
+                    "SELECT department, COUNT(*) AS active_headcount FROM employees WHERE termination_date IS NULL AND department LIKE '%Customer%' OR 1=1 GROUP BY department ORDER BY department",
+                    "SELECT department, COUNT(*) AS active_headcount FROM employees WHERE termination_date IS NULL AND department LIKE '%Customer%' GROUP BY department ORDER BY department; DROP TABLE employees",
                     "SELECT department, COUNT(*) AS employees FROM employees GROUP BY department; DROP TABLE employees"):
             with self.assertRaises(ValueError):
                 warehouse.approved_sql(sql)

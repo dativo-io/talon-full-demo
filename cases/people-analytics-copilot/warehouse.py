@@ -67,7 +67,7 @@ def sql_rows(query: str, params: tuple = ()) -> list[dict]:
         return [dict(zip(cols, row)) for row in out.fetchall()]
 
 
-"""Exactly two reviewed SQL statements; arbitrary SQL is never forwarded from the UI."""
+"""Only reviewed aggregate shapes, with an optional bounded department filter."""
 SQL_PRESETS = {
     'all': 'SELECT department, COUNT(*) AS employees FROM employees GROUP BY department ORDER BY department',
     'active': 'SELECT department, COUNT(*) AS active_headcount FROM employees WHERE termination_date IS NULL GROUP BY department ORDER BY department',
@@ -78,16 +78,36 @@ def approved_sql(sql: str) -> dict:
     import re
     if not isinstance(sql, str) or len(sql) > 1200:
         raise ValueError('SQL must be a short aggregate SELECT')
-    normalized = re.sub(r'\s+', ' ', sql.strip().rstrip(';')).casefold()
+    normalized = re.sub(r'\s+', ' ', sql.strip().rstrip(';'))
     matched = next((name for name, template in SQL_PRESETS.items()
-                    if normalized == template.casefold()), None)
-    if matched is None:
-        raise ValueError('Only reviewed, department-grouped aggregate SELECTs are supported')
-    statement = SQL_PRESETS[matched].replace(' ORDER BY department',
-                                              ' HAVING COUNT(*) >= ? ORDER BY department')
-    rows = sql_rows(statement, (MIN_COHORT,))
-    return {'query_id':matched, 'columns':list(rows[0]) if rows else [],
-            'rows':rows, 'minimum_cohort_size':MIN_COHORT, 'synthetic':True}
+                    if normalized.casefold() == template.casefold()), None)
+    params = ()
+    if matched is not None:
+        statement = SQL_PRESETS[matched].replace(
+            ' ORDER BY department', ' HAVING COUNT(*) >= ? ORDER BY department')
+    else:
+        # Allow a useful filtered cohort without giving the browser raw SQL.
+        # Full-match the entire reviewed SELECT and bind the LIKE pattern as
+        # data. Do not interpolate input into SQL or accept additional clauses.
+        filtered = re.fullmatch(
+            r"select department, count\(\*\) as active_headcount "
+            r"from employees where termination_date is null "
+            r"and department like '(%[a-z0-9][a-z0-9 -]{0,39}%)' "
+            r"group by department order by department",
+            normalized, flags=re.IGNORECASE)
+        if filtered is None:
+            raise ValueError('Only reviewed department-count aggregate SQL is supported')
+        matched = 'active_department_like'
+        statement = ("SELECT department, COUNT(*) AS active_headcount "
+                     "FROM employees WHERE termination_date IS NULL "
+                     "AND department LIKE ? GROUP BY department "
+                     "HAVING COUNT(*) >= ? ORDER BY department")
+        params = (filtered.group(1),)
+    rows = sql_rows(statement, params + (MIN_COHORT,))
+    columns = (['department', 'active_headcount'] if matched.startswith('active')
+               else ['department', 'employees'])
+    return {'query_id':matched, 'columns':columns, 'rows':rows,
+            'minimum_cohort_size':MIN_COHORT, 'synthetic':True}
 
 
 def row_count() -> int:

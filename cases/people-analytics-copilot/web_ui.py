@@ -26,8 +26,8 @@ footer{padding:10px 22px;color:#63768e;font-size:12px;max-width:1350px;margin:au
 <iframe id="charts" title="Workforce analytics charts" src="/charts"></iframe></section>
 <div>
 <section class="panel"><h2>SQL workspace</h2>
-<p class="muted">Submit SQL through the <code>hr_aggregate_sql</code> MCP tool. The HR backend accepts exactly two reviewed department aggregates, not arbitrary SQL.</p>
-<button class="secondary" onclick="preset('all')">All employees</button><button class="secondary" onclick="preset('active')">Active employees</button>
+<p class="muted">Submit SQL through the <code>hr_aggregate_sql</code> MCP tool. The HR backend allows two standard aggregates plus a bounded department LIKE filter, not arbitrary SQL. Use single quotes for SQL strings.</p>
+<button class="secondary" onclick="preset('all')">All employees</button><button class="secondary" onclick="preset('active')">Active employees</button><button class="secondary" onclick="preset('customer')">Customer departments</button>
 <textarea id="sql" aria-label="SQL query">SELECT department, COUNT(*) AS employees
 FROM employees
 GROUP BY department
@@ -53,7 +53,8 @@ const session='hr-demo-'+Math.random().toString(36).slice(2);
 el('sessionLabel').textContent='Session: '+session;
 const queries={
  all:'SELECT department, COUNT(*) AS employees\nFROM employees\nGROUP BY department\nORDER BY department;',
- active:'SELECT department, COUNT(*) AS active_headcount\nFROM employees\nWHERE termination_date IS NULL\nGROUP BY department\nORDER BY department;'
+ active:'SELECT department, COUNT(*) AS active_headcount\nFROM employees\nWHERE termination_date IS NULL\nGROUP BY department\nORDER BY department;',
+ customer:"SELECT department, COUNT(*) AS active_headcount\nFROM employees\nWHERE termination_date IS NULL AND department LIKE '%Customer%'\nGROUP BY department\nORDER BY department;"
 };
 function preset(id){el('sql').value=queries[id]}
 async function api(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},
@@ -79,7 +80,7 @@ catch(e){el('probe').textContent='Error: '+e.message}}
 async function loadDashboard(){const d=el('department').value;el('charts').src='/charts'+(d?'?department='+encodeURIComponent(d):'')}
 async function init(){try{const r=await fetch('/api/dashboard');if(!r.ok)throw Error('Dashboard API unavailable');
 const info=await r.json();info.departments.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;el('department').append(o)});
-const m=await (await fetch('/api/mode')).json();el('mode').textContent=m.mode==='live'?'LIVE · OPENAI VIA TALON':'GUIDED · NO LLM'}
+const m=await (await fetch('/api/mode')).json();el('mode').textContent=m.mode==='live'?'LIVE MODE · VIA TALON':'GUIDED · NO LLM'}
 catch(e){el('mode').textContent='SETUP REQUIRED';el('answer').textContent=e.message}}
 init();
 </script></body></html>'''

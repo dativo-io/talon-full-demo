@@ -4,9 +4,10 @@ The normal integration path is documented in [README](README.md): Docker Compose
 
 | Test | What it checks |
 |---|---|
-| Python + docs | DuckDB fixture, aggregate SQL allowlist, bad SQL rejection, HTTP contracts, live tool-loop limits, docs and UI script syntax |
+| Python + docs | DuckDB fixture, aggregate SQL allowlist, bounded department LIKE filter, bad SQL rejection, HTTP contracts, live tool-loop limits, docs and UI script syntax |
 | MCP contract | Released Talon binary, allowed aggregate tools, export denied pre-dispatch, signed evidence |
 | Model contract | Actual Talon LLM and MCP processes using a **fake OpenAI-compatible model**, not external inference |
+| Talon gateway TLS | Debian runtime installs standard CA certificates; external OpenAI handshake still requires an opt-in real-provider test |
 | Docker + Chromium | Only one browser (:8501), existing charts, real SQL MCP request, HR-level SQL rejection and Talon denial |
 | Policy change | Same SQL allow → edit the Talon proxy YAML → restart only Talon → deny with zero HR dispatch → restore allow and verify signatures |
 

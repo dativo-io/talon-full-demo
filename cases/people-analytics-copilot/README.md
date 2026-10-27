@@ -73,7 +73,7 @@ The three relevant files are:
 
 The choices matter because they change behavior. In `agent.talon.yaml`, `agent.key.secret_name` binds requests to this AI use case; `capabilities.allowed_tools` names the capabilities it is meant to have; `policies.cost_limits` bounds model expenditure; and `audit.include_prompts: false` avoids storing raw prompts. In the MCP proxy YAML, `proxy.allowed_tools` limits what can actually reach the HR backend, while `proxy.forbidden_tools` explicitly blocks `hr_employee_export`. The gateway file names the OpenAI endpoint and its **vault secret reference**, rather than embedding the provider key.
 
-These restrictions are complementary: the SQL tool is callable only when Talon allows it, and the HR service independently accepts **exactly two reviewed aggregate SQL shapes**.
+These restrictions are complementary: the SQL tool is callable only when Talon allows it, and the HR service independently accepts two standard department-count aggregates plus a strictly limited `department LIKE '%Customer%'` filter. The filter is bound as a SQL parameter, subject to minimum-cohort enforcement. Arbitrary SQL, joins, employee-level projections and additional clauses are not accepted.
 
 If you want genuine OpenAI inference, enter a **disposable API key** and store it in Talon's encrypted vault:
 
@@ -87,10 +87,12 @@ The CLI's `secrets set` command accepts a positional value: Docker administrator
 
 ## 3. Start Talon and connect the application
 
+The Talon containers use a small Debian image with the system `ca-certificates` bundle. The bare `debian:bookworm-slim` image does not reliably provide that bundle, which can cause OpenAI requests to fail with `x509: certificate signed by unknown authority`. Rebuild Talon's image after upgrading. If your network intercepts HTTPS, install your organization's trusted root CA **in addition** to the standard CA bundle; never turn TLS verification off.
+
 For real model calls, start the MCP proxy and LLM gateway **in the foreground** so their actual `talon serve` output remains visible:
 
 ```bash
-docker compose -f compose.isolated.yaml --profile live up talon-mcp talon-gateway
+docker compose -f compose.isolated.yaml --profile live up --build --force-recreate talon-mcp talon-gateway
 ```
 
 In another terminal, from this same directory and with `HR_DEMO_TALON_BIN` exported:
@@ -118,7 +120,7 @@ GROUP BY department
 ORDER BY department;
 ```
 
-It executes through `hr_aggregate_sql`, and Talon returns a committed allow receipt. Now remove **only** this line from `.state/policy/proxy.isolated.talon.yaml`:
+It executes through `hr_aggregate_sql`, and Talon returns a committed allow receipt. You can also filter active headcount with `AND department LIKE '%Customer%'` (single-quoted literal; only this reviewed filter shape is supported). Now remove **only** this line from `.state/policy/proxy.isolated.talon.yaml`:
 
 ```yaml
     - name: hr_aggregate_sql
