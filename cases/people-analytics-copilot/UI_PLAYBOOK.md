@@ -64,6 +64,23 @@ The UI progress indicator counts successful command exits in **this browser tab*
 
 **Do not mix** the seven-stage sequence with `bash scripts/people-analytics-isolated.sh verify`; that command performs another baseline and reset.
 
+## Technical inspection: reveal the system behind the buttons
+
+After unlocking port 8502, open **Technical inspection**. Select a source and click **Refresh logs** (or check **Auto-refresh** while making requests on port 8501).
+
+| Inspect | How to prove it |
+|---|---|
+| **DuckDB actually exists** | In Setup, run **Inspect embedded DuckDB schema and synthetic row count**; see `employees` and 1,200 rows. The HR service mounts it read-only |
+| **Talon was genuinely configured** | View **Show Talon scaffold, validation and key setup log**, inspect the agent/proxy/gateway YAML, run **Validate active Talon config** |
+| **AI is network-isolated** | In Stage 3 inspect Docker networks and UI volumes—not just a green assertion |
+| **Talon handled the request** | Select **AI request / response exchanges**; trigger a question in the workforce UI and see `mcp.request`, `mcp.response` with matching session/evidence |
+| **HR actually executed it** | Select **Private HR backend execution logs**; correlate dispatched tools with the independent counters |
+| **Real model/provider call** (LIVE only) | Select **Talon LLM gateway** and **AI request/response exchanges**. Look for `llm.gateway.request`, `llm.gateway.response`, response ID, model and usage; see [Advanced setup](ADVANCED_SETUP.md) |
+
+These are **actual bounded Docker log snapshots refreshed by the browser**, read by the separately authenticated host operator process. They are not a generic shell or fabricated proof. By default they contain **metadata, not raw prompts**. Full synthetic payload previews require an explicit opt-in and must never be enabled with employee data.
+
+The AI application sees Talon's returned response. **The inspector is not OpenAI wire capture**; only successful LIVE provider validation establishes a real model path. GUIDED mode does not produce LLM request/response events.
+
 ## 4. Close with the proof, not a green badge
 
 Show three independent observations:
