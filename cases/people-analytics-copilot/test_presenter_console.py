@@ -174,6 +174,33 @@ class PresenterHTTPTests(unittest.TestCase):
             self.assertEqual(payload["lines"], "HR_AI_TRACE live")
             logs.assert_called_once_with("trace")
 
+    def test_trace_session_filter_is_exact_and_authorized(self):
+        sample = (
+            'ui | HR_AI_TRACE {"event":"mcp.request","session":"hr-demo-one"}\n'
+            'ui | HR_AI_TRACE {"event":"mcp.response","session":"hr-demo-two"}\n'
+        )
+        class Fake:
+            returncode = 0
+            stdout = sample
+            stderr = ""
+        with patch.object(presenter, "_environment", return_value={}), \
+             patch.object(presenter.subprocess, "run", return_value=Fake()):
+            filtered = presenter.read_service_logs("trace", session="hr-demo-one")
+        self.assertIn("mcp.request", filtered["lines"])
+        self.assertNotIn("mcp.response", filtered["lines"])
+        for invalid in ("../../etc/passwd", "another-session", "hr-demo-; rm -rf"):
+            with self.assertRaises(ValueError):
+                presenter.read_service_logs("trace", session=invalid)
+        with self.assertRaises(ValueError):
+            presenter.read_service_logs("talon-mcp", session="hr-demo-one")
+        with patch.object(presenter, "read_service_logs",
+                          return_value={"source": "trace", "available": True, "lines": sample,
+                                        "explanation": "metadata"}) as reader:
+            with self.request("/api/logs?source=trace&session=hr-demo-one",
+                              token="test-operator-secret") as response:
+                self.assertEqual(response.status, 200)
+            reader.assert_called_once_with("trace", session="hr-demo-one")
+
     def test_log_reader_cannot_access_arbitrary_services(self):
         with self.assertRaises(ValueError):
             presenter.read_service_logs("../../secrets")
