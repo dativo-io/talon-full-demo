@@ -10,6 +10,7 @@ proxy:
     - name: hr_attrition_summary
     - name: hr_headcount_summary
     - name: hr_tenure_summary
+    - name: hr_aggregate_sql
   forbidden_tools:
     - hr_employee_export
   rate_limits:

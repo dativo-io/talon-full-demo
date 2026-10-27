@@ -14,6 +14,7 @@ capabilities:
     - hr_attrition_summary
     - hr_headcount_summary
     - hr_tenure_summary
+    - hr_aggregate_sql
   forbidden_patterns:
     - ".env"
     - "secrets"

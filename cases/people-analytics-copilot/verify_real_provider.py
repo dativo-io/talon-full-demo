@@ -30,7 +30,7 @@ def main():
     status, listing = mcp_call(mcp, key, "tools/list", session=session)
     assert status == 200 and "result" in listing, listing
     tools = listing["result"]["tools"]
-    safe = {"hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary"}
+    safe = {"hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary", "hr_aggregate_sql"}
     assert {t["name"] for t in tools} == safe, tools
     before = get("http://127.0.0.1:9091/debug/counters")
     result = run_live_chat(

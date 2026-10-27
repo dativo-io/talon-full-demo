@@ -67,6 +67,29 @@ def sql_rows(query: str, params: tuple = ()) -> list[dict]:
         return [dict(zip(cols, row)) for row in out.fetchall()]
 
 
+"""Exactly two reviewed SQL statements; arbitrary SQL is never forwarded from the UI."""
+SQL_PRESETS = {
+    'all': 'SELECT department, COUNT(*) AS employees FROM employees GROUP BY department ORDER BY department',
+    'active': 'SELECT department, COUNT(*) AS active_headcount FROM employees WHERE termination_date IS NULL GROUP BY department ORDER BY department',
+}
+
+
+def approved_sql(sql: str) -> dict:
+    import re
+    if not isinstance(sql, str) or len(sql) > 1200:
+        raise ValueError('SQL must be a short aggregate SELECT')
+    normalized = re.sub(r'\\s+', ' ', sql.strip().rstrip(';')).casefold()
+    matched = next((name for name, template in SQL_PRESETS.items()
+                    if normalized == template.casefold()), None)
+    if matched is None:
+        raise ValueError('Only reviewed, department-grouped aggregate SELECTs are supported')
+    statement = SQL_PRESETS[matched].replace(' ORDER BY department',
+                                              ' HAVING COUNT(*) >= ? ORDER BY department')
+    rows = sql_rows(statement, (MIN_COHORT,))
+    return {'query_id':matched, 'columns':list(rows[0]) if rows else [],
+            'rows':rows, 'minimum_cohort_size':MIN_COHORT, 'synthetic':True}
+
+
 def row_count() -> int:
     return sql_rows("SELECT COUNT(*) AS n FROM employees")[0]["n"]
 

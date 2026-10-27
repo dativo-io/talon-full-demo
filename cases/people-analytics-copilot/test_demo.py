@@ -49,7 +49,7 @@ class DemoSmoke(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual({t['name'] for t in out['result']['tools']},
                          {'hr_attrition_summary', 'hr_headcount_summary',
-                          'hr_tenure_summary', 'hr_employee_export'})
+                          'hr_tenure_summary', 'hr_aggregate_sql', 'hr_employee_export'})
 
     def test_aggregate_tools_compute_real_synthetic_metrics(self):
         for name, arguments, field in [

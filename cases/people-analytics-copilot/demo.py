@@ -27,6 +27,8 @@ TOOLS = [
   'inputSchema':{'type':'object','properties':{'department':{'type':'string'}},'additionalProperties':False}},
  {'name':'hr_tenure_summary','description':'Aggregate tenure bands and average tenure.',
   'inputSchema':{'type':'object','properties':{'department':{'type':'string'}},'additionalProperties':False}},
+ {'name':'hr_aggregate_sql','description':'Execute one of two approved aggregate SQL queries; never raw employee rows.',
+  'inputSchema':{'type':'object','properties':{'sql':{'type':'string'}},'required':['sql'],'additionalProperties':False}},
  {'name':'hr_employee_export','description':'Privileged export of employee names and salaries; forbidden.',
   'inputSchema':{'type':'object','properties':{'scope':{'type':'string'}},'required':['scope'],'additionalProperties':False}},
 ]
@@ -129,6 +131,13 @@ class HRService(HTTPBase):
                     value = warehouse.headcount_summary(arguments.get('department', ''))
                 elif name == 'hr_tenure_summary':
                     value = warehouse.tenure_summary(arguments.get('department', ''))
+                elif name == 'hr_aggregate_sql':
+                    try:
+                        value = warehouse.approved_sql(arguments.get('sql', ''))
+                    except ValueError:
+                        result = {'resultType': 'complete', 'isError': True,
+                                  'content': [{'type': 'text', 'text': 'HR_SQL_REJECTED: Query is not an approved aggregate shape'}]}
+                        return self.reply(200, {'jsonrpc': '2.0', 'id': rid, 'result': result})
                 else:
                     value = warehouse.privileged_employee_detail()
                 result = {'resultType': 'complete', 'content': [{'type': 'text', 'text': json.dumps(value)}]}
@@ -202,7 +211,7 @@ class Browser(HTTPBase):
         return self.reply(404, {'error': 'not_found'})
     def do_POST(self):
         try:
-            if self.path not in ('/api/query', '/api/probe'):
+            if self.path not in ('/api/query', '/api/probe', '/api/sql'):
                 return self.reply(404, {'error': 'not_found'})
             payload = self.payload()
             session = payload.get('session')
@@ -221,6 +230,24 @@ class Browser(HTTPBase):
                               and g.get('provenance') == 'not_dispatched' and g.get('retryable') is False
                               and g.get('evidence', {}).get('committed') is True)
                 return self.reply(200, {'denied': denied, 'tool': {'governance': g}})
+            if self.path == '/api/sql':
+                sql = payload.get('sql', '')
+                if not isinstance(sql, str) or not 0 < len(sql) <= 1200:
+                    raise ValueError('invalid SQL input')
+                code, result = mcp_call(self.talon, self.key, 'tools/call',
+                                        'hr_aggregate_sql', {'sql': sql}, session)
+                g = governance(result)
+                if not g or not g.get('evidence', {}).get('committed'):
+                    raise RuntimeError('Missing committed Talon SQL tool receipt')
+                if g.get('decision') == 'deny':
+                    return self.reply(200, {'status':'talon_denied', 'receipt':g})
+                if code != 200 or g.get('decision') != 'allow' or 'result' not in result:
+                    raise RuntimeError('SQL tool returned no authorized result')
+                if result['result'].get('isError'):
+                    return self.reply(200, {'status':'hr_sql_rejected', 'receipt':g,
+                                             'message':'HR backend rejected this SQL shape'})
+                value = json.loads(result['result']['content'][0]['text'])
+                return self.reply(200, {'status':'executed', 'data':value, 'receipt':g})
             query = payload.get('query', '')
             if not isinstance(query, str) or len(query) > 1000 or not query:
                 raise ValueError('invalid query')

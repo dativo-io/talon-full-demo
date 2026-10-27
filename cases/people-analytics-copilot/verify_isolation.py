@@ -68,7 +68,7 @@ def app():
     code, tools = mcp_call(MCP, "talon-hr-demo-key-0001", "tools/list", session=session)
     assert code == 200 and "result" in tools, tools
     assert {t["name"] for t in tools["result"]["tools"]} == {
-        "hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary"
+        "hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary", "hr_aggregate_sql"
     }, tools
     code, permitted = mcp_call(MCP, "talon-hr-demo-key-0001", "tools/call",
                                "hr_attrition_summary", {"months": 6}, session)
@@ -157,7 +157,7 @@ def presenter_discover():
     assert code == 200 and "result" in out, out
     offered = [tool["name"] for tool in out["result"]["tools"]]
     assert set(offered) == {
-        "hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary"
+        "hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary", "hr_aggregate_sql"
     }, offered
     print("TALON TOOL DISCOVERY (same agent/session):")
     print(json.dumps(offered, indent=2))
@@ -206,7 +206,7 @@ def warehouse_info():
                       "path": str(path), "read_only_inspection": True,
                       "tables": tables, "employee_columns": fields,
                       "synthetic_employee_rows": count,
-                      "note": "Metadata only; no direct SQL capability is offered to AI."},
+                      "note": "Metadata only; UI SQL permits two reviewed aggregate shapes through Talon MCP."},
                      indent=2))
     assert count == 1200
 

@@ -36,7 +36,7 @@ def main():
     assert http_code == 200 and "result" in listed, listed
     offered = listed["result"]["tools"]
     assert {t["name"] for t in offered} == {
-        "hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary"
+        "hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary", "hr_aggregate_sql"
     }, offered
 
     def tool_call(name, arguments, session_id):

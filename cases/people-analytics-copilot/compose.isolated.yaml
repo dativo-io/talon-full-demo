@@ -17,6 +17,7 @@ x-talon-environment: &talon-environment
 x-talon-volumes: &talon-volumes
   - talon_state:/state
   - ./:/case:ro
+  - ./.state/policy:/policies:ro
   - ${HR_DEMO_TALON_BIN:?Supply absolute Talon binary path}:/usr/local/bin/talon:ro
 
 services:
@@ -69,7 +70,7 @@ services:
         if [ ! -f talon.config.yaml ]; then
           talon init --scaffold --name hr-analytics-assistant
         fi
-        cp /case/agent.talon.yaml /state/agent.talon.yaml
+        cp /policies/agent.talon.yaml /state/agent.talon.yaml
         talon validate
         talon secrets set hr-analytics-assistant-talon-key talon-hr-demo-key-0001
         talon secrets set openai-api-key "$$HR_DEMO_OPENAI_KEY"
@@ -86,7 +87,7 @@ services:
     environment: *talon-environment
     volumes: *talon-volumes
     working_dir: /state
-    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8080", "--proxy-config", "/case/proxy.isolated.talon.yaml"]
+    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8080", "--proxy-config", "/policies/proxy.isolated.talon.yaml"]
     networks: [app_net, private_hr]
     restart: unless-stopped
 
@@ -99,7 +100,7 @@ services:
     environment: *talon-environment
     volumes: *talon-volumes
     working_dir: /state
-    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8082", "--gateway", "--gateway-config", "/case/gateway.talon.yaml"]
+    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8082", "--gateway", "--gateway-config", "/policies/gateway.talon.yaml"]
     networks: [app_net]
     restart: unless-stopped
 

@@ -27,7 +27,7 @@ def main():
     status, tools = call('tools/list')
     assert status == 200 and 'result' in tools, f'Failed discovery: {status} {tools}'
     names = [x['name'] for x in tools['result']['tools']]
-    assert set(names) == {'hr_attrition_summary', 'hr_headcount_summary', 'hr_tenure_summary'}, names
+    assert set(names) == {'hr_attrition_summary', 'hr_headcount_summary', 'hr_tenure_summary', 'hr_aggregate_sql'}, names
     print('PASS: safe capability advertised; sensitive export hidden')
     status, allowed = call('tools/call', 'hr_attrition_summary', {'months': 6})
     a = governance(allowed)
