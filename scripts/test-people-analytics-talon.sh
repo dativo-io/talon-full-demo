@@ -89,5 +89,5 @@ done
 curl --silent --fail http://127.0.0.1:8082/health >/dev/null
 
 (cd "$CASE" && python3 verify.py --talon-bin "$TALON_BIN")
-(cd "$CASE" && python3 verify_live.py --talon-bin "$TALON_BIN")
+(cd "$CASE" && HR_DEMO_PROVIDER_KIND=simulated-openai-compatible-provider python3 verify_live.py --talon-bin "$TALON_BIN")
 echo "PASS: Real Talon People Analytics MCP + model-to-tool governance contract"
