@@ -13,6 +13,7 @@ ROOT = CASE.parents[1]
 DOCS = [
     CASE / "README.md",
     CASE / "PRESENTER_COMMANDS.md",
+    CASE / "UI_PLAYBOOK.md",
     CASE / "PEOPLE_ANALYTICS_DEMO_PLAN.md",
     ROOT / "README.md",
     ROOT / "docs" / "AUDIENCE_DEMOS.md",
@@ -63,6 +64,12 @@ class DocumentationContract(unittest.TestCase):
         self.assertIn("since reset", presenter)
         self.assertIn("PRESENTER_COMMANDS.md", readme)
         self.assertIn("PEOPLE_ANALYTICS_DEMO_PLAN.md", readme)
+        self.assertIn("UI_PLAYBOOK.md", readme)
+        ui = (CASE / "UI_PLAYBOOK.md").read_text(encoding="utf-8")
+        for evidence in ("BEFORE", "RESET", "decision=allow", "decision=deny",
+                         "signed", "8501", "8502"):
+            self.assertIn(evidence, ui)
+
 
 
 if __name__ == "__main__":
