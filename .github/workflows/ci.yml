@@ -94,6 +94,7 @@ jobs:
           TALON_RELEASE="$(cat config/tokeneconomizer-talon-release.txt)"
           go install "github.com/dativo-io/talon/cmd/talon@$TALON_RELEASE"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          echo "HR_DEMO_TALON_BIN=$(go env GOPATH)/bin/talon" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
