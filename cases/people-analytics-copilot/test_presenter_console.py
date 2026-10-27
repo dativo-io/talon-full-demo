@@ -114,8 +114,8 @@ class PresenterHTTPTests(unittest.TestCase):
                        "backend_counts", "evidence_verify"):
             self.assertIn(action, presenter.CATALOG)
         # API exposes the exact same CATALOG, not a separate browser action list.
-        self.assertIn("for a,b,c,d in ACTIONS", presenter.handler_factory.__code__.co_consts.__str__() if False else
-                      Path(__file__).resolve().parents[2].joinpath("scripts", "people_analytics_presenter.py").read_text())
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("for a,b,c,d in ACTIONS", source)
 
     def test_catalog_requires_token_and_includes_exact_shell_text(self):
         with self.assertRaises(HTTPError) as exc:
