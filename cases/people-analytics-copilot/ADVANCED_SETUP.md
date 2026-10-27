@@ -94,7 +94,7 @@ Do not open a fresh SSH shell for the audit command without also restoring the *
 
 ## Technical tracing and live logs
 
-The operator console on `127.0.0.1:8502` has an authenticated, **allowlisted** log viewer (Talon MCP, optional Talon LLM gateway, init, UI, HR service and dashboard). It polls bounded Docker log snapshots; it cannot run arbitrary Docker commands. The UI's request/response trace comes from the **actual app boundary**, not a simulated provider or HTTPS packet capture.
+The operator console on `127.0.0.1:8502` has an authenticated, **allowlisted** log viewer (Talon MCP, optional Talon LLM gateway, init, UI, HR service and dashboard). It polls bounded Docker log snapshots; it cannot run arbitrary Docker commands. The UI's request/response trace comes from the **actual app boundary**, not a packet capture of provider HTTPS and not a simulated provider.
 
 In LIVE mode, the `ui` service logs `HR_AI_TRACE` metadata for each outbound Talon LLM gateway request and returned response, including the session, model, provider response ID, usage, tool calls and signed MCP decision. The Talon LLM gateway's own logs are shown separately.
 
