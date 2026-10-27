@@ -82,7 +82,7 @@ jobs:
 
   people-analytics-isolation-contract:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -94,11 +94,18 @@ jobs:
           TALON_RELEASE="$(cat config/tokeneconomizer-talon-release.txt)"
           go install "github.com/dativo-io/talon/cmd/talon@$TALON_RELEASE"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser test tooling
+        run: |
+          python -m pip install "playwright==1.55.0"
+          python -m playwright install --with-deps chromium
       - name: Build and start separated People Analytics services
         run: bash scripts/people-analytics-isolated.sh up
       - name: Verify direct-access baseline and governed non-bypass
         run: bash scripts/people-analytics-isolated.sh verify
-      - name: Run granular prospective customer presenter commands end-to-end
+      - name: Run granular presenter commands end-to-end
         run: |
           export HR_DEMO_TALON_BIN="$(command -v talon)"
           CASE="$PWD/cases/people-analytics-copilot"
@@ -116,6 +123,16 @@ jobs:
           dc exec -T hr-server python3 verify_isolation.py backend-counts
           dc exec -T talon-mcp talon audit export --format signed-json --session hr-demo-presenter --output /tmp/hr-presenter-evidence.json
           dc exec -T talon-mcp talon audit verify --file /tmp/hr-presenter-evidence.json
+      - name: Browser E2E — real guided AI, operator UI, before/after and signed evidence
+        run: python scripts/test-people-analytics-browser.py
+      - name: Upload browser failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: people-analytics-browser-failure
+          path: cases/people-analytics-copilot/.state/browser-failure.png
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Stop isolated demo
         if: always()
         run: bash scripts/people-analytics-isolated.sh down
