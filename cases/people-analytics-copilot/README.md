@@ -34,8 +34,8 @@ export HR_DEMO_TALON_BIN="$(command -v talon)"
 # Local secrets for the Talon vault, audit signatures and admin access.
 # .env is ignored by Git; it contains no OpenAI key.
 umask 077
-printf 'HR_DEMO_SECRETS_KEY=%s\nHR_DEMO_SIGNING_KEY=%s\nHR_DEMO_ADMIN_KEY=%s\n' \
-  "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" > .env
+printf 'HR_DEMO_SECRETS_KEY=%s\nHR_DEMO_SIGNING_KEY=%s\nHR_DEMO_ADMIN_KEY=%s\nHR_DEMO_UID=%s\nHR_DEMO_GID=%s\n' \
+  "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(id -u)" "$(id -g)" > .env
 
 mkdir -p .state/policy .state/talon
 docker compose -f compose.isolated.yaml up --build -d seed hr-server dashboard
@@ -46,7 +46,7 @@ DuckDB is an **embedded file**, not a database server. The `hr-server` service h
 
 ## 2. Initialize Talon and configure the AI use case
 
-We use Docker to put the Talon CLI on the correct application network. The commands themselves are the **normal Talon CLI**, not an initialization script.
+We use Docker to put the Talon CLI on the correct application network, running under your host UID so the generated files remain editable. The commands themselves are the **normal Talon CLI**, not an initialization script.
 
 ```bash
 docker compose -f compose.isolated.yaml run --rm talon-cli talon init --scaffold --name hr-analytics-assistant
