@@ -25,6 +25,12 @@ class DocumentationContract(unittest.TestCase):
                      "talon-mcp", "hr_aggregate_sql", "docker compose", "SIGNED", "DuckDB"):
             self.assertIn(term.casefold(),body.casefold())
         self.assertIn("```mermaid\nflowchart",body)
+        # Observability examples must retain their correct provenance and limits.
+        for field in ("metrics_reconcile_recovered", "recovered_events",
+                      "correlation_id", "X-Talon-Session-ID", "data_flow_recorded",
+                      "flow_items", "flow_regions=US", "HR_AI_TRACE",
+                      "not_dispatched", "talon audit verify --session"):
+            self.assertIn(field, body)
         self.assertNotIn("scripts/people-analytics-isolated.sh",body)
         self.assertNotIn("presenter",body.lower())
         self.assertNotIn("8502",body)
