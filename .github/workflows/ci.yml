@@ -154,7 +154,7 @@ jobs:
           docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py allow
           docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py deny
           docker compose -f compose.isolated.yaml exec -T hr-server python3 verify_isolation.py backend-counts
-          docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit export --format signed-json --session hr-demo-presenter --output /tmp/hr-check.json
+          docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit export --format signed-json --session hr-demo-proof-checks --output /tmp/hr-check.json
           docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit verify --file /tmp/hr-check.json
       - name: Browser E2E — single workforce UI, SQL, HR validator and Talon denial
         run: python scripts/test-people-analytics-browser.py
