@@ -4,6 +4,8 @@ The provider is an explicitly labelled synthetic OpenAI-compatible model
 fixture. No external vendor key or paid model is used by this acceptance test.
 """
 import argparse
+import contextlib
+import io
 import json
 import subprocess
 import tempfile
@@ -41,12 +43,41 @@ def main():
         return mcp_call(args.mcp, args.agent_key, "tools/call",
                         name, arguments, session=session_id)
 
-    outcome = run_live_chat(
-        "Compare the last six months of department attrition based on available metrics.",
-        offered, session, "gpt-4o-mini",
-        args.gateway.rstrip("/") + "/v1/proxy/openai/v1/chat/completions",
-        args.agent_key, tool_call
-    )
+    # Observe real routed exchanges through Talon's released LLM gateway.
+    # The upstream provider is explicitly a synthetic OpenAI-compatible fixture.
+    trace_stream = io.StringIO()
+    with contextlib.redirect_stdout(trace_stream):
+        outcome = run_live_chat(
+            "Compare the last six months of department attrition based on available metrics.",
+            offered, session, "gpt-4o-mini",
+            args.gateway.rstrip("/") + "/v1/proxy/openai/v1/chat/completions",
+            args.agent_key, tool_call
+        )
+    print(trace_stream.getvalue(), end="")
+    events = [json.loads(line.split("HR_AI_TRACE ", 1)[1])
+              for line in trace_stream.getvalue().splitlines()
+              if line.startswith("HR_AI_TRACE ")]
+    by_event = lambda name: [e for e in events if e.get("event") == name]
+    assert len(by_event("llm.gateway.request")) == 2, events
+    assert len(by_event("llm.gateway.response")) == 2, events
+    assert len(by_event("llm.tool.request")) == 1, events
+    assert len(by_event("llm.tool.response")) == 1, events
+    assert {e["session"] for e in events} == {session}, events
+    assert {e.get("provider_mode") for e in by_event("llm.gateway.request")} == {
+        "simulated-openai-compatible-provider"}, events
+    assert all(e["provider_response_id"] == "chatcmpl-hr-mock"
+               for e in by_event("llm.gateway.response")), events
+    assert all(e["usage"]["total_tokens"] == 50
+               for e in by_event("llm.gateway.response")), events
+    assert by_event("llm.tool.response")[0]["evidence_committed"] is True, events
+    assert by_event("llm.tool.response")[0]["evidence_id"], events
+    assert all(e.get("request_payload", "").startswith("[metadata only")
+               for e in by_event("llm.gateway.request")), events
+    assert all(e.get("response_payload") == "[metadata only]"
+               for e in by_event("llm.gateway.response")), events
+    assert "sk-demo-mock-provider" not in trace_stream.getvalue(), "Credential leaked in trace"
+    print("PASS: observed 2 actual Talon LLM gateway requests/responses, one allowed tool, "
+          "session/evidence correlation, simulated provider labeled and prompts not logged")
     assert outcome["mode"].startswith("live AI through Talon"), outcome
     assert len(outcome["calls"]) == 1, outcome
     called = outcome["calls"][0]
