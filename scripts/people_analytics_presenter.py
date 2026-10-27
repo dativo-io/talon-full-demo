@@ -264,6 +264,21 @@ dc() {
 <h2>4. Technical inspection — see the system working</h2>
 <p>Inspect <strong>actual Docker services</strong>, Talon configuration, bootstrap logs and real request/response traces. This does not create mock answers or turn on unrestricted logging. Use this panel while performing a step in the workforce UI or proof console.</p>
 <div class="warning"><strong>Provider truth:</strong> the default GUIDED mode has no LLM request. The LIVE gateway sends calls to an external provider, but requires a real API key and an independently passed smoke test. Traces marked <code>llm.gateway.*</code> are observed by the application at Talon's gateway boundary—not HTTPS packets captured inside OpenAI. Model content is hidden unless synthetic-only payload previews were explicitly enabled when starting LIVE.</div>
+<details open><summary>Declared runtime topology (verify with the live commands below)</summary>
+<pre>Workforce UI / AI container [app_net, no HR data mount]
+  |-- charts ----------> Aggregate API ------> DuckDB volume (read-only)
+  |-- guided MCP ------> Talon MCP proxy ------> HR service [private_hr]
+  |-- LIVE model ------> Talon LLM gateway ---> OpenAI (external, only with key)
+                             |
+                        tool selected by model
+                             |
+                        Talon MCP proxy ------> HR service --> DuckDB
+
+Talon init creates/validates shared state; both Talon processes use it.
+Only Talon MCP bridges app_net to private_hr. Tool policy is enforced by Talon.
+</pre>
+<p class="small">This is the declared topology, not proof by itself. Check Compose config, live Docker networks, volumes and tool receipts using the actions below.</p>
+</details>
 <div class="line">
 <label for="logSource">Running service / event source</label>
 <select id="logSource" aria-label="Running service logs">
