@@ -229,7 +229,8 @@ class Browser(HTTPBase):
                 denied = bool(code == 200 and 'error' in result and g and g.get('decision') == 'deny'
                               and g.get('provenance') == 'not_dispatched' and g.get('retryable') is False
                               and g.get('evidence', {}).get('committed') is True)
-                return self.reply(200, {'denied': denied, 'tool': {'governance': g}})
+                return self.reply(200, {'denied': denied, 'tools': names,
+                                        'tool': {'name': 'hr_employee_export', 'governance': g}})
             if self.path == '/api/sql':
                 sql = payload.get('sql', '')
                 if not isinstance(sql, str) or not 0 < len(sql) <= 1200:
@@ -289,7 +290,7 @@ class Browser(HTTPBase):
                 answer = 'Average tenure: ' + str(data['average_tenure_years']) + ' years\n' + '\n'.join(
                     f"{r['tenure_band']}: {r['headcount']} people" for r in data['bands'])
             answer += '\n\nGuided deterministic analysis, NOT a model-generated answer. Observed correlations are not causes.'
-            return self.reply(200, {'answer': answer, 'tools': names, 'mode': 'guided', 'tool': {'governance': g}})
+            return self.reply(200, {'answer': answer, 'tools': names, 'mode': 'guided', 'tool': {'name': name, 'governance': g}})
         except (ValueError, TypeError) as exc:
             return self.reply(400, {'error': str(exc)})
         except Exception as exc:

@@ -71,7 +71,7 @@ The three relevant files are:
 | `.state/policy/proxy.isolated.talon.yaml` | Which MCP tools can reach the private HR service |
 | `.state/policy/gateway.talon.yaml` | OpenAI endpoint and secret name for model requests |
 
-The choices matter because they change behavior. In `agent.talon.yaml`, `agent.key.secret_name` binds requests to this AI use case; `capabilities.allowed_tools` names the capabilities it is meant to have; `policies.cost_limits` bounds model expenditure; and `audit.include_prompts: false` avoids storing raw prompts. In the MCP proxy YAML, `proxy.allowed_tools` limits what can actually reach the HR backend, while `proxy.forbidden_tools` explicitly blocks `hr_employee_export`. The gateway file names the OpenAI endpoint and its **vault secret reference**, rather than embedding the provider key.
+The choices matter because they change behavior. In `agent.talon.yaml`, `agent.key.secret_name` binds requests to this AI use case; `capabilities.allowed_tools` names the capabilities it is meant to have; `policies.cost_limits` bounds per-request, daily and monthly model expenditure; `policies.session_limits.max_cost: 0.10` caps spending by the browser's Talon session (in the configured pricing currency); and `audit.include_prompts: false` avoids storing raw prompts. In the MCP proxy YAML, `proxy.allowed_tools` limits what can actually reach the HR backend, while `proxy.forbidden_tools` explicitly blocks `hr_employee_export`. The gateway file names the OpenAI endpoint and its **vault secret reference**, rather than embedding the provider key.
 
 These restrictions are complementary: the SQL tool is callable only when Talon allows it, and the HR service independently accepts two standard department-count aggregates plus a strictly limited `department LIKE '%Customer%'` filter. The filter is bound as a SQL parameter, subject to minimum-cohort enforcement. Arbitrary SQL, joins, employee-level projections and additional clauses are not accepted.
 
@@ -164,7 +164,56 @@ This is the key distinction: **Talon controls which intercepted operations the A
 
 Restore the `hr_aggregate_sql` entry and recreate `talon-mcp` to permit the same queries again. No changes to the workforce application's code, DuckDB data, or chart API are needed.
 
-## 5. Read Talon's runtime logs
+## 5. Business observability: access, spend and tools
+
+Instead of relying on infrastructure log lines, inspect **what this AI use case was allowed to do, what it was stopped from doing, and what its model calls cost**. Talon records the decisions and cost facts in signed evidence, which its native CLI aggregates by the session ID shown in the Workforce application.
+
+### Individual employee data: a real denied tool request
+
+1. Open the single Workforce application and use **Run SQL through Talon** for a valid department aggregate. Its Talon receipt is `allow`; the HR backend executes an approved aggregate.
+2. Click **Request individual employee records**. The application attempts `hr_employee_export` through Talon's MCP endpoint with the **same session identity**. The capability is forbidden in `proxy.isolated.talon.yaml`.
+3. The screen must show **BLOCKED**, `hr_employee_export`, `deny`, `not_dispatched`, a committed Talon evidence ID, and **no employee rows**. Independently check that HR's `hr_employee_export` counter did not increase.
+
+This is **genuine Talon tool authorization**, not simulated text. Talon recognizes the *forbidden MCP capability* and prevents execution; it is **not** interpreting an arbitrary SQL statement, inferring malicious intent from a natural-language prompt or autonomously detecting employee data in the database. An individual-salary `SELECT` sent through the allowed SQL tool is rejected **by HR's SQL validator**, not by Talon. The explicit button is an application-initiated request, **not a claim that OpenAI chose the forbidden tool**.
+
+### The session's business outcomes
+
+Run these native Talon commands from `cases/people-analytics-copilot`. Use the session shown in the browser, not a `correlation_id` taken from an individual request:
+
+```bash
+SESSION=hr-demo-REPLACE-WITH-SESSION-FROM-BROWSER
+
+# Signed-evidence rollup: spend, tokens, decisions, tool names and intervention reasons
+docker compose -f compose.isolated.yaml run --rm talon-cli \
+  talon audit list --session "$SESSION"
+
+# The same evidence-backed cost rollup in a machine-readable form
+docker compose -f compose.isolated.yaml run --rm talon-cli \
+  talon costs --session "$SESSION" --json
+
+# Independently verify that every evidence record in the session remains intact
+docker compose -f compose.isolated.yaml run --rm talon-cli \
+  talon audit verify --session "$SESSION"
+
+# The HR backend can confirm that the denied export never executed
+docker compose -f compose.isolated.yaml exec -T hr-server \
+  python3 verify_isolation.py counters
+```
+
+| What a business owner wants to know | Native Talon evidence to check |
+|---|---|
+| Did the application attempt to obtain individual salary records? | `hr_employee_export` tool-call record with `allowed=false`, policy reason, and committed evidence ID. The separate app-request log confirms the intent that triggered it. |
+| Were individual records actually exposed? | Talon `not_dispatched` plus an unchanged HR `hr_employee_export` counter proves this **intercepted route** never executed. It does not prove that no unrelated bypass exists. |
+| What tools were available versus invoked? | Tool discovery omits `hr_employee_export`; the session rollup lists intercepted `tool_calls`, `tool_calls_denied`, and `tool_names`. The browser shows recent committed allowed/denied tool receipts. A discovered tool is not necessarily executed. |
+| What did this interaction cost? | `talon costs --session "$SESSION" --json` returns evidence-derived `total_cost`, `currency`, `input_tokens`, `output_tokens` and related session statistics. In GUIDED mode there are no real model calls, so model spend should be zero. |
+| What budget constrained that spending? | The loaded `agent.talon.yaml` example enforces a **per-session** cap of `0.10`, in addition to per-request, daily and monthly caps. This cap is configuration, **not** an amount to fabricate from logs. A genuine `session_budget_exceeded` decision must appear in evidence if the limit is reached. |
+| Was the operation rejected by Talon or the backend? | A Talon `deny` / `not_dispatched` is a policy block. An `allow` receipt followed by `HR_SQL_REJECTED` is a backend validation failure. Keep those outcomes separate in any report. |
+
+Talon's session rollup includes model/provider attribution, accumulated spend, token counts, allow/deny totals, denied reasons, and intercepted MCP tool counts. **Tool availability**, **tool invocations**, and **actual backend execution** are different measurements. A historical session may contain earlier activity: use a new browser session to isolate a new run. The session ID is client-asserted attribution rather than user authentication.
+
+To explore a budget denial, change only `policies.session_limits.max_cost` in the agent YAML to a deliberately low *positive* limit, let Talon reload it, then make a new LIVE model request with a new browser session. Expect a `session_budget_exceeded` denial only **if the model gateway's priced pre-request estimate exceeds the effective cap**. The session's signed evidence will record the actual outcome; do not claim a denial if no priced request occurred. An unknown model price, an untrusted provider, or a failed upstream call requires separate investigation.
+
+## 6. Read Talon's runtime logs
 
 The MCP proxy and LLM gateway emit structured logs about **which Talon service is running, which AI use case issued a request, where a governed operation was directed, and whether operational metrics are caught up with persisted evidence**. These logs are useful for understanding the AI application's execution path; they are not a substitute for policy receipts, signed evidence, model traces or downstream execution counters.
 
@@ -245,7 +294,7 @@ docker compose -f compose.isolated.yaml exec -T hr-server \
 
 For distributed traces beyond these local log lines, Talon supports optional OpenTelemetry (`TALON_OTEL_ENABLED=true`), with `trace_id` / `span_id` on supported instrumented log events. The short `correlation_id`, application `session_id`, and OTel trace ID are **different identifiers**. See the [Talon observability reference](https://github.com/dativo-io/talon/blob/main/docs/OBSERVABILITY.md) for exported metrics and traces.
 
-## 6. Inspect the evidence
+## 7. Inspect the evidence
 
 Use the native Talon audit commands:
 

@@ -39,18 +39,40 @@ ORDER BY department;</textarea>
 <textarea id="query" aria-label="AI question">Which departments have the highest attrition over the last six months?</textarea>
 <button id="askbutton" onclick="ask()">Ask assistant</button>
 <pre id="answer">No question asked.</pre></section>
-<section class="panel"><h2>Policy boundary</h2>
-<p class="muted">This is a deliberate operator probe, not an autonomous model request.</p>
-<button class="danger" onclick="probe()">Attempt employee export through Talon</button>
-<pre id="probe">No export attempted.</pre>
+<section class="panel"><h2>Talon governance</h2>
+<p class="muted">The following results are real MCP decisions for this session. HR SQL rejection and Talon policy denial are distinct.</p>
+<p class="muted">Allowed tools in discovery:</p>
+<pre id="allowedTools">Not requested yet.</pre>
+<p class="muted">Individual employee names and salary records require <code>hr_employee_export</code>; the application can request it, but Talon forbids that capability.</p>
+<button class="danger" onclick="probe()">Request individual employee records</button>
+<pre id="probe">No employee-records request attempted yet.</pre>
 <p id="sessionLabel" class="muted"></p>
-<pre id="receipt">No Talon receipt yet.</pre></section>
+<pre id="receipt">No Talon receipt yet.</pre>
+<h2>Tool decisions in this session</h2>
+<pre id="activity">No governed tool calls yet.</pre>
+<h2>Session spending and budget</h2>
+<p class="muted">Talon enforces a per-session cost cap of 0.10 in the example agent policy (in the configured pricing currency); the actual spend is derived from signed Talon evidence, not calculated in this browser.</p>
+<pre id="sessionCommands">Session ID initializing…</pre></section>
 </div></div>
 <footer>Fictional data only. Docker prevents direct HR access from this application. Talon controls intercepted calls; the HR backend validates SQL. Verify receipts with the Talon CLI.</footer>
 <script>
 const el=id=>document.getElementById(id);
 const session='hr-demo-'+Math.random().toString(36).slice(2);
 el('sessionLabel').textContent='Session: '+session;
+el('sessionCommands').textContent='From the integration directory:\n'+
+'docker compose -f compose.isolated.yaml run --rm talon-cli talon costs --session '+session+' --json\n'+
+'docker compose -f compose.isolated.yaml run --rm talon-cli talon audit list --session '+session+'\n'+
+'docker compose -f compose.isolated.yaml run --rm talon-cli talon audit verify --session '+session;
+const activity=[];
+function remember(tool,g,backend){if(!g)return;
+ const evidence=g.evidence||{};
+ const decision=g.decision||'unknown';
+ const verified=evidence.committed===true&&Boolean(evidence.id);
+ activity.unshift([tool,decision,backend||'',verified?'evidence '+evidence.id:'NO COMMITTED EVIDENCE'].filter(Boolean).join(' · '));
+ if(activity.length>12)activity.length=12;
+ el('activity').textContent=activity.join('\n');
+}
+function toolsSeen(names){if(Array.isArray(names))el('allowedTools').textContent=names.join(', ')||'(none)';}
 const queries={
  all:'SELECT department, COUNT(*) AS employees\nFROM employees\nGROUP BY department\nORDER BY department;',
  active:'SELECT department, COUNT(*) AS active_headcount\nFROM employees\nWHERE termination_date IS NULL\nGROUP BY department\nORDER BY department;',
@@ -64,6 +86,7 @@ el('receipt').textContent='Decision: '+(g.decision||'unknown')+'\nProvenance: '+
 '\nEvidence ID: '+(e.id||'none')+'\nCommitted: '+String(e.committed===true)}
 async function runSQL(){el('runSQL').disabled=true;el('sqlResult').textContent='Submitting through Talon…';
 try{const r=await api('/api/sql',{sql:el('sql').value});receipt(r.receipt);
+remember('hr_aggregate_sql',r.receipt,r.status==='hr_sql_rejected'?'HR rejected SQL':r.status==='executed'?'HR executed':'not dispatched');
 el('sqlResult').textContent=(r.status==='executed'?'EXECUTED · HR-approved aggregate\n':
 r.status==='talon_denied'?'DENIED · Talon blocked before dispatch\n':
 'REJECTED · HR SQL validator (Talon allowed tool dispatch)\n')+
@@ -71,11 +94,17 @@ r.status==='talon_denied'?'DENIED · Talon blocked before dispatch\n':
 catch(e){el('sqlResult').textContent='Error: '+e.message}finally{el('runSQL').disabled=false}}
 async function ask(){el('askbutton').disabled=true;el('answer').textContent='Requesting…';
 try{const r=await api('/api/query',{query:el('query').value});el('answer').textContent=r.answer;
-if(r.calls&&r.calls.length)receipt(r.calls[r.calls.length-1].governance);
-else if(r.tool)receipt(r.tool.governance)}
+toolsSeen(r.tools);
+if(r.calls&&r.calls.length){r.calls.forEach(c=>remember(c.name,c.governance,'model-selected'));
+receipt(r.calls[r.calls.length-1].governance);}
+else if(r.tool){receipt(r.tool.governance);remember(r.tool.name||'aggregate tool',r.tool.governance,'app-selected');}}
 catch(e){el('answer').textContent='Error: '+e.message}finally{el('askbutton').disabled=false}}
 async function probe(){el('probe').textContent='Checking real Talon policy…';
-try{const r=await api('/api/probe',{});el('probe').textContent=r.denied?'DENIED · not dispatched':'FAILED TO PROVE DENIAL';receipt(r.tool.governance)}
+try{const r=await api('/api/probe',{});el('probe').textContent=r.denied?
+'BLOCKED · Talon denied hr_employee_export before HR dispatch. No employee rows returned.':
+'NOT VERIFIED · denial or committed receipt missing';
+toolsSeen(r.tools);receipt(r.tool.governance);
+remember('hr_employee_export',r.tool.governance,r.denied?'not dispatched':'DENIAL UNVERIFIED')}
 catch(e){el('probe').textContent='Error: '+e.message}}
 async function loadDashboard(){const d=el('department').value;el('charts').src='/charts'+(d?'?department='+encodeURIComponent(d):'')}
 async function init(){try{const r=await fetch('/api/dashboard');if(!r.ok)throw Error('Dashboard API unavailable');

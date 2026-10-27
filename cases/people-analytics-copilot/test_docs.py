@@ -29,7 +29,9 @@ class DocumentationContract(unittest.TestCase):
         for field in ("metrics_reconcile_recovered", "recovered_events",
                       "correlation_id", "X-Talon-Session-ID", "data_flow_recorded",
                       "flow_items", "flow_regions=US", "HR_AI_TRACE",
-                      "not_dispatched", "talon audit verify --session"):
+                      "not_dispatched", "talon audit verify --session",
+                      "talon costs --session", "session_budget_exceeded",
+                      "hr_employee_export", "tool_calls_denied"):
             self.assertIn(field, body)
         self.assertNotIn("scripts/people-analytics-isolated.sh",body)
         self.assertNotIn("presenter",body.lower())

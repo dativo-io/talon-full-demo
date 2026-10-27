@@ -41,9 +41,16 @@ def main():
                 expect(page.locator("#receipt")).to_contain_text("Decision: allow")
                 page.get_by_role("button",name="Ask assistant").click()
                 expect(page.locator("#answer")).to_contain_text("Guided deterministic analysis",timeout=30000)
-                page.get_by_role("button",name="Attempt employee export through Talon").click()
-                expect(page.locator("#probe")).to_contain_text("DENIED · not dispatched",timeout=30000)
+                page.get_by_role("button",name="Request individual employee records").click()
+                expect(page.locator("#probe")).to_contain_text("BLOCKED · Talon denied hr_employee_export",timeout=30000)
                 expect(page.locator("#receipt")).to_contain_text("Decision: deny")
+                expect(page.locator("#receipt")).to_contain_text("Committed: true")
+                expect(page.locator("#allowedTools")).to_contain_text("hr_attrition_summary")
+                expect(page.locator("#allowedTools")).not_to_contain_text("hr_employee_export")
+                expect(page.locator("#activity")).to_contain_text("hr_employee_export · deny · not dispatched")
+                expect(page.locator("#activity")).to_contain_text("hr_aggregate_sql · allow · HR rejected SQL")
+                expect(page.locator("#sessionCommands")).to_contain_text("talon costs --session")
+                expect(page.locator("#sessionCommands")).to_contain_text("talon audit list --session")
                 assert re.search(r"hr-demo-[a-z0-9]+",page.locator("#sessionLabel").inner_text())
             except Exception:
                 dest=ROOT/"cases/people-analytics-copilot/.state/browser-failure.png"

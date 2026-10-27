@@ -25,6 +25,9 @@ policies:
     per_request: 1.0
     daily: 10.0
     monthly: 100.0
+  # Per-session maximum spend is independent of the daily/monthly agent caps.
+  session_limits:
+    max_cost: 0.10
   data_classification:
     input_scan: true
     output_scan: true
