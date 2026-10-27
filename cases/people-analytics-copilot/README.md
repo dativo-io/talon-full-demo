@@ -164,7 +164,88 @@ This is the key distinction: **Talon controls which intercepted operations the A
 
 Restore the `hr_aggregate_sql` entry and recreate `talon-mcp` to permit the same queries again. No changes to the workforce application's code, DuckDB data, or chart API are needed.
 
-## 5. Inspect the evidence
+## 5. Read Talon's runtime logs
+
+The MCP proxy and LLM gateway emit structured logs about **which Talon service is running, which AI use case issued a request, where a governed operation was directed, and whether operational metrics are caught up with persisted evidence**. These logs are useful for understanding the AI application's execution path; they are not a substitute for policy receipts, signed evidence, model traces or downstream execution counters.
+
+From the application directory, follow Talon's logs and the application's own trace separately:
+
+```bash
+docker compose -f compose.isolated.yaml logs -f talon-mcp talon-gateway
+docker compose -f compose.isolated.yaml logs -f ui hr-server
+```
+
+### What the startup lines mean
+
+| Log field / event | Meaning in this application |
+|---|---|
+| `agent_config_reload_enabled interval=30000 source=/state/agent.talon.yaml` | Talon enabled polling of the **agent** configuration every 30,000 milliseconds (30 seconds). It does not mean a policy change occurred. The separate MCP **proxy** YAML is loaded when the proxy service starts; after editing that file, recreate `talon-mcp` as described above. |
+| `agent_identity_registry_loaded agents=1 tenants=1` | Talon's identity registry loaded one agent and one tenant scope. This is not a count of human users or open workforce sessions. |
+| `talon_serve_started addr=0.0.0.0:8080 ... gateway=false mcp_proxy=true` | The MCP proxy is listening on **container** port 8080. It controls HR tool discovery and invocation. |
+| `talon_serve_started addr=0.0.0.0:8082 ... gateway=true mcp_proxy=false` | A separate service is listening on **container** port 8082 for model traffic. `dashboard=true` / `gateway_dashboard=true` refer to Talon's own runtime dashboard/metrics capability, not a second Workforce application on port 8501. |
+| `openshell_middleware=false` / `cron_entries=0` | Those Talon runtime features are not active in this example; neither field is an error. |
+
+### Follow a request through the harness
+
+These are abbreviated examples of the actual log shapes; IDs vary on each request:
+
+```text
+talon-mcp      INF data_flow_recorded agent_id=hr-analytics-assistant correlation_id=mcp_proxy_bf80eb46 flow_destination=mcp_tool:fictional-hr-warehouse flow_items=1 flow_region=unknown tenant_id=default
+talon-gateway  INF data_flow_recorded agent_id=hr-analytics-assistant correlation_id=gw_3fb86b9d-6d5 flow_destinations=llm_provider:openai flow_items=1 flow_regions=US tenant_id=default
+```
+
+| Field | What it means — and what it does **not** prove |
+|---|---|
+| `data_flow_recorded` | Talon constructed a data-flow observation for this routed request and emitted its metadata. It is **not proof that the destination accepted the request or that the operation succeeded**. Read the decision, status, provider errors and signed evidence to establish the outcome. |
+| `correlation_id` | ID for a **single Talon request**. The MCP proxy accepts a validated `X-Correlation-ID` or generates an `mcp_proxy_...` ID; the gateway has its own `gw_...` IDs. Different calls from one Workforce AI question normally have **different** correlation IDs. |
+| `agent_id=hr-analytics-assistant` | The Talon agent identity attributed to the request, derived from the authenticated request context or proxy configuration as applicable. It is not an employee ID. |
+| `tenant_id=default` | This local example is running in Talon's default tenant scope. It does not demonstrate production multi-tenant provisioning or access controls. |
+| `flow_destination=mcp_tool:fictional-hr-warehouse` | The logical MCP upstream named in the proxy policy. It does not say which SQL query ran, whether it passed HR validation, or how many rows were returned. |
+| `flow_destinations=llm_provider:openai` | The configured model-provider destination for the recorded flow. It is not confirmation that OpenAI received or processed the request: an HTTPS/TLS error can follow the same log event. |
+| `flow_items=1` | One structured **data-flow item** was recorded (e.g. a request-to-destination relationship). It is **not** one HR record, model token, tool call, or successful network delivery. |
+| `flow_region=unknown` | No trustworthy HR-upstream region was resolved from the available metadata. It does not mean the HR data moved to an unknown jurisdiction. |
+| `flow_regions=US` | Talon resolved US as the provider's configured/registered jurisdiction metadata. This is **not independent network-geolocation evidence**, a processing-location guarantee, or a GDPR compliance conclusion. |
+
+To connect the whole AI interaction, use the **session ID**, not the per-request correlation ID. The Workforce browser generates a `hr-demo-...` session ID and sends it as `X-Talon-Session-ID` on its MCP and LLM requests. Talon records this for grouping; it is **client-asserted attribution, not authentication or a policy decision input**. A single browser session may contain many model requests, tool calls and independent `correlation_id` values.
+
+The application's separately prefixed `HR_AI_TRACE` records describe events it observed, such as `mcp.request`, `mcp.response`, `llm.gateway.request` and `llm.gateway.response`. These events can show the model name, offered tools, selected tool names, usage when supplied, and associated evidence IDs. They are **application observations**, not Talon security decisions or packet captures from OpenAI. By default they exclude prompt/response payloads.
+
+### Why does `metrics_reconcile_recovered recovered_events=5` appear?
+
+```text
+talon-gateway INF metrics_reconcile_recovered recovered_events=5
+```
+
+Talon persists signed evidence as the system of record, and its dashboard/metrics collector maintains a faster in-memory projection. By default, approximately every **30 seconds**, reconciliation rebuilds the projection from a bounded evidence-store window (default **24 hours**, up to **10,000** records). The `recovered_events` value is the **positive difference between the rebuilt request count and the collector count immediately before the rebuild**. It does **not** mean five failed requests, five extra OpenAI calls, or five newly discovered security violations. Reconciliation is designed to be idempotent, so the same evidence is not counted twice merely by replaying it.
+
+Here, `talon-mcp` and `talon-gateway` are separate processes using the **same persisted Talon state directory**. Each process's live in-memory collector can observe its own evidence commits, while the gateway's periodic reconciliation can pick up evidence committed by the MCP process. That is a **likely explanation** for nonzero counts such as `5`, `2`, `4` during active testing; these lines alone cannot identify precisely which records were recovered.
+
+Repeated recovery does not automatically indicate data loss. If it continues unexpectedly when traffic is idle, or if dashboard numbers differ from audit evidence, inspect collector health: `metrics_collector_event_dropped` warnings, `dropped_events` in `/api/v1/metrics`, and `metrics_events_dropped` / reconcile status in `/v1/status`. A `metrics_reconcile_failed` warning warrants investigation. The metrics projection is not a replacement for the signed evidence store.
+
+### Establish the actual outcome, not just the log line
+
+Use the session value shown in the workforce app (replace the example ID with your own):
+
+```bash
+docker compose -f compose.isolated.yaml run --rm talon-cli \
+  talon audit list --session hr-demo-EXAMPLE
+
+docker compose -f compose.isolated.yaml run --rm talon-cli \
+  talon audit verify --session hr-demo-EXAMPLE
+```
+
+To inspect an individual decision, run `talon audit show <evidence-id>` or `talon audit verify <evidence-id>` with the same `docker compose ... run --rm talon-cli` prefix. For the HR side, compare its independent tool-dispatch counters:
+
+```bash
+docker compose -f compose.isolated.yaml exec -T hr-server \
+  python3 verify_isolation.py counters
+```
+
+**How to interpret the combined proof:** a Talon `deny` with `not_dispatched` and a committed evidence record, plus no increase in the HR counter, demonstrates an intercepted tool was stopped before reaching the backend. A Talon `allow` only authorizes dispatch: an HR SQL rejection or upstream TLS error is a separate outcome. A successful response must be confirmed independently of the `data_flow_recorded` log.
+
+For distributed traces beyond these local log lines, Talon supports optional OpenTelemetry (`TALON_OTEL_ENABLED=true`), with `trace_id` / `span_id` on supported instrumented log events. The short `correlation_id`, application `session_id`, and OTel trace ID are **different identifiers**. See the [Talon observability reference](https://github.com/dativo-io/talon/blob/main/docs/OBSERVABILITY.md) for exported metrics and traces.
+
+## 6. Inspect the evidence
 
 Use the native Talon audit commands:
 
