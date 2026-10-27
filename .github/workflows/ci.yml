@@ -109,21 +109,53 @@ jobs:
           else
             python -m playwright install --with-deps chromium
           fi
-      - name: Build and start separated People Analytics services
-        run: bash scripts/people-analytics-isolated.sh up
-      - name: Verify direct-access baseline and governed non-bypass
-        run: bash scripts/people-analytics-isolated.sh verify
-      - name: Terminal E2E — original backend counters and signed evidence
+      - name: Start existing DuckDB and HR analytics services
         run: |
-          CASE="$PWD/cases/people-analytics-copilot"
-          dc() { docker compose -f "$CASE/compose.isolated.yaml" --env-file "$CASE/.state/isolated.env" "$@"; }
-          dc exec -T ui python3 verify_isolation.py boundary
-          dc exec -T ui python3 verify_isolation.py discover
-          dc exec -T ui python3 verify_isolation.py allow
-          dc exec -T ui python3 verify_isolation.py deny
-          dc exec -T hr-server python3 verify_isolation.py backend-counts
-          dc exec -T talon-mcp talon audit export --format signed-json --session hr-demo-presenter --output /tmp/hr-presenter-evidence.json
-          dc exec -T talon-mcp talon audit verify --file /tmp/hr-presenter-evidence.json
+          cd cases/people-analytics-copilot
+          umask 077
+          mkdir -p .state/policy .state/talon
+          printf 'HR_DEMO_SECRETS_KEY=%s\nHR_DEMO_SIGNING_KEY=%s\nHR_DEMO_ADMIN_KEY=%s\n' \
+            "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" > .env
+          cp proxy.isolated.talon.yaml .state/policy/proxy.isolated.talon.yaml
+          cp gateway.talon.yaml .state/policy/gateway.talon.yaml
+          docker compose -f compose.isolated.yaml up --build -d seed hr-server dashboard
+      - name: Initialize and configure released Talon with its actual CLI
+        run: |
+          cd cases/people-analytics-copilot
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon init --scaffold --name hr-analytics-assistant
+          cp agent.talon.yaml .state/talon/agent.talon.yaml
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon secrets set hr-analytics-assistant-talon-key talon-hr-demo-key-0001
+      - name: Start Talon MCP and the existing workforce browser
+        run: |
+          cd cases/people-analytics-copilot
+          docker compose -f compose.isolated.yaml up --no-deps -d talon-mcp
+          docker compose -f compose.isolated.yaml up --no-deps --build -d ui
+          for i in {1..40}; do
+            if docker compose -f compose.isolated.yaml exec -T ui python3 -c "from urllib.request import urlopen; urlopen('http://talon-mcp:8080/health', timeout=2)" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          docker compose -f compose.isolated.yaml exec -T ui python3 -c "from urllib.request import urlopen; urlopen('http://talon-mcp:8080/health', timeout=2)"
+      - name: Verify existing HR boundary and Talon enforcement
+        run: |
+          cd cases/people-analytics-copilot
+          docker compose -f compose.isolated.yaml exec -T hr-server python3 verify_isolation.py baseline
+          docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py app
+          docker compose -f compose.isolated.yaml exec -T hr-server python3 verify_isolation.py backend-counts
+          docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit export --format signed-json --session hr-demo-isolated-boundary --output /tmp/hr-boundary-evidence.json
+          docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit verify --file /tmp/hr-boundary-evidence.json
+      - name: Verify independent HR counters and signed Talon evidence
+        run: |
+          cd cases/people-analytics-copilot
+          docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py boundary
+          docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py discover
+          docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py allow
+          docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py deny
+          docker compose -f compose.isolated.yaml exec -T hr-server python3 verify_isolation.py backend-counts
+          docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit export --format signed-json --session hr-demo-presenter --output /tmp/hr-check.json
+          docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit verify --file /tmp/hr-check.json
       - name: Browser E2E — single workforce UI, SQL, HR validator and Talon denial
         run: python scripts/test-people-analytics-browser.py
       - name: Policy flip E2E — identical SQL, permission changed, verified evidence
@@ -138,4 +170,4 @@ jobs:
           retention-days: 3
       - name: Stop isolated demo
         if: always()
-        run: bash scripts/people-analytics-isolated.sh down
+        run: docker compose -f cases/people-analytics-copilot/compose.isolated.yaml --profile live down
