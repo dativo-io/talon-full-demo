@@ -95,12 +95,12 @@ def backend_counts():
 
 
 
-# Presenter-friendly granular checks. All run against actual service containers.
+# Granular integration checks. All run against actual service containers.
 # The counter reset is explicit; it never means the baseline call was blocked.
-PRESENTER_SESSION = "hr-demo-presenter"
+CHECK_SESSION = "hr-demo-proof-checks"
 
 
-def presenter_before():
+def check_before():
     """Execute and SHOW a direct privileged export; intentionally no counter reset."""
     code, result = json_request(BACKEND + "/mcp", {
         "jsonrpc": "2.0", "id": 101, "method": "tools/call",
@@ -117,15 +117,15 @@ def presenter_before():
         "name": person["full_name"], "monthly_salary_mxn": person["monthly_salary_mxn"]
     }, indent=2))
     print("Direct backend call succeeded; not governed by Talon.")
-    presenter_counters()
+    check_counters()
 
 
-def presenter_counters():
+def check_counters():
     counts = get(BACKEND + "/debug/counters")
     print("BACKEND EXECUTION COUNTERS:", json.dumps(counts, indent=2))
 
 
-def presenter_reset():
+def check_reset():
     with urlopen(Request(BACKEND + "/debug/reset", method="POST", data=b""),
                  timeout=10):
         pass
@@ -133,10 +133,10 @@ def presenter_reset():
     assert counts and all(value == 0 for value in counts.values()), counts
     print("RESET: all backend counters explicitly reset to zero for AFTER test.")
     print("This does not undo the BEFORE call or revoke the backend's privileges.")
-    presenter_counters()
+    check_counters()
 
 
-def presenter_boundary():
+def check_boundary():
     assert not os.path.exists("/data/hr.duckdb"), "Unexpected HR DB in AI container"
     print("NO DATABASE FILE: AI workload does not mount /data/hr.duckdb")
     try:
@@ -151,9 +151,9 @@ def presenter_boundary():
           stats["headcount"], "synthetic active employees.")
 
 
-def presenter_discover():
+def check_discover():
     code, out = mcp_call(MCP, "talon-hr-demo-key-0001", "tools/list",
-                         session=PRESENTER_SESSION)
+                         session=CHECK_SESSION)
     assert code == 200 and "result" in out, out
     offered = [tool["name"] for tool in out["result"]["tools"]]
     assert set(offered) == {
@@ -164,10 +164,10 @@ def presenter_discover():
     print("Employee-level export is absent from discovery.")
 
 
-def presenter_allow():
+def check_allow():
     code, out = mcp_call(MCP, "talon-hr-demo-key-0001", "tools/call",
                          "hr_attrition_summary", {"months": 6},
-                         session=PRESENTER_SESSION)
+                         session=CHECK_SESSION)
     detail = governance(out)
     assert code == 200 and "result" in out and detail, out
     assert detail["decision"] == "allow" and detail["evidence"]["committed"] is True, out
@@ -179,10 +179,10 @@ def presenter_allow():
     print("TALON GOVERNANCE RECEIPT:", json.dumps(detail, indent=2))
 
 
-def presenter_deny():
+def check_deny():
     code, out = mcp_call(MCP, "talon-hr-demo-key-0001", "tools/call",
                          "hr_employee_export", {"scope": "all"},
-                         session=PRESENTER_SESSION)
+                         session=CHECK_SESSION)
     detail = governance(out)
     assert code == 200 and "error" in out and detail, out
     assert detail["decision"] == "deny" \
@@ -215,9 +215,9 @@ if __name__ == "__main__":
     actions = {
         "baseline": baseline, "app": app, "backend-counts": backend_counts,
         "warehouse-info": warehouse_info,
-        "before": presenter_before, "counters": presenter_counters,
-        "reset": presenter_reset, "boundary": presenter_boundary,
-        "discover": presenter_discover, "allow": presenter_allow, "deny": presenter_deny,
+        "before": check_before, "counters": check_counters,
+        "reset": check_reset, "boundary": check_boundary,
+        "discover": check_discover, "allow": check_allow, "deny": check_deny,
     }
     if len(sys.argv) != 2 or sys.argv[1] not in actions:
         raise SystemExit("Usage: python verify_isolation.py " + "|".join(actions))
