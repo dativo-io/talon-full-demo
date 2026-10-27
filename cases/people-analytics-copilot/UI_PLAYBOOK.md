@@ -73,7 +73,7 @@ After unlocking port 8502, open **Technical inspection**. Select a source and cl
 | **DuckDB actually exists** | In Setup, run **Inspect embedded DuckDB schema and synthetic row count**; see `employees` and 1,200 rows. The HR service mounts it read-only |
 | **Talon was genuinely configured** | View **Show Talon scaffold, validation and key setup log**, inspect the agent/proxy/gateway YAML, run **Validate active Talon config** |
 | **AI is network-isolated** | In Stage 3 inspect Docker networks and UI volumes—not just a green assertion |
-| **Talon handled the request** | Select **AI request / response exchanges**; trigger a question in the workforce UI and see `mcp.request`, `mcp.response` with matching session/evidence |
+| **Talon handled the request** | Copy the `hr-demo-…` session shown in the workforce UI. Under **AI request / response exchanges**, paste it into **Optional exact AI session**, refresh and see `mcp.request`, `mcp.response` with that session and evidence ID |
 | **HR actually executed it** | Select **Private HR backend execution logs**; correlate dispatched tools with the independent counters |
 | **Real model/provider call** (LIVE only) | Select **Talon LLM gateway** and **AI request/response exchanges**. Look for `llm.gateway.request`, `llm.gateway.response`, response ID, model and usage; see [Advanced setup](ADVANCED_SETUP.md) |
 
