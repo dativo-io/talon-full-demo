@@ -78,7 +78,7 @@ def approved_sql(sql: str) -> dict:
     import re
     if not isinstance(sql, str) or len(sql) > 1200:
         raise ValueError('SQL must be a short aggregate SELECT')
-    normalized = re.sub(r'\\s+', ' ', sql.strip().rstrip(';')).casefold()
+    normalized = re.sub(r'\s+', ' ', sql.strip().rstrip(';')).casefold()
     matched = next((name for name, template in SQL_PRESETS.items()
                     if normalized == template.casefold()), None)
     if matched is None:
