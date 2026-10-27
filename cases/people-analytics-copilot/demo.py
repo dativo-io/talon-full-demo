@@ -11,6 +11,7 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse, urlencode
 from web_ui import HTML
 from agent_runtime import run_live_chat
+from runtime_trace import trace, previews_enabled
 from urllib.request import Request, urlopen
 
 VERSION = '2026-07-28'
@@ -52,8 +53,18 @@ def mcp_call(base, key, method, tool=None, args=None, session='hr-demo-v1'):
         headers['Mcp-Name'] = tool
     if key:
         headers['Authorization'] = 'Bearer ' + key
-    return json_request(base.rstrip('/') + '/mcp/proxy',
+    trace("mcp.request", session, target="Talon MCP proxy", method=method, tool=tool,
+          arguments=args if previews_enabled() else "[metadata only]")
+    status, response = json_request(base.rstrip('/') + '/mcp/proxy',
                         {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}, headers)
+    g = governance(response)
+    trace("mcp.response", session, method=method, tool=tool, http_status=status,
+          decision=g.get("decision") if g else None,
+          provenance=g.get("provenance") if g else None,
+          evidence_id=g.get("evidence", {}).get("id") if g else None,
+          discovered_tools=[t.get("name") for t in response.get("result", {}).get("tools", [])]
+          if method == "tools/list" else None)
+    return status, response
 
 
 def governance(out):
@@ -105,6 +116,9 @@ class HRService(HTTPBase):
                     return self.reply(200, {'jsonrpc': '2.0', 'id': rid, 'error': {'code': -32602, 'message': 'Unknown tool'}})
                 with LOCK:
                     COUNTS[name] += 1
+                # HR service independently observes every actual upstream dispatch.
+                trace("hr.upstream.dispatched", "hr-backend", tool=name,
+                      execution_count=COUNTS[name])
                 arguments = request.get('params', {}).get('arguments') or {}
                 if not isinstance(arguments, dict):
                     raise ValueError('Tool arguments must be a map')
