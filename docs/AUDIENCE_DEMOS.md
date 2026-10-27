@@ -26,11 +26,7 @@ All real-provider cases require `make real-prepare`, `make real-start`, and a he
 
 ## People Analytics Copilot (standalone)
 
-Use the [quickstart and architecture](../cases/people-analytics-copilot/README.md), [browser walkthrough](../cases/people-analytics-copilot/UI_PLAYBOOK.md), or [terminal commands](../cases/people-analytics-copilot/PRESENTER_COMMANDS.md). The [15-minute presentation plan](../cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) provides the narrative.
-
-**Truth boundaries:** The privileged BEFORE export bypasses Talon. The AFTER AI workload is isolated by **Docker**, while **Talon** permits aggregate MCP operations, denies employee export before dispatch and signs evidence for traffic it sees. The independent HR counter verifies zero post-reset export calls. The default assistant is **GUIDED, not an LLM**. Real model inference is optional, not covered by mandatory CI.
-
-This case provides real CLI/browser proof, but not yet the formal buyer/technical evidence projections used by the older demo cases.
+Use the [terminal-led setup](../cases/people-analytics-copilot/README.md), [one-browser walkthrough](../cases/people-analytics-copilot/UI_PLAYBOOK.md), and [15-minute policy-change story](../cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md). One workforce browser at port 8501; real Talon configuration, process logs, upstream counters and signed evidence remain in the terminal. Docker isolates the backend and the HR service validates SQL shapes; Talon governs only calls routed through its model and MCP boundaries.
 
 ## 1. Customer-support gateway
 
