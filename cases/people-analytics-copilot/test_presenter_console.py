@@ -26,7 +26,8 @@ class PresenterMappingTests(unittest.TestCase):
         expected = {"services", "before", "counters", "reset", "ui_networks",
                     "talon_networks", "hr_networks", "ui_mounts", "boundary",
                     "agent_policy", "proxy_policy", "discover", "allow", "deny",
-                    "backend_counts", "evidence_export", "evidence_verify"}
+                    "backend_counts", "evidence_export", "evidence_verify",
+                    "bootstrap_logs", "gateway_policy", "validate_policy"}
         self.assertEqual(set(presenter.CATALOG), expected)
         for name, phase, title, shell in presenter.ACTIONS:
             self.assertTrue(phase and title and shell)
@@ -136,6 +137,36 @@ class PresenterHTTPTests(unittest.TestCase):
                 process = subprocess.run(["node", "--check"], input=script,
                                          text=True, capture_output=True, timeout=10)
                 self.assertEqual(process.returncode, 0, process.stderr)
+
+    def test_technical_inspector_is_authenticated_and_log_source_whitelisted(self):
+        for endpoint in ("/api/logs?source=talon-init", "/api/logs?source=trace"):
+            with self.assertRaises(HTTPError) as e:
+                self.request(endpoint)
+            self.assertEqual(e.exception.code, 401)
+        with self.assertRaises(HTTPError) as e:
+            self.request("/api/logs?source=../secrets", token="test-operator-secret")
+        self.assertEqual(e.exception.code, 400)
+        with patch.object(presenter, "read_service_logs",
+                          return_value={"source": "trace", "available": True,
+                                        "lines": "HR_AI_TRACE live", "explanation": "metadata"}) as logs:
+            with self.request("/api/logs?source=trace", token="test-operator-secret") as r:
+                payload = json.load(r)
+            self.assertEqual(payload["source"], "trace")
+            self.assertEqual(payload["lines"], "HR_AI_TRACE live")
+            logs.assert_called_once_with("trace")
+
+    def test_log_reader_cannot_access_arbitrary_services(self):
+        with self.assertRaises(ValueError):
+            presenter.read_service_logs("../../secrets")
+        class Fake:
+            returncode = 0
+            stdout = "ui | HR_AI_TRACE trace_id=1\nui | Authorization: Bearer sk-demoexample123456789"
+            stderr = ""
+        with patch.object(presenter, "_environment", return_value={}), \
+             patch.object(presenter.subprocess, "run", return_value=Fake()):
+            logs = presenter.read_service_logs("trace")
+        self.assertIn("HR_AI_TRACE trace_id=1", logs["lines"])
+        self.assertNotIn("sk-demoexample", logs["lines"])
 
     def test_catalog_requires_token_and_includes_exact_shell_text(self):
         with self.assertRaises(HTTPError) as exc:
