@@ -1,37 +1,31 @@
-# People Analytics — CI acceptance matrix
+# CI coverage: what is actually tested
 
-This document describes what is **actually exercised on pull requests**, not what the demo intends to support eventually. All mandatory jobs require no employee data or commercial LLM credentials. The external-provider path is deliberately opt-in.
+Mandatory PR checks use **fictional data** and **no paid LLM provider**. The browser and terminal paths exercise the same real Docker/Talon stack.
 
-## Mandatory pull-request gates
+| CI job | Real acceptance checks |
+|---|---|
+| **validate** | DuckDB seed and SQL aggregates; cohort and input safeguards; UI/backend HTTP contracts; agent-loop fail-closed behavior; operator API authentication; both browser scripts' syntax; documentation links |
+| **people-analytics-talon-contract** | Real Talon LLM gateway + MCP proxy, deterministic **fake** model provider, aggregate tool execution, blocked export, linked signed LLM/MCP session |
+| **people-analytics-isolation-contract** | Docker private HR network and DB mounts; privileged BEFORE succeeds; explicit RESET; isolated AFTER aggregate allowed/export denied; independent HR counters and signature verification |
+| **Browser acceptance** (inside isolation job) | Real Chromium opens both UI applications, filters dashboard, runs GUIDED analytics and forbidden-tool probe, authenticates to the operator console and clicks through all its real checks |
+| **talon-release-contract / other repo jobs** | Regression coverage for reviewed Talon release and the broader demo repository |
 
-| Gate | What runs | Independent acceptance conditions |
-|---|---|---|
-| Unit and offline HTTP tests | `validate` job, `make people-analytics-validate` | Deterministic seeded DuckDB; persistent SQL aggregates; cohort restrictions; parameterized filters; guided/AI tool-loop fail-closed behavior; HTTP routes; documentation links; operator authentication and command allowlist; JavaScript syntax for both applications |
-| Real MCP and model protocol | `people-analytics-talon-contract` | Two **real Talon processes** (LLM gateway and MCP proxy), a **fake** OpenAI-compatible upstream, a real synthetic HR service and DuckDB. Three approved aggregate tools discovered; forbidden export denied before dispatch; no upstream export; fake model consumes returned aggregate; signed LLM/MCP session verified |
-| Docker non-bypass | `people-analytics-isolation-contract` | Privileged synthetic HR backend's **BEFORE** direct export works; counters reset explicitly; separated UI has no HR volume or private network route; approved aggregate through Talon succeeds; forbidden export reaches neither HR nor DuckDB; signed evidence verifies |
-| Terminal-first presenter parity | Same Docker isolation job, granular commands | Individual BEFORE, counters, RESET, boundary, discover, allow, deny, backend count and signed session export/verify commands run against **real** services |
-| Browser-first application | Same Docker isolation job, Playwright + headless Chromium | Business dashboard loads and filters; mode explicitly says GUIDED; assistant retrieves and displays a real Talon-approved aggregate; forbidden probe produces a committed denial; independent HR counter is not exposed to unprivileged UI |
-| Browser-first operator console | Same Docker isolation job, real authenticated console + headless Chromium | Unauthenticated/cross-origin requests rejected; operator token required; every displayed allowlisted action clicked in order; actual exit codes and stdout verified; BEFORE, explicit RESET, allow/deny, independent backend counter and Talon signature verification all executed |
-| Broader repo contracts | `validate`, `talon-release-contract` and existing other workflows | Existing Go/JS demos and released Talon contracts continue to pass; People Analytics changes must not break the surrounding repo |
+Browser regression script: [scripts/test-people-analytics-browser.py](../../scripts/test-people-analytics-browser.py). Browser failures save a temporary screenshot artifact named `people-analytics-browser-failure` (fictional data only).
 
-Browser test: `python scripts/test-people-analytics-browser.py`. It uses **real Chrome-compatible browser interactions** and a localhost operator HTTP server against the running Docker stack; it is **not** a mock frontend or a screenshot-only comparison.
-
-On a CI browser failure, the job uploads an optional short-lived screenshot under `people-analytics-browser-failure`. It contains **fictional** employee data; do not reuse this mechanism with production HR records.
-
-## Reproduce locally
+## Run locally
 
 ~~~bash
-# Offline tests (Python dependencies already installed)
+# From repo root; install the HR Python dependencies first:
 make people-analytics-validate
 
-# Real released Talon LLM+MCP with a deterministic fake model
+# Real Talon gateway and MCP, fake provider, signed session:
 bash scripts/test-people-analytics-talon.sh
 
-# Docker-isolated UI, backend, Talon, and repeatable proof
+# Real Docker services and isolation proof:
 bash scripts/people-analytics-isolated.sh up
 bash scripts/people-analytics-isolated.sh verify
 
-# Optional browser regression on the started Docker environment
+# Optional real browser regression:
 python -m pip install playwright==1.55.0
 python -m playwright install chromium
 python scripts/test-people-analytics-browser.py
@@ -39,14 +33,14 @@ python scripts/test-people-analytics-browser.py
 bash scripts/people-analytics-isolated.sh down
 ~~~
 
-The browser acceptance uses loopback ports 8501 and 8502. It starts a separate token-protected local operator process for the test and automatically shuts it down. Ensure an interactive presenter console is **not already occupying port 8502** when running the browser test.
+The browser test starts a temporary, token-authenticated operator server on localhost:8502. Stop any interactive operator console using that port before running it.
 
-## Explicitly NOT proven by mandatory CI
+## Not proven by mandatory CI
 
-- **Real external OpenAI performance, output quality, model prices or latency.** The LLM provider in mandatory CI is fake; the Talon gateway is real. A human can run the separate, billable opt-in `bash scripts/test-people-analytics-real-provider.sh` in a trusted environment.
-- **Production IAM or warehouse row-level authorization.** The demo uses synthetic DuckDB and a Docker network/mount perimeter. Talon cannot govern a direct database/HTTP path that bypasses it.
-- **Universal PII/DLP compliance.** The agent scenario disables PII redaction and does not prove cross-cohort inference attacks are impossible.
-- **A migration of one privileged running agent.** BEFORE and AFTER are different process identities; the reset measures backend calls after the baseline, not a change of permissions.
-- **A complete usability study.** Browser E2E checks interactive correctness and trust evidence, not human comprehension, accessibility conformance or visual polish on every platform.
+- **Real model generation:** regular CI uses a fake provider. Real OpenAI requires the explicit, billable [smoke test](ADVANCED_SETUP.md#optional-test-a-real-external-model).
+- **Production HR controls:** no real employee data, IAM, row-level policy, GDPR compliance or comprehensive PII protection.
+- **All possible bypasses:** Talon covers routed calls; Docker protects the demo's direct HR network/file boundary.
+- **A live privilege migration:** BEFORE and AFTER are different workloads; the counter reset changes no permissions.
+- **Human usability:** the browser test checks functional navigation and actual output, not a full UX/accessibility study.
 
-Do not describe the guided default UI or deterministic mock-provider outputs as actual model-generated answers. No customer-identifying information or real HR data belongs in these fixtures or logs.
+See [README](README.md) for the architecture and [demo plan](PEOPLE_ANALYTICS_DEMO_PLAN.md) for the customer-facing proof story.
