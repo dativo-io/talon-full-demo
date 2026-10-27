@@ -92,6 +92,20 @@ python verify.py --talon-bin "$TALON_BIN"
 
 Do not open a fresh SSH shell for the audit command without also restoring the **same** Talon environment. When finished, stop the HR/dashboard/UI foreground processes with Ctrl+C; in Terminal 2 run `kill "$TALON_PID"`.
 
+## Technical tracing and live logs
+
+The operator console on `127.0.0.1:8502` has an authenticated, **allowlisted** log viewer (Talon MCP, optional Talon LLM gateway, init, UI, HR service and dashboard). It polls bounded Docker log snapshots; it cannot run arbitrary Docker commands. The UI's request/response trace comes from the **actual app boundary**, not a simulated provider or HTTPS packet capture.
+
+In LIVE mode, the `ui` service logs `HR_AI_TRACE` metadata for each outbound Talon LLM gateway request and returned response, including the session, model, provider response ID, usage, tool calls and signed MCP decision. The Talon LLM gateway's own logs are shown separately.
+
+For a synthetic fixture **only**, start LIVE with explicit, redacted body previews:
+
+~~~bash
+HR_DEMO_TRACE_PAYLOADS=1 bash scripts/people-analytics-isolated.sh live
+~~~
+
+Default `HR_DEMO_TRACE_PAYLOADS=0` logs only safe metadata. Never enable body previews for production HR, credentials, private prompts or customer datasets. API authorization headers are not traced. Docker operators may still read container logs.
+
 ## Optional: test a real external model
 
 **Provider calls can incur charges.** The following path has a separately configured Talon LLM gateway and requires a working OpenAI API credential. It is **opt-in**, not part of regular PR CI. Use a disposable provider key on a trusted host with fictional HR data only.
