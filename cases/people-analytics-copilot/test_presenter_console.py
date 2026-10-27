@@ -4,6 +4,8 @@ Runs without Docker, Talon or a real HTTP service network.
 """
 import importlib.util
 import json
+import shutil
+import subprocess
 import threading
 import unittest
 from pathlib import Path
@@ -116,6 +118,19 @@ class PresenterHTTPTests(unittest.TestCase):
         # API exposes the exact same CATALOG, not a separate browser action list.
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn("for a,b,c,d in ACTIONS", source)
+
+    def test_both_browser_scripts_parse_with_node(self):
+        """Validate actual inline JS of both UIs, where Node is installed."""
+        if not shutil.which("node"):
+            self.skipTest("Node.js not installed locally")
+        from web_ui import HTML
+        for label, html in (("operator console", presenter.PAGE), ("business app", HTML)):
+            with self.subTest(label=label):
+                self.assertEqual(html.count("<script>"), 1)
+                script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+                process = subprocess.run(["node", "--check"], input=script,
+                                         text=True, capture_output=True, timeout=10)
+                self.assertEqual(process.returncode, 0, process.stderr)
 
     def test_catalog_requires_token_and_includes_exact_shell_text(self):
         with self.assertRaises(HTTPError) as exc:
