@@ -122,6 +122,7 @@ jobs:
       - name: Initialize and configure released Talon with its actual CLI
         run: |
           cd cases/people-analytics-copilot
+          docker compose -f compose.isolated.yaml run --rm talon-cli test -s /etc/ssl/certs/ca-certificates.crt
           docker compose -f compose.isolated.yaml run --rm talon-cli talon init --scaffold --name hr-analytics-assistant
           cp agent.talon.yaml .state/talon/agent.talon.yaml
           docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
