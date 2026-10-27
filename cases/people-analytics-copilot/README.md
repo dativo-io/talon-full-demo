@@ -9,6 +9,7 @@ Talon controls **model and tool traffic that passes through it**. Docker network
 Use the reviewed branch of [Talon Full Demo](https://github.com/dativo-io/talon-full-demo):
 
 ~~~bash
+git fetch origin
 git switch feat/people-analytics-governed-demo
 git pull --ff-only
 talon version
