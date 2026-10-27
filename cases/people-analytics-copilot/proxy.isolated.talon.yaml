@@ -1,0 +1,16 @@
+# HR upstream is reachable ONLY on the private service network from this proxy.
+agent:
+  name: hr-analytics-assistant
+  type: mcp_proxy
+proxy:
+  upstream:
+    vendor: fictional-hr-warehouse
+    url: http://hr-server:9091/mcp
+  allowed_tools:
+    - name: hr_attrition_summary
+    - name: hr_headcount_summary
+    - name: hr_tenure_summary
+  forbidden_tools:
+    - hr_employee_export
+  rate_limits:
+    requests_per_minute: 100

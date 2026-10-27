@@ -6,14 +6,26 @@ A standalone, early-adopter-oriented demonstration of recognizable applications 
 - **n8n vendor-contract review** — a confidential synthetic contract package is blocked from one destination, redacted, and reviewed through the approved provider with both decisions in one signed session.
 - **Customer support / Zendesk** — a support workflow requests a governed reply draft through direct and adapter paths.
 - **GitHub Copilot CLI** — a real Copilot client sends model traffic through Talon and reaches a synthetic release boundary through Talon's MCP proxy.
+- **People Analytics Copilot** — DuckDB-backed synthetic HR warehouse, interactive Plotly workforce charts, three SQL aggregate tools and an assistant (guided by default, optionally real model-driven via Talon's LLM + MCP gateways). A real-Talon CI run uses a synthetic OpenAI-compatible provider to prove model→tool execution and signed allow/deny evidence without paid model calls. An optional Docker Compose topology demonstrates separate network/DB isolation, and an opt-in external-provider script **can** verify actual OpenAI tool calling (not exercised without a provider key). [Case and runbook](cases/people-analytics-copilot/README.md). [Operator UI/CLI parity](cases/people-analytics-copilot/PRESENTER_COMMANDS.md).
 - **n8n cost boundary** — an imported document workflow preserves partial business output when Talon prevents the next request on projected session cost.
 
-The intended experience is a **10–15 minute narrated walkthrough**. Every completed application case has two projections of the same Talon evidence:
+The intended experience is a **10–15 minute narrated walkthrough**. The established support/n8n/Copilot applications have two projections of their Talon evidence; the People Analytics case currently has a [granular presenter runbook](cases/people-analytics-copilot/PRESENTER_COMMANDS.md), with formal buyer/technical projections still pending:
 
 - a concise buyer/product view;
 - a technical/security view.
 
 See [Audience-specific demo views](docs/AUDIENCE_DEMOS.md) for the full command matrix and truth boundaries.
+
+## People Analytics / prospective customer — which demonstration?
+
+The [People Analytics case](cases/people-analytics-copilot/README.md) is **standalone**: it does not require running the broader support/n8n demo fleet or preparing all vendor API keys.
+
+- **Customer story (12–15 min):** [prospective customer demo plan](cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) — existing HR governance, privileged baseline, isolated AI, Talon allow/deny and signed evidence.
+- **Present one command at a time:** [Presenter commands](cases/people-analytics-copilot/PRESENTER_COMMANDS.md) — the privileged BEFORE request is direct and **not governed by Talon**. Then reset counters explicitly; the separate, isolated AFTER workload uses Talon and cannot route directly to the privileged HR service.
+- **No API key:** isolated GUIDED dashboard plus real Talon MCP, or a separate protocol test with a deterministic fake model. Neither is actual LLM-generated analysis.
+- **Real OpenAI (optional):** the external-model smoke must be run explicitly with a real provider key before claiming live model inference. It incurs provider cost and is not part of the normal CI gates.
+
+The Docker boundary removes direct HR routes; **Talon does not revoke warehouse credentials or control traffic that bypasses it**.
 
 ## Start here
 
@@ -21,6 +33,7 @@ See [Audience-specific demo views](docs/AUDIENCE_DEMOS.md) for the full command 
 
 ```bash
 make validate-local
+make people-analytics-validate   # standalone HR copilot local tests (no key)
 ```
 
 With Docker available, validate the real pinned n8n artifacts separately:

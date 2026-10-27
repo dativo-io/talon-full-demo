@@ -1,0 +1,53 @@
+# Demonstration-only agent policy for People Analytics AI.
+# No raw employee-level tool, unrestricted SQL, shell or export is permitted.
+# One identity is reused for both the Talon LLM gateway and Talon MCP proxy.
+agent:
+  name: hr-analytics-assistant
+  description: Synthetic People Analytics aggregate assistant
+  version: 1.0.0
+  model_tier: 1
+  key:
+    secret_name: hr-analytics-assistant-talon-key
+
+capabilities:
+  allowed_tools:
+    - hr_attrition_summary
+    - hr_headcount_summary
+    - hr_tenure_summary
+  forbidden_patterns:
+    - ".env"
+    - "secrets"
+    - "credentials"
+
+policies:
+  cost_limits:
+    per_request: 1.0
+    daily: 10.0
+    monthly: 100.0
+  data_classification:
+    input_scan: true
+    output_scan: true
+    redact_pii: false
+  model_routing:
+    tier_0:
+      primary: gpt-4o-mini
+      location: any
+    tier_1:
+      primary: gpt-4o-mini
+      location: any
+    tier_2:
+      primary: gpt-4o-mini
+      location: any
+
+audit:
+  log_level: detailed
+  retention_days: 30
+  include_prompts: false
+  include_responses: false
+
+metadata:
+  department: people-analytics
+  owner: demo-operator
+  tags:
+    - synthetic
+    - governed

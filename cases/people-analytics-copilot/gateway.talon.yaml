@@ -1,0 +1,12 @@
+# Real Talon gateway config. The provider base URL defaults to the real
+# OpenAI endpoint. For credential-free CI it is replaced in a TEMPORARY copy
+# with the loopback mock provider URL; never point production here.
+gateway:
+  enabled: true
+  providers:
+    openai:
+      enabled: true
+      secret_name: openai-api-key
+      base_url: "https://api.openai.com"
+  organization_policy:
+    log_prompts: false

@@ -1,0 +1,135 @@
+# prospective customer before/after topology: UI has neither HR DB volume nor backend network.
+# Only talon-mcp joins the app and HR backend networks.
+name: hr-copilot-isolated
+
+x-case-image: &case-image
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: hr-copilot-synthetic:local
+
+x-talon-environment: &talon-environment
+  TALON_DATA_DIR: /state
+  TALON_SECRETS_KEY: ${HR_DEMO_SECRETS_KEY:?Run secure launcher}
+  TALON_SIGNING_KEY: ${HR_DEMO_SIGNING_KEY:?Run secure launcher}
+  TALON_ADMIN_KEY: ${HR_DEMO_ADMIN_KEY:?Run secure launcher}
+
+x-talon-volumes: &talon-volumes
+  - talon_state:/state
+  - ./:/case:ro
+  - ${HR_DEMO_TALON_BIN:?Supply absolute Talon binary path}:/usr/local/bin/talon:ro
+
+services:
+  seed:
+    <<: *case-image
+    command: ["python", "warehouse.py", "seed"]
+    environment:
+      HR_DEMO_DB_PATH: /data/hr.duckdb
+    volumes: [hr_data:/data]
+    networks: [private_hr]
+    restart: "no"
+
+  hr-server:
+    <<: *case-image
+    command: ["python", "demo.py", "hr"]
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    environment:
+      HR_DEMO_DB_PATH: /data/hr.duckdb
+      DEMO_BIND_HOST: 0.0.0.0
+    volumes: [hr_data:/data:ro]
+    networks: [private_hr]
+    restart: unless-stopped
+
+  dashboard:
+    <<: *case-image
+    command: ["python", "demo.py", "dashboard"]
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    environment:
+      HR_DEMO_DB_PATH: /data/hr.duckdb
+      DEMO_BIND_HOST: 0.0.0.0
+    volumes: [hr_data:/data:ro]
+    networks: [app_net]
+    restart: unless-stopped
+
+  talon-init:
+    image: debian:bookworm-slim
+    environment:
+      <<: *talon-environment
+      HR_DEMO_OPENAI_KEY: ${HR_DEMO_OPENAI_KEY:-sk-not-configured-fake}
+    volumes: *talon-volumes
+    command:
+      - /bin/sh
+      - -euc
+      - |
+        cd /state
+        if [ ! -f talon.config.yaml ]; then
+          talon init --scaffold --name hr-analytics-assistant
+        fi
+        cp /case/agent.talon.yaml /state/agent.talon.yaml
+        talon validate
+        talon secrets set hr-analytics-assistant-talon-key talon-hr-demo-key-0001
+        talon secrets set openai-api-key "$$HR_DEMO_OPENAI_KEY"
+    networks: [app_net]
+    restart: "no"
+
+  talon-mcp:
+    image: debian:bookworm-slim
+    depends_on:
+      talon-init:
+        condition: service_completed_successfully
+      hr-server:
+        condition: service_started
+    environment: *talon-environment
+    volumes: *talon-volumes
+    working_dir: /state
+    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8080", "--proxy-config", "/case/proxy.isolated.talon.yaml"]
+    networks: [app_net, private_hr]
+    restart: unless-stopped
+
+  talon-gateway:
+    image: debian:bookworm-slim
+    profiles: ["live"]
+    depends_on:
+      talon-init:
+        condition: service_completed_successfully
+    environment: *talon-environment
+    volumes: *talon-volumes
+    working_dir: /state
+    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8082", "--gateway", "--gateway-config", "/case/gateway.talon.yaml"]
+    networks: [app_net]
+    restart: unless-stopped
+
+  ui:
+    <<: *case-image
+    command: ["python", "demo.py", "ui"]
+    depends_on:
+      talon-mcp:
+        condition: service_started
+      dashboard:
+        condition: service_started
+    environment:
+      DEMO_BIND_HOST: 0.0.0.0
+      TALON_URL: http://talon-mcp:8080
+      TALON_AGENT_KEY: talon-hr-demo-key-0001
+      HR_DASHBOARD_URL: http://dashboard:9093
+      HR_MOCK_URL: ""
+      TALON_AI_MODE: ${HR_DEMO_AI_MODE:-guided}
+      TALON_LLM_URL: http://talon-gateway:8082/v1/proxy/openai/v1/chat/completions
+    networks: [app_net]
+    ports: ["127.0.0.1:8501:8501"]
+    restart: unless-stopped
+
+volumes:
+  hr_data:
+  talon_state:
+
+networks:
+  app_net:
+    driver: bridge
+  private_hr:
+    driver: bridge
+    internal: true

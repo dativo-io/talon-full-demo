@@ -24,6 +24,23 @@ The optional OpenShell case also uses `make real-prepare` / `real-start` / `real
 
 All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first. Every n8n case additionally requires Docker. The quarterly and vendor-review cases require Anthropic; the support-resolution case requires OpenAI and a literal operator decision before it can complete.
 
+## People Analytics Copilot — prospective customer (standalone case)
+
+**Not yet a formal buyer/technical evidence-projection pair.** Use the [12–15 minute buyer plan](../cases/people-analytics-copilot/PEOPLE_ANALYTICS_DEMO_PLAN.md) and [granular operator commands](../cases/people-analytics-copilot/PRESENTER_COMMANDS.md). The [complete case README](../cases/people-analytics-copilot/README.md) covers configuration, deployment and troubleshooting.
+
+| Proof | Actual mechanism | Validation |
+|---|---|---|
+| Existing governed HR analytics | Synthetic DuckDB with parameterized, cohort-limited aggregate queries | Offline tests |
+| Privileged BEFORE export | Deliberate direct request from trusted HR service; **bypasses Talon** | Docker isolation CI |
+| Restricted AFTER workload | Browser/AI has neither raw DB mount nor network route to private HR service | Docker network and mount checks; **not a Talon feature** |
+| Tool capability boundary | Only attrition, headcount and tenure tools shown/allowed by real Talon MCP | Filtered discovery and allowed MCP receipt |
+| Forced forbidden employee export | Separate operator probe through Talon MCP, not an autonomous model attempt | Committed deny, provenance not_dispatched, independent zero backend exports **since explicit reset** |
+| Real LLM gateway integration | Real Talon LLM/MCP with a fake upstream model | CI verifies the protocol/model-to-tool roundtrip; **not AI quality** |
+| Actual provider-backed model | Optional OpenAI via a separately configured Talon LLM gateway | **Not yet provider-tested**; opt-in smoke needed before any live-LLM claim |
+
+Evidence must be independently signed and verified. The default isolated browser assistant is **GUIDED (non-LLM)**. The isolated LIVE mode requires an actual provider credential and may incur model charges. The demo does not govern arbitrary SQL, direct warehouse bypasses or external application activity.
+
+
 ## 1. Customer-support gateway
 
 ```bash

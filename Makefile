@@ -37,7 +37,7 @@ fmt-check:
 shell-check:
 	bash -n scripts/*.sh
 
-validate-local: check-go fmt-check vet build test shell-check
+validate-local: check-go fmt-check vet build test shell-check people-analytics-validate
 	bash ./scripts/test-real-demo-env-loader.sh
 	./scripts/validate-local.sh
 	bash ./scripts/test-openshell-adapter.sh
@@ -392,3 +392,22 @@ tokeneconomizer-reference-plan:
 # TE_REFERENCE_PAID_CONFIRM=YES and enforces $5 admission per Talon arm.
 tokeneconomizer-reference-run: tokeneconomizer-contract
 	bash ./scripts/with-talon.sh python3 -u scripts/tokeneconomizer-reference.py run
+
+# Standalone People Analytics Copilot. Local tests use a stub, never claim real Talon.
+.PHONY: people-analytics-validate people-analytics-hr people-analytics-ui people-analytics-verify
+people-analytics-validate:
+	cd cases/people-analytics-copilot && python3 -m unittest discover -p 'test_*.py' -v
+
+people-analytics-hr:
+	cd cases/people-analytics-copilot && python3 demo.py hr
+
+people-analytics-ui:
+	cd cases/people-analytics-copilot && python3 demo.py ui
+
+# Requires an existing real Talon proxy + mock HR server and matching signing environment.
+people-analytics-verify:
+	cd cases/people-analytics-copilot && python3 verify.py --talon-bin "$$(command -v talon)"
+
+.PHONY: people-analytics-seed
+people-analytics-seed:
+	cd cases/people-analytics-copilot && python3 warehouse.py seed

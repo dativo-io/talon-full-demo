@@ -29,8 +29,15 @@ jobs:
         run: bash scripts/test-vendor-policy-compatibility.sh
       - name: Validate TokenEconomizer coding fixtures (no credentials, no model calls)
         run: make tokeneconomizer-validate
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install HR analytics dependencies
+        run: python -m pip install -r cases/people-analytics-copilot/requirements.txt
       - name: Run repository CI contract
         run: make ci
+      - name: Test People Analytics DuckDB and model tool-loop
+        run: make people-analytics-validate
 
   talon-release-contract:
     runs-on: ubuntu-latest
@@ -49,3 +56,66 @@ jobs:
           "$(go env GOPATH)/bin/talon" version
       - name: Exercise released Talon budget, gateway and signed-evidence contract without paid models
         run: make tokeneconomizer-contract
+
+  people-analytics-talon-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.10"
+          cache: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install workforce metrics dependencies
+        run: python -m pip install -r cases/people-analytics-copilot/requirements.txt
+      - name: Install pinned Talon release
+        run: |
+          TALON_RELEASE="$(cat config/tokeneconomizer-talon-release.txt)"
+          go install "github.com/dativo-io/talon/cmd/talon@$TALON_RELEASE"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/talon" version
+      - name: Verify real Talon MCP boundary with synthetic HR service and signed evidence
+        run: bash scripts/test-people-analytics-talon.sh
+
+  people-analytics-isolation-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.10"
+          cache: false
+      - name: Install pinned Talon for the container network proof
+        run: |
+          TALON_RELEASE="$(cat config/tokeneconomizer-talon-release.txt)"
+          go install "github.com/dativo-io/talon/cmd/talon@$TALON_RELEASE"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Build and start separated People Analytics services
+        run: bash scripts/people-analytics-isolated.sh up
+      - name: Verify direct-access baseline and governed non-bypass
+        run: bash scripts/people-analytics-isolated.sh verify
+      - name: Run granular prospective customer presenter commands end-to-end
+        run: |
+          export HR_DEMO_TALON_BIN="$(command -v talon)"
+          CASE="$PWD/cases/people-analytics-copilot"
+          dc() {
+            docker compose -f "$CASE/compose.isolated.yaml" \
+              --env-file "$CASE/.state/isolated.env" "$@"
+          }
+          dc exec -T hr-server python3 verify_isolation.py before
+          dc exec -T hr-server python3 verify_isolation.py counters
+          dc exec -T hr-server python3 verify_isolation.py reset
+          dc exec -T ui python3 verify_isolation.py boundary
+          dc exec -T ui python3 verify_isolation.py discover
+          dc exec -T ui python3 verify_isolation.py allow
+          dc exec -T ui python3 verify_isolation.py deny
+          dc exec -T hr-server python3 verify_isolation.py backend-counts
+          dc exec -T talon-mcp talon audit export --format signed-json --session hr-demo-presenter --output /tmp/hr-presenter-evidence.json
+          dc exec -T talon-mcp talon audit verify --file /tmp/hr-presenter-evidence.json
+      - name: Stop isolated demo
+        if: always()
+        run: bash scripts/people-analytics-isolated.sh down
