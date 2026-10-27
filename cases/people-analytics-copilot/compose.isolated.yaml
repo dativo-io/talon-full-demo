@@ -10,6 +10,7 @@ x-case-image: &case-image
 
 x-talon-environment: &talon-environment
   TALON_DATA_DIR: /state
+  HOME: /state
   TALON_SECRETS_KEY: ${HR_DEMO_SECRETS_KEY:?Set the vault/signing keys in .env}
   TALON_SIGNING_KEY: ${HR_DEMO_SIGNING_KEY:?Set the vault/signing keys in .env}
   TALON_ADMIN_KEY: ${HR_DEMO_ADMIN_KEY:?Set the vault/signing keys in .env}
@@ -60,6 +61,7 @@ services:
   talon-cli:
     image: debian:bookworm-slim
     profiles: ["setup"]
+    user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
     environment: *talon-environment
     volumes: *talon-volumes
     working_dir: /state
@@ -69,6 +71,7 @@ services:
 
   talon-mcp:
     image: debian:bookworm-slim
+    user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
     depends_on:
       hr-server:
         condition: service_started
@@ -81,6 +84,7 @@ services:
 
   talon-gateway:
     image: debian:bookworm-slim
+    user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
     profiles: ["live"]
     environment: *talon-environment
     volumes: *talon-volumes
