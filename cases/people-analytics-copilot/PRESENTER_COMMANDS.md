@@ -9,6 +9,7 @@
 On your trusted Linux demo host, from the repository root:
 
 ~~~bash
+git fetch origin
 git switch feat/people-analytics-governed-demo
 git pull --ff-only
 export CASE="$PWD/cases/people-analytics-copilot"
