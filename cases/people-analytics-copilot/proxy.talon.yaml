@@ -1,0 +1,17 @@
+# Synthetic HR MCP upstream; limits apply only to traffic through Talon.
+agent:
+  name: hr-analytics-assistant
+  type: mcp_proxy
+proxy:
+  upstream:
+    vendor: fictional-hr-warehouse
+    url: http://127.0.0.1:9091/mcp
+  allowed_tools:
+    - name: hr_attrition_summary
+    - name: hr_headcount_summary
+    - name: hr_tenure_summary
+    - name: hr_aggregate_sql
+  forbidden_tools:
+    - hr_employee_export
+  rate_limits:
+    requests_per_minute: 100

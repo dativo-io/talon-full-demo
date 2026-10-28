@@ -1,0 +1,133 @@
+# Existing workforce stack, with Talon introduced as a separate policy boundary.
+# UI cannot mount DuckDB or connect directly to the privileged HR service.
+name: hr-copilot-isolated
+
+x-case-image: &case-image
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: hr-copilot-synthetic:local
+
+x-talon-image: &talon-image
+  build:
+    context: .
+    dockerfile: Dockerfile.talon
+  image: hr-copilot-talon-runtime:local
+
+x-talon-environment: &talon-environment
+  TALON_DATA_DIR: /state
+  HOME: /state
+  TALON_SECRETS_KEY: ${HR_DEMO_SECRETS_KEY:?Set the vault/signing keys in .env}
+  TALON_SIGNING_KEY: ${HR_DEMO_SIGNING_KEY:?Set the vault/signing keys in .env}
+  TALON_ADMIN_KEY: ${HR_DEMO_ADMIN_KEY:?Set the vault/signing keys in .env}
+
+x-talon-volumes: &talon-volumes
+  - ./.state/talon:/state
+  - ./:/case:ro
+  - ./.state/policy:/policies:ro
+  - ${HR_DEMO_TALON_BIN:?Supply absolute Talon binary path}:/usr/local/bin/talon:ro
+
+services:
+  seed:
+    <<: *case-image
+    command: ["python", "warehouse.py", "seed"]
+    environment:
+      HR_DEMO_DB_PATH: /data/hr.duckdb
+    volumes: [hr_data:/data]
+    networks: [private_hr]
+    restart: "no"
+
+  hr-server:
+    <<: *case-image
+    command: ["python", "demo.py", "hr"]
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    environment:
+      HR_DEMO_DB_PATH: /data/hr.duckdb
+      DEMO_BIND_HOST: 0.0.0.0
+    volumes: [hr_data:/data:ro]
+    networks: [private_hr]
+    restart: unless-stopped
+
+  dashboard:
+    <<: *case-image
+    command: ["python", "demo.py", "dashboard"]
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    environment:
+      HR_DEMO_DB_PATH: /data/hr.duckdb
+      DEMO_BIND_HOST: 0.0.0.0
+    volumes: [hr_data:/data:ro]
+    networks: [app_net]
+    restart: unless-stopped
+
+  # A normal Talon CLI environment; initialization is never scripted by Compose.
+  talon-cli:
+    <<: *talon-image
+    profiles: ["setup"]
+    user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
+    environment: *talon-environment
+    volumes: *talon-volumes
+    working_dir: /state
+    command: ["talon", "version"]
+    networks: [app_net]
+    restart: "no"
+
+  talon-mcp:
+    <<: *talon-image
+    user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
+    depends_on:
+      hr-server:
+        condition: service_started
+    environment: *talon-environment
+    volumes: *talon-volumes
+    working_dir: /state
+    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8080", "--proxy-config", "/policies/proxy.isolated.talon.yaml"]
+    networks: [app_net, private_hr]
+    restart: unless-stopped
+
+  talon-gateway:
+    <<: *talon-image
+    user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
+    profiles: ["live"]
+    environment: *talon-environment
+    volumes: *talon-volumes
+    working_dir: /state
+    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8082", "--gateway", "--gateway-config", "/policies/gateway.talon.yaml"]
+    networks: [app_net]
+    restart: unless-stopped
+
+  ui:
+    <<: *case-image
+    command: ["python", "demo.py", "ui"]
+    depends_on:
+      talon-mcp:
+        condition: service_started
+      dashboard:
+        condition: service_started
+    environment:
+      DEMO_BIND_HOST: 0.0.0.0
+      TALON_URL: http://talon-mcp:8080
+      TALON_AGENT_KEY: talon-hr-demo-key-0001
+      HR_DASHBOARD_URL: http://dashboard:9093
+      HR_MOCK_URL: ""
+      HR_DEMO_TRACE: "1"
+      HR_DEMO_PROVIDER_KIND: "openai-via-talon-when-live"
+      HR_DEMO_TRACE_PAYLOADS: ${HR_DEMO_TRACE_PAYLOADS:-0}
+      TALON_AI_MODE: ${HR_DEMO_AI_MODE:-guided}
+      TALON_LLM_URL: http://talon-gateway:8082/v1/proxy/openai/v1/chat/completions
+    networks: [app_net]
+    ports: ["127.0.0.1:8501:8501"]
+    restart: unless-stopped
+
+volumes:
+  hr_data:
+
+networks:
+  app_net:
+    driver: bridge
+  private_hr:
+    driver: bridge
+    internal: true

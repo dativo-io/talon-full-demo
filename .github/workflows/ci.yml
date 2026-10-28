@@ -29,8 +29,15 @@ jobs:
         run: bash scripts/test-vendor-policy-compatibility.sh
       - name: Validate TokenEconomizer coding fixtures (no credentials, no model calls)
         run: make tokeneconomizer-validate
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install HR analytics dependencies
+        run: python -m pip install -r cases/people-analytics-copilot/requirements.txt
       - name: Run repository CI contract
         run: make ci
+      - name: Test People Analytics DuckDB and model tool-loop
+        run: make people-analytics-validate
 
   talon-release-contract:
     runs-on: ubuntu-latest
@@ -49,3 +56,123 @@ jobs:
           "$(go env GOPATH)/bin/talon" version
       - name: Exercise released Talon budget, gateway and signed-evidence contract without paid models
         run: make tokeneconomizer-contract
+
+  people-analytics-talon-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.10"
+          cache: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install workforce metrics dependencies
+        run: python -m pip install -r cases/people-analytics-copilot/requirements.txt
+      - name: Install pinned Talon release
+        run: |
+          TALON_RELEASE="$(cat config/tokeneconomizer-talon-release.txt)"
+          go install "github.com/dativo-io/talon/cmd/talon@$TALON_RELEASE"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/talon" version
+      - name: Verify real Talon MCP boundary with synthetic HR service and signed evidence
+        run: bash scripts/test-people-analytics-talon.sh
+
+  people-analytics-isolation-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.10"
+          cache: false
+      - name: Install pinned Talon for the container network proof
+        run: |
+          TALON_RELEASE="$(cat config/tokeneconomizer-talon-release.txt)"
+          go install "github.com/dativo-io/talon/cmd/talon@$TALON_RELEASE"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          echo "HR_DEMO_TALON_BIN=$(go env GOPATH)/bin/talon" >> "$GITHUB_ENV"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install browser test tooling
+        run: |
+          python -m pip install "playwright==1.55.0"
+          # Hosted Ubuntu runners ship with Google Chrome. Reuse it to avoid
+          # repeated system package and Chromium downloads on every PR.
+          if command -v google-chrome >/dev/null 2>&1; then
+            google-chrome --version
+            echo "HR_BROWSER_CHANNEL=chrome" >> "$GITHUB_ENV"
+          else
+            python -m playwright install --with-deps chromium
+          fi
+      - name: Start existing DuckDB and HR analytics services
+        run: |
+          cd cases/people-analytics-copilot
+          umask 077
+          mkdir -p .state/policy .state/talon
+          printf 'HR_DEMO_SECRETS_KEY=%s\nHR_DEMO_SIGNING_KEY=%s\nHR_DEMO_ADMIN_KEY=%s\nHR_DEMO_UID=%s\nHR_DEMO_GID=%s\n' \
+            "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(id -u)" "$(id -g)" > .env
+          cp proxy.isolated.talon.yaml .state/policy/proxy.isolated.talon.yaml
+          cp gateway.talon.yaml .state/policy/gateway.talon.yaml
+          docker compose -f compose.isolated.yaml up --build -d seed hr-server dashboard
+      - name: Initialize and configure released Talon with its actual CLI
+        run: |
+          cd cases/people-analytics-copilot
+          docker compose -f compose.isolated.yaml run --rm talon-cli test -s /etc/ssl/certs/ca-certificates.crt
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon init --scaffold --name hr-analytics-assistant
+          cp agent.talon.yaml .state/talon/agent.talon.yaml
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon secrets set hr-analytics-assistant-talon-key talon-hr-demo-key-0001
+      - name: Start Talon MCP and the existing workforce browser
+        run: |
+          cd cases/people-analytics-copilot
+          docker compose -f compose.isolated.yaml up --no-deps -d talon-mcp
+          docker compose -f compose.isolated.yaml up --no-deps --build -d ui
+          for i in {1..40}; do
+            if docker compose -f compose.isolated.yaml exec -T ui python3 -c "from urllib.request import urlopen; urlopen('http://talon-mcp:8080/health', timeout=2)" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          docker compose -f compose.isolated.yaml exec -T ui python3 -c "from urllib.request import urlopen; urlopen('http://talon-mcp:8080/health', timeout=2)"
+      - name: Verify existing HR boundary and Talon enforcement
+        run: |
+          cd cases/people-analytics-copilot
+          docker compose -f compose.isolated.yaml exec -T hr-server python3 verify_isolation.py baseline
+          docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py app
+          docker compose -f compose.isolated.yaml exec -T hr-server python3 verify_isolation.py backend-counts
+          docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit export --format signed-json --session hr-demo-isolated-boundary --output /tmp/hr-boundary-evidence.json
+          docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit verify --file /tmp/hr-boundary-evidence.json
+      - name: Verify independent HR counters and signed Talon evidence
+        run: |
+          cd cases/people-analytics-copilot
+          docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py boundary
+          docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py discover
+          docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py allow
+          docker compose -f compose.isolated.yaml exec -T ui python3 verify_isolation.py deny
+          docker compose -f compose.isolated.yaml exec -T hr-server python3 verify_isolation.py backend-counts
+          # The real Talon session rollup is the source of truth for tool decisions.
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon audit list --session hr-demo-proof-checks
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon costs --session hr-demo-proof-checks --json
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon audit verify --session hr-demo-proof-checks
+          docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit export --format signed-json --session hr-demo-proof-checks --output /tmp/hr-check.json
+          docker compose -f compose.isolated.yaml exec -T talon-mcp talon audit verify --file /tmp/hr-check.json
+      - name: Browser E2E — single workforce UI, SQL, HR validator and Talon denial
+        run: python scripts/test-people-analytics-browser.py
+      - name: Policy flip E2E — identical SQL, permission changed, verified evidence
+        run: python scripts/test-people-analytics-policy-change.py
+      - name: Upload browser failure screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: people-analytics-browser-failure
+          path: cases/people-analytics-copilot/.state/browser-failure.png
+          if-no-files-found: ignore
+          retention-days: 3
+      - name: Stop isolated demo
+        if: always()
+        run: docker compose -f cases/people-analytics-copilot/compose.isolated.yaml --profile live down

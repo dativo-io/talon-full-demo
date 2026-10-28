@@ -24,6 +24,11 @@ The optional OpenShell case also uses `make real-prepare` / `real-start` / `real
 
 All real-provider cases require `make real-prepare`, `make real-start`, and a healthy `make real-status` first. Every n8n case additionally requires Docker. The quarterly and vendor-review cases require Anthropic; the support-resolution case requires OpenAI and a literal operator decision before it can complete.
 
+## People Analytics Copilot (standalone)
+
+An existing [DuckDB workforce application](../cases/people-analytics-copilot/README.md) integrates Talon with its regular CLI and YAML. The app has one browser on port 8501; Docker keeps it away from the private HR database. Talon governs routed LLM/MCP calls, and the HR backend independently validates SQL. Changing a Talon MCP allowlist changes the result of the same SQL request, without modifying the app.
+
+
 ## 1. Customer-support gateway
 
 ```bash
