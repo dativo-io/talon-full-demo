@@ -8,18 +8,35 @@ Talon is introduced **between the application and its model/MCP endpoints**. We 
 
 ```mermaid
 flowchart LR
-    W["Workforce app :8501"] -->|"Charts"| A["Aggregate analytics API"]
-    A --> D[("DuckDB: 1,200 synthetic employees")]
-    W -->|"LLM requests"| G["Talon LLM gateway"]
-    W -->|"MCP tool requests"| M["Talon MCP proxy"]
-    G --> O["OpenAI (LIVE mode)"]
-    M -->|"Allowed tools"| H["Private HR MCP service"]
-    H --> D
-    M --> E["Signed policy evidence"]
-    G --> E
+    B["Workforce browser :8501"]
+    subgraph AppNet["Application network"]
+        W["Workforce application server"]
+        A["Read-only chart / aggregate API"]
+        G["Talon LLM gateway (LIVE only)"]
+    end
+    M["Talon MCP proxy (joins both networks)"]
+    subgraph HRNet["Private HR network"]
+        H["HR MCP service"]
+        D[("DuckDB: 1,200 fictional employees")]
+    end
+    O["OpenAI API (LIVE only)"]
+    E[("Shared Talon signed evidence store")]
+    C["Native Talon CLI: audit / costs / verify"]
+
+    B -->|"HTTP"| W
+    W -->|"Charts and fixed metrics; bypass Talon"| A
+    A -->|"Read-only aggregate queries"| D
+    W <-->|"Tool discovery, calls and receipts"| M
+    M -->|"Allowed tool calls only"| H
+    H -->|"Named aggregates; restricted SQL"| D
+    W <-->|"Model requests and responses"| G
+    G -->|"HTTPS"| O
+    M -->|"Committed MCP decisions"| E
+    G -->|"Model policy, usage and cost"| E
+    C -->|"Session summaries and signature checks"| E
 ```
 
-The chart API does **not** pass through Talon. Docker networking and filesystem mounts, not Talon, keep the app away from the private HR service and database. The HR backend validates any SQL it executes. Talon enforces permissions on the model and MCP requests routed through it.
+This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The browser reaches only the Workforce application on port 8501. The fixed chart API reads DuckDB without Talon; the Talon MCP proxy is the only application-side service connected to the private HR network. Talon governs intercepted model requests and MCP capabilities, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
 
 All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2, OpenSSL, and a compatible Talon binary installed (for example, `go install github.com/dativo-io/talon/cmd/talon@latest`).
 
@@ -163,6 +180,36 @@ Now compare the same requests:
 This is the key distinction: **Talon controls which intercepted operations the AI application can invoke; the HR service controls which SQL those operations may execute.** Talon does not inspect an arbitrary SQL statement and determine whether it is safe. A denial from Talon carries a committed `not_dispatched` evidence record, and the HR backend's execution counter does not increase.
 
 Restore the `hr_aggregate_sql` entry and recreate `talon-mcp` to permit the same queries again. No changes to the workforce application's code, DuckDB data, or chart API are needed.
+
+### How an action becomes an observable business outcome
+
+```mermaid
+flowchart TB
+    S["One Workforce session ID"]
+    S --> T["HR MCP tool request"]
+    S --> L["Model request (LIVE only)"]
+    T --> P{"Talon permits this MCP tool?"}
+    P -->|"No"| X["Talon denies; not dispatched"]
+    P -->|"Yes"| H["HR receives permitted call"]
+    H --> K{"Aggregate SQL tool?"}
+    K -->|"Yes"| V{"HR accepts reviewed SQL?"}
+    V -->|"No"| R["HR rejects SQL; Talon allowed tool"]
+    V -->|"Yes"| A["Cohort-filtered aggregate result"]
+    K -->|"Other allowed aggregate tool"| A
+    L --> B{"Talon model and budget policy?"}
+    B -->|"Deny"| Z["Provider not called"]
+    B -->|"Allow"| O["Provider call; usage or upstream error"]
+    X --> E[("Signed Talon evidence")]
+    R --> E
+    A --> E
+    Z --> E
+    O --> E
+    H --> F["Independent HR dispatch counter"]
+    E --> Q["talon audit list / verify --session"]
+    E --> C["talon costs --session"]
+```
+
+The **employee-export example** follows the first denied branch: the application explicitly attempts `hr_employee_export`, Talon denies before the HR backend receives it, and the HR dispatch counter stays unchanged. The model is *not* offered this forbidden tool, so this does not claim that an LLM independently selected it or that Talon parsed a salary query. An unauthorized SQL shape follows a different branch: Talon allows `hr_aggregate_sql`, then **HR** rejects the SQL. The model/budget branch applies only in LIVE mode. Talon's signed records provide the session's tool decisions and cost data, and the HR counter independently confirms whether a tool call reached the backend.
 
 ## 5. Business observability: access, spend and tools
 
