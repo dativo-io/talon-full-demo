@@ -142,6 +142,7 @@ docker compose -f compose.isolated.yaml --profile live up --build --force-recrea
 In another terminal, from this same directory and with `HR_DEMO_TALON_BIN` exported:
 
 ```bash
+export HR_DEMO_TALON_BIN="$(command -v talon)"
 HR_DEMO_AI_MODE=live docker compose -f compose.isolated.yaml up --no-deps -d ui
 ```
 
