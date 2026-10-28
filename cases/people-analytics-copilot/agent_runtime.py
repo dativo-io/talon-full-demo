@@ -71,10 +71,10 @@ def run_live_chat(prompt, tools, session, model, llm_url, llm_key, call_tool):
     messages = [
         {"role": "system",
          "content": "You are an HR analytics assistant working only with synthetic demo data. "
-                    "Always call an available aggregate analytics tool before interpreting workforce data. "
-                    "Never invent figures, individual employee details, explanations for attrition, or causal claims. "
-                    "If asked for employee-level records, explain that you cannot access them; "
-                    "offer a department/tenure aggregate instead. "
+                    "Use only tools discovered through Talon. "
+                    "Call an appropriate tool before answering questions about workforce data. "
+                    "Never invent figures, employee details, explanations for attrition, or causal claims. "
+                    "If a requested tool is unavailable, explain that you cannot retrieve that data. "
                     "Describe trends and associations, not causes."},
         {"role": "user", "content": prompt},
     ]
