@@ -1,5 +1,30 @@
 # Add Talon to a People Analytics application
 
+## Talon at a glance
+
+```mermaid
+flowchart LR
+    U(["User"]) --> W["Workforce app"]
+    W -->|"AI requests"| T["Talon"]
+    T -->|"Model calls"| L["LLM"]
+    T -->|"Approved tools"| H["HR analytics"]
+    H --> D[("DuckDB")]
+    T -->|"Decisions & spend"| E["Signed evidence"]
+
+    classDef person fill:#F7F9FC,stroke:#A9B7C9,color:#233348,stroke-width:1.5px
+    classDef app fill:#EAF2FC,stroke:#9DBADA,color:#173C64,stroke-width:1.5px
+    classDef control fill:#184777,stroke:#0E3158,color:#FFFFFF,stroke-width:2px
+    classDef service fill:#F7F9FC,stroke:#A9B7C9,color:#233348,stroke-width:1.5px
+    classDef evidence fill:#E8F7F1,stroke:#79C6AA,color:#175943,stroke-width:1.5px
+    class U person
+    class W app
+    class T control
+    class L,H,D service
+    class E evidence
+```
+
+**What changes with Talon:** AI model calls and HR tool requests run through its policy boundary. Talon can allow aggregate analysis, deny the individual-employee export tool, and record signed decisions and session spend. The existing charts use a separate read-only analytics path and **do not** go through Talon. Talon never queries DuckDB directly.
+
 This example begins with an ordinary workforce application: **DuckDB** stores 1,200 fictional employee records, a read-only analytics API serves the charts, and the application can ask an LLM about workforce trends. The next step is to control which models and HR operations its AI functionality can use.
 
 Talon is introduced **between the application and its model/MCP endpoints**. We keep the database and chart API as they are; we do not give the AI application raw DuckDB access.
