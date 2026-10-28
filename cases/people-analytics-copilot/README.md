@@ -17,12 +17,14 @@ flowchart LR
     M["Talon MCP proxy (joins both networks)"]
     subgraph HRNet["Private HR network"]
         H["HR MCP service"]
-        D[("DuckDB: 1,200 fictional employees")]
+        Seed["One-time synthetic data seeding"]
     end
+    D[("DuckDB file: shared data volume")]
     O["OpenAI API (LIVE only)"]
     E[("Shared Talon signed evidence store")]
     C["Native Talon CLI: audit / costs / verify"]
 
+    Seed -->|"Creates 1,200 fictional rows"| D
     B -->|"HTTP"| W
     W -->|"Charts and fixed metrics; bypass Talon"| A
     A -->|"Read-only aggregate queries"| D
@@ -36,7 +38,7 @@ flowchart LR
     C -->|"Session summaries and signature checks"| E
 ```
 
-This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The browser reaches only the Workforce application on port 8501. The fixed chart API reads DuckDB without Talon; the Talon MCP proxy is the only application-side service connected to the private HR network. Talon governs intercepted model requests and MCP capabilities, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
+This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The browser reaches only the Workforce application on port 8501. The fixed chart API reads the DuckDB **file** via a read-only Docker volume without Talon. DuckDB is embedded, not a network database; the private HR service reads the same volume. The Talon MCP proxy is the only application-side service connected to the private HR network. Talon governs intercepted model requests and MCP capabilities, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
 
 All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2, OpenSSL, and a compatible Talon binary installed (for example, `go install github.com/dativo-io/talon/cmd/talon@latest`).
 
@@ -199,6 +201,7 @@ flowchart TB
     L --> B{"Talon model and budget policy?"}
     B -->|"Deny"| Z["Provider not called"]
     B -->|"Allow"| O["Provider call; usage or upstream error"]
+    O -->|"If model requests a tool, app dispatches it"| T
     X --> E[("Signed Talon evidence")]
     R --> E
     A --> E
