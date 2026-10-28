@@ -38,6 +38,25 @@ class LiveAgentTests(unittest.TestCase):
         self.assertEqual(gateway.call_args_list[1].args[2]['tool_choice'], 'auto')
 
 
+    def test_model_can_call_policy_advertised_employee_export(self):
+        export={'name':'hr_employee_export','description':'Fictional employee export',
+                'inputSchema':{'type':'object','properties':{'scope':{'type':'string'}}}}
+        response1={'choices':[{'message':{'role':'assistant','content':None,'tool_calls':[{
+            'id':'call-export','type':'function',
+            'function':{'name':'hr_employee_export','arguments':'{"scope":"all"}'}}]}}]}
+        response2={'choices':[{'message':{'role':'assistant','content':'The fictional record is Example Employee.'}}]}
+        invoked=[]
+        def call(name,args,session):
+            invoked.append((name,args,session))
+            return 200,{'result':{'content':[{'type':'text','text':'{"synthetic":true,"employees":[{"full_name":"Example Employee"}]}'}],
+                                  '_meta':{'io.dativo.talon/governance':EXT}}}
+        with patch('agent_runtime.chat_completion',side_effect=[response1,response2]) as gateway:
+            result=run_live_chat('Show a fictional employee',[export],'hr-demo-export','gpt-4o-mini','local','token',call)
+        self.assertEqual(invoked,[('hr_employee_export',{'scope':'all'},'hr-demo-export')])
+        self.assertIn('Example Employee',result['answer'])
+        self.assertEqual(result['calls'][0]['name'],'hr_employee_export')
+        self.assertIn('hr_employee_export',[t['function']['name'] for t in gateway.call_args_list[0].args[2]['tools']])
+
     def test_missing_receipt_does_not_reach_second_model_step(self):
         response={'choices':[{'message':{'role':'assistant','tool_calls':[{
             'id':'call-1','type':'function',
