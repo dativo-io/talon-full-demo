@@ -103,6 +103,45 @@ class DemoSmoke(unittest.TestCase):
             with self.assertRaises(ValueError):
                 warehouse.approved_sql(sql)
 
+    def test_browser_export_probe_respects_talon_policy_in_both_directions(self):
+        class TestBrowser(demo.Browser):
+            pass
+        app=ThreadingHTTPServer(('127.0.0.1',0),TestBrowser)
+        thread=threading.Thread(target=app.serve_forever,daemon=True)
+        thread.start()
+        try:
+            listing=(200,{'result':{'tools':[{'name':'hr_employee_export'}]}})
+            receipt={'decision':'allow','evidence':{'id':'synthetic-export','committed':True}}
+            allowed=(200,{'result':{'content':[{'type':'text','text':json.dumps(
+                {'synthetic':True,'employees':[{'full_name':'Example Employee'}]})}],
+                '_meta':{demo.EXT:receipt}}})
+            with patch.object(demo,'mcp_call',side_effect=[listing,allowed]):
+                req=Request(f'http://127.0.0.1:{app.server_port}/api/probe',
+                    data=json.dumps({'session':'hr-demo-test'}).encode(),
+                    headers={'Content-Type':'application/json'},method='POST')
+                with urlopen(req,timeout=5) as resp:
+                    outcome=json.load(resp)
+            self.assertEqual(outcome['status'],'allowed')
+            self.assertEqual(outcome['data']['employees'][0]['full_name'],'Example Employee')
+            self.assertFalse(outcome['denied'])
+            denied_receipt={'decision':'deny','provenance':'not_dispatched',
+                            'evidence':{'id':'denied-export','committed':True}}
+            denied=(200,{'error':{'code':-32000,'message':'Denied',
+                                  'data':{demo.EXT:denied_receipt}}})
+            with patch.object(demo,'mcp_call',side_effect=[listing,denied]):
+                req=Request(f'http://127.0.0.1:{app.server_port}/api/probe',
+                    data=json.dumps({'session':'hr-demo-test'}).encode(),
+                    headers={'Content-Type':'application/json'},method='POST')
+                with urlopen(req,timeout=5) as resp:
+                    outcome=json.load(resp)
+            self.assertEqual(outcome['status'],'denied')
+            self.assertTrue(outcome['denied'])
+            self.assertIsNone(outcome['data'])
+        finally:
+            app.shutdown()
+            app.server_close()
+            thread.join()
+
     def test_browser_rejects_uncommitted_receipt(self):
         class TestBrowser(demo.Browser):
             pass
