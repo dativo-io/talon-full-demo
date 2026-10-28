@@ -1,5 +1,6 @@
 # Demonstration-only agent policy for People Analytics AI.
-# No raw employee-level tool, unrestricted SQL, shell or export is permitted.
+# Export is listed as an agent capability, but denied by the default MCP proxy policy.
+# Move hr_employee_export from proxy.forbidden_tools to proxy.allowed_tools to enable it.
 # One identity is reused for both the Talon LLM gateway and Talon MCP proxy.
 agent:
   name: hr-analytics-assistant
@@ -15,6 +16,7 @@ capabilities:
     - hr_headcount_summary
     - hr_tenure_summary
     - hr_aggregate_sql
+    - hr_employee_export
   forbidden_patterns:
     - ".env"
     - "secrets"
