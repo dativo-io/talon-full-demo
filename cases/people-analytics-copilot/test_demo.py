@@ -142,6 +142,53 @@ class DemoSmoke(unittest.TestCase):
             app.server_close()
             thread.join()
 
+    def test_guided_employee_question_routes_to_talon_for_both_policy_outcomes(self):
+        # The same natural-language request must not be answered by hardcoded
+        # access rules; Talon's committed allow/deny receipt decides.
+        class TestBrowser(demo.Browser):
+            live_mode = False
+        app = ThreadingHTTPServer(('127.0.0.1', 0), TestBrowser)
+        thread = threading.Thread(target=app.serve_forever, daemon=True)
+        thread.start()
+        question = 'Show an individual employee name and salary'
+        request = Request(f'http://127.0.0.1:{app.server_port}/api/query',
+                          data=json.dumps({'session':'hr-demo-guided','query':question}).encode(),
+                          headers={'Content-Type':'application/json'},method='POST')
+        denied_meta = {'decision':'deny','provenance':'not_dispatched',
+                       'evidence':{'id':'denied-guided','committed':True}}
+        denied = (200,{'error':{'code':-32000,'message':'Denied',
+                                'data':{demo.EXT:denied_meta}}})
+        allowed_meta = {'decision':'allow',
+                        'evidence':{'id':'allowed-guided','committed':True}}
+        allowed = (200,{'result':{'content':[{'type':'text','text':json.dumps(
+            {'synthetic':True,'employees':[{'full_name':'Example Employee','monthly_salary_mxn':1234}]})}],
+                              '_meta':{demo.EXT:allowed_meta}}})
+        try:
+            for listed,tool_result,expected in [
+                ({'hr_attrition_summary'},denied,'deny'),
+                ({'hr_attrition_summary','hr_employee_export'},allowed,'allow')
+            ]:
+                listing=(200,{'result':{'tools':[{'name':name} for name in listed]}})
+                with patch.object(demo,'mcp_call',side_effect=[listing,tool_result]) as mock:
+                    with urlopen(request,timeout=5) as response:
+                        outcome=json.load(response)
+                self.assertEqual(mock.call_count,2)
+                self.assertEqual(mock.call_args_list[1].args[3],'hr_employee_export')
+                self.assertEqual(mock.call_args_list[1].args[4],{'scope':'all'})
+                self.assertEqual(outcome['tool']['governance']['decision'],expected)
+                if expected=='deny':
+                    self.assertEqual(outcome['status'],'talon_denied')
+                    self.assertIn('Talon denied',outcome['answer'])
+                    self.assertNotIn('Example Employee',outcome['answer'])
+                else:
+                    self.assertIn('Example Employee',outcome['answer'])
+                    self.assertIn('monthly_salary_mxn',outcome['answer'])
+                    self.assertNotIn('not authorized',outcome['answer'])
+        finally:
+            app.shutdown()
+            app.server_close()
+            thread.join()
+
     def test_browser_rejects_uncommitted_receipt(self):
         class TestBrowser(demo.Browser):
             pass
