@@ -43,7 +43,7 @@ ORDER BY department;</textarea>
 <p class="muted">The following results are real MCP decisions for this session. HR SQL rejection and Talon policy denial are distinct.</p>
 <p class="muted">Allowed tools in discovery:</p>
 <pre id="allowedTools">Not requested yet.</pre>
-<p class="muted">Individual employee names and salary records require <code>hr_employee_export</code>; the application can request it, but Talon forbids that capability.</p>
+<p class="muted">Individual employee records require <code>hr_employee_export</code>. Talon policy decides whether the request is denied or allowed (fictional records only).</p>
 <button class="danger" onclick="probe()">Request individual employee records</button>
 <pre id="probe">No employee-records request attempted yet.</pre>
 <p id="sessionLabel" class="muted"></p>
