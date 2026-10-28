@@ -156,7 +156,7 @@ No OpenAI key? Start `talon-mcp` alone, then start `ui` with the default **GUIDE
 
 ### Demonstrate a policy flip: deny → allow employee export
 
-The upstream HR MCP server already defines `hr_employee_export`, which returns **at most eight fictional employee records**. The example agent capability list includes the tool; the **default MCP proxy** forbids it. The application does not override Talon's tool discovery or hardcode an employee-access refusal.
+The upstream HR MCP server already defines `hr_employee_export`, which returns **at most eight fictional employee records**. The example agent capability list includes the tool; the **default MCP proxy** forbids it. The application does not override Talon's tool discovery or hardcode an employee-access refusal. In **GUIDED** mode, matching question keywords deterministically choose a tool, but never authorize it: the operation is sent through Talon and the committed allow/deny decision determines the response. In **LIVE** mode, the model selects from the tools that Talon actually advertised.
 
 To enable the tool, edit `.state/policy/proxy.isolated.talon.yaml` (not just the checked-in example): **move** `hr_employee_export` from `forbidden_tools` into `allowed_tools`:
 
