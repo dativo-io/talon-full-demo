@@ -267,10 +267,12 @@ class Browser(HTTPBase):
                                          'calls': data['calls'], 'mode': data['mode'],
                                          'tool': {'governance': data['calls'][-1]['governance']}
                                          if data['calls'] else None})
+            # GUIDED is a deterministic, model-free tool selector, not a policy engine.
+            # Even a tool absent from discovery is attempted through Talon so the
+            # actual deny/not_dispatched receipt drives the user-visible outcome.
             if any(word in query.lower() for word in ('name', 'salary', 'salaries', 'export', 'individual')):
-                return self.reply(200, {'answer': 'Employee-level details are not authorized. You can ask for aggregate headcount, attrition or tenure trends.',
-                                        'tools': names, 'tool': None, 'mode': 'guided'})
-            if 'tenure' in query.lower():
+                name, arguments = 'hr_employee_export', {'scope': 'all'}
+            elif 'tenure' in query.lower():
                 name, arguments = 'hr_tenure_summary', {}
             elif 'headcount' in query.lower() or 'workforce size' in query.lower():
                 name, arguments = 'hr_headcount_summary', {}
@@ -278,10 +280,23 @@ class Browser(HTTPBase):
                 name, arguments = 'hr_attrition_summary', {'months': 6}
             code, result = mcp_call(self.talon, self.key, 'tools/call', name, arguments, session)
             g = governance(result)
-            if code != 200 or 'result' not in result or not g or g.get('decision') != 'allow' or g.get('evidence', {}).get('committed') is not True:
-                raise RuntimeError('No committed Talon authorization for aggregate HR data')
+            if code != 200 or not g or g.get('evidence', {}).get('committed') is not True:
+                raise RuntimeError('Missing committed Talon guided tool decision')
+            if g.get('decision') == 'deny' and g.get('provenance') == 'not_dispatched':
+                return self.reply(200, {
+                    'answer': f'Talon denied {name} before HR dispatch. No tool data was returned. '
+                              'GUIDED mode: this is a real Talon policy decision, not a model response.',
+                    'tools': names, 'mode': 'guided', 'status': 'talon_denied',
+                    'tool': {'name': name, 'governance': g}})
+            if 'result' not in result or g.get('decision') != 'allow':
+                raise RuntimeError('Talon did not authorize the guided tool operation')
+            if result['result'].get('isError'):
+                raise RuntimeError('HR rejected the governed tool operation')
             data = json.loads(result['result']['content'][0]['text'])
-            if name == 'hr_attrition_summary':
+            if name == 'hr_employee_export':
+                answer = ('Talon allowed hr_employee_export. Fictional employee records:\n'
+                          + json.dumps(data, indent=2))
+            elif name == 'hr_attrition_summary':
                 rows = sorted(data['cohorts'], key=lambda r: r['months'][-1]['attrition_rate_pct'], reverse=True)
                 answer = 'Latest monthly attrition by department:\n' + '\n'.join(
                     f"{r['department']}: {r['months'][-1]['attrition_rate_pct']:.2f}% "
