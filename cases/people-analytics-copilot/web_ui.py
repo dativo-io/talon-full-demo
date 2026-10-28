@@ -35,7 +35,7 @@ ORDER BY department;</textarea>
 <button id="runSQL" onclick="runSQL()">Run SQL through Talon</button>
 <pre id="sqlResult">No SQL executed yet.</pre></section>
 <section class="panel"><h2>Workforce AI <span class="pill" id="mode">Connecting…</span></h2>
-<p class="muted">Model inference runs only in LIVE mode. Guided mode executes MCP aggregates without a model.</p>
+<p class="muted">Model inference runs only in LIVE mode. Guided mode selects MCP tools deterministically without a model; Talon still decides access.</p>
 <textarea id="query" aria-label="AI question">Which departments have the highest attrition over the last six months?</textarea>
 <button id="askbutton" onclick="ask()">Ask assistant</button>
 <pre id="answer">No question asked.</pre></section>
