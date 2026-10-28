@@ -183,6 +183,10 @@ This is the key distinction: **Talon controls which intercepted operations the A
 
 Restore the `hr_aggregate_sql` entry and recreate `talon-mcp` to permit the same queries again. No changes to the workforce application's code, DuckDB data, or chart API are needed.
 
+## 5. Business observability: access, spend and tools
+
+Instead of relying on infrastructure log lines, inspect **what this AI use case was allowed to do, what it was stopped from doing, and what its model calls cost**. Talon records the decisions and cost facts in signed evidence, which its native CLI aggregates by the session ID shown in the Workforce application.
+
 ### How an action becomes an observable business outcome
 
 ```mermaid
@@ -212,11 +216,7 @@ flowchart TB
     E --> C["talon costs --session"]
 ```
 
-The **employee-export example** follows the first denied branch: the application explicitly attempts `hr_employee_export`, Talon denies before the HR backend receives it, and the HR dispatch counter stays unchanged. The model is *not* offered this forbidden tool, so this does not claim that an LLM independently selected it or that Talon parsed a salary query. An unauthorized SQL shape follows a different branch: Talon allows `hr_aggregate_sql`, then **HR** rejects the SQL. The model/budget branch applies only in LIVE mode. Talon's signed records provide the session's tool decisions and cost data, and the HR counter independently confirms whether a tool call reached the backend.
-
-## 5. Business observability: access, spend and tools
-
-Instead of relying on infrastructure log lines, inspect **what this AI use case was allowed to do, what it was stopped from doing, and what its model calls cost**. Talon records the decisions and cost facts in signed evidence, which its native CLI aggregates by the session ID shown in the Workforce application.
+The **employee-export example** follows the first denied branch: the application explicitly attempts `hr_employee_export`, Talon denies before the HR backend receives it, and the HR dispatch counter stays unchanged. The model is *not* offered this forbidden tool, so this does not claim that an LLM independently selected it or that Talon parsed a salary query. An unauthorized SQL shape follows a different branch: Talon allows `hr_aggregate_sql`, then **HR** rejects the SQL; Talon has recorded an allowed tool dispatch, not an HR validation decision. The model/budget branch applies only in LIVE mode. Talon's signed records provide the session's tool decisions and cost data, and the HR counter independently confirms whether a tool call reached the backend.
 
 ### Individual employee data: a real denied tool request
 
