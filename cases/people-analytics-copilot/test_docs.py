@@ -88,6 +88,20 @@ class DocumentationContract(unittest.TestCase):
         self.assertIn("networks: [app_net, private_hr]",spec)
         self.assertIn("volumes: [hr_data:/data:ro]",spec)
 
+    def test_web_app_does_not_fabricate_employee_access_denials(self):
+        app=(CASE/"demo.py").read_text(encoding="utf-8")
+        prompt=(CASE/"agent_runtime.py").read_text(encoding="utf-8")
+        ui=(CASE/"web_ui.py").read_text(encoding="utf-8")
+        self.assertNotIn("Employee-level details are not authorized",app)
+        self.assertNotIn("Unsafe proxy policy: employee export was advertised",app)
+        self.assertNotIn("If asked for employee-level records, explain that you cannot access",prompt)
+        self.assertNotIn("Talon forbids that capability",ui)
+        self.assertIn("g.get('decision') == 'deny'",app)
+        self.assertIn("g.get('decision') == 'allow'",app)
+        self.assertIn("'hr_employee_export', {'scope': 'all'}",app)
+        self.assertIn("name not in advertised",prompt)
+        self.assertIn("if self.live_mode:",app)
+
     def test_js_syntax(self):
         if not shutil.which("node"):self.skipTest("Node.js is not installed")
         from web_ui import HTML
