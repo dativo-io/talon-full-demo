@@ -100,11 +100,14 @@ receipt(r.calls[r.calls.length-1].governance);}
 else if(r.tool){receipt(r.tool.governance);remember(r.tool.name||'aggregate tool',r.tool.governance,'app-selected');}}
 catch(e){el('answer').textContent='Error: '+e.message}finally{el('askbutton').disabled=false}}
 async function probe(){el('probe').textContent='Checking real Talon policy…';
-try{const r=await api('/api/probe',{});el('probe').textContent=r.denied?
+try{const r=await api('/api/probe',{});
+el('probe').textContent=r.denied?
 'BLOCKED · Talon denied hr_employee_export before HR dispatch. No employee rows returned.':
-'NOT VERIFIED · denial or committed receipt missing';
+r.status==='allowed'?
+'ALLOWED · Talon authorized hr_employee_export. Fictional HR backend returned:\n'+JSON.stringify(r.data,null,2):
+'UNEXPECTED · check Talon receipt';
 toolsSeen(r.tools);receipt(r.tool.governance);
-remember('hr_employee_export',r.tool.governance,r.denied?'not dispatched':'DENIAL UNVERIFIED')}
+remember('hr_employee_export',r.tool.governance,r.denied?'not dispatched':'HR returned fictional rows')}
 catch(e){el('probe').textContent='Error: '+e.message}}
 async function loadDashboard(){const d=el('department').value;el('charts').src='/charts'+(d?'?department='+encodeURIComponent(d):'')}
 async function init(){try{const r=await fetch('/api/dashboard');if(!r.ok)throw Error('Dashboard API unavailable');
