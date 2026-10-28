@@ -42,11 +42,27 @@ class DocumentationContract(unittest.TestCase):
     def test_architecture_and_enforcement_diagrams(self):
         body=(CASE/"README.md").read_text(encoding="utf-8")
         diagrams=re.findall(r"```mermaid\n(.*?)\n```",body,re.DOTALL)
-        self.assertEqual(len(diagrams),2,
-                         "Keep one topology diagram and one business-outcome decision flow")
-        topology,decisions=diagrams
+        self.assertEqual(len(diagrams),3,
+                         "Keep one business overview, one technical topology and one decision flow")
+        business,topology,decisions=diagrams
+        self.assertTrue(business.startswith("flowchart LR"))
         self.assertTrue(topology.startswith("flowchart LR"))
         self.assertTrue(decisions.startswith("flowchart TB"))
+        self.assertLess(body.index("## Talon at a glance"),
+                        body.index("## The existing application"))
+
+        # Business overview: deliberately short, readable and faithful to the
+        # governed paths. Model requests do not go to the database.
+        for edge in ('U(["User"]) --> W["Workforce app"]',
+                     'W -->|"AI requests"| T["Talon"]',
+                     'T -->|"Model calls"| L["LLM"]',
+                     'T -->|"Approved tools"| H["HR analytics"]',
+                     'H --> D[("DuckDB")]',
+                     'T -->|"Decisions & spend"| E["Signed evidence"]'):
+            self.assertIn(edge,business)
+        self.assertLessEqual(sum(1 for line in business.splitlines() if "-->" in line),6)
+        self.assertNotIn("L --> D",business)
+        self.assertIn("existing charts use a separate read-only analytics path",body)
 
         # The browser never accesses Talon, OpenAI or the HR backend directly.
         self.assertIn('B -->|"HTTP"| W',topology)
