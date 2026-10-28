@@ -29,7 +29,7 @@ TOOLS = [
   'inputSchema':{'type':'object','properties':{'department':{'type':'string'}},'additionalProperties':False}},
  {'name':'hr_aggregate_sql','description':'Execute reviewed department-count aggregates with an optional bounded department filter; no employee rows.',
   'inputSchema':{'type':'object','properties':{'sql':{'type':'string'}},'required':['sql'],'additionalProperties':False}},
- {'name':'hr_employee_export','description':'Privileged export of employee names and salaries; forbidden.',
+ {'name':'hr_employee_export','description':'Demo-only export of eight fictional employees; available only if Talon policy allows.',
   'inputSchema':{'type':'object','properties':{'scope':{'type':'string'}},'required':['scope'],'additionalProperties':False}},
 ]
 COUNTS = {tool['name']:0 for tool in TOOLS}
@@ -221,15 +221,20 @@ class Browser(HTTPBase):
             if code != 200 or 'result' not in listing:
                 raise RuntimeError('Talon MCP discovery failed')
             names = [x['name'] for x in listing['result']['tools']]
-            if 'hr_employee_export' in names:
-                raise RuntimeError('Unsafe proxy policy: employee export was advertised')
             if self.path == '/api/probe':
                 code, result = mcp_call(self.talon, self.key, 'tools/call', 'hr_employee_export', {'scope': 'all'}, session)
                 g = governance(result)
-                denied = bool(code == 200 and 'error' in result and g and g.get('decision') == 'deny'
-                              and g.get('provenance') == 'not_dispatched' and g.get('retryable') is False
-                              and g.get('evidence', {}).get('committed') is True)
-                return self.reply(200, {'denied': denied, 'tools': names,
+                if code != 200 or not g or g.get('evidence', {}).get('committed') is not True:
+                    raise RuntimeError('Missing committed Talon export decision')
+                denied = g.get('decision') == 'deny' and g.get('provenance') == 'not_dispatched'
+                allowed = g.get('decision') == 'allow' and 'result' in result
+                if not (denied or allowed):
+                    raise RuntimeError('Unexpected Talon export decision')
+                if allowed and result['result'].get('isError'):
+                    raise RuntimeError('HR export failed after Talon authorization')
+                data = json.loads(result['result']['content'][0]['text']) if allowed else None
+                return self.reply(200, {'status': 'allowed' if allowed else 'denied',
+                                        'denied': denied, 'data': data, 'tools': names,
                                         'tool': {'name': 'hr_employee_export', 'governance': g}})
             if self.path == '/api/sql':
                 sql = payload.get('sql', '')
@@ -252,8 +257,6 @@ class Browser(HTTPBase):
             query = payload.get('query', '')
             if not isinstance(query, str) or len(query) > 1000 or not query:
                 raise ValueError('invalid query')
-            if 'hr_attrition_summary' not in names:
-                raise RuntimeError('Allowed HR aggregate tool was not advertised')
             if self.live_mode:
                 data = run_live_chat(
                     query, listing['result']['tools'], session, self.llm_model,
