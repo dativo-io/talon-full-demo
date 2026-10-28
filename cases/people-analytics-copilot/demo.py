@@ -5,6 +5,7 @@ Guided UI is deterministic; live AI runs through Talon. HR analytics use DuckDB.
 import argparse
 import json
 import os
+import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import HTTPError
@@ -138,8 +139,10 @@ class HRService(HTTPBase):
                         result = {'resultType': 'complete', 'isError': True,
                                   'content': [{'type': 'text', 'text': 'HR_SQL_REJECTED: Query is not an approved aggregate shape'}]}
                         return self.reply(200, {'jsonrpc': '2.0', 'id': rid, 'result': result})
-                else:
+                elif name == 'hr_employee_export':
                     value = warehouse.privileged_employee_detail()
+                else:
+                    raise ValueError('Unimplemented HR tool')
                 result = {'resultType': 'complete', 'content': [{'type': 'text', 'text': json.dumps(value)}]}
             else:
                 return self.reply(200, {'jsonrpc': '2.0', 'id': rid, 'error': {'code': -32601, 'message': 'Method not found'}})
@@ -270,7 +273,7 @@ class Browser(HTTPBase):
             # GUIDED is a deterministic, model-free tool selector, not a policy engine.
             # Even a tool absent from discovery is attempted through Talon so the
             # actual deny/not_dispatched receipt drives the user-visible outcome.
-            if any(word in query.lower() for word in ('name', 'salary', 'salaries', 'export', 'individual')):
+            if re.search(r'\b(?:name|names|salary|salaries|export|individual)\b', query, re.IGNORECASE):
                 name, arguments = 'hr_employee_export', {'scope': 'all'}
             elif 'tenure' in query.lower():
                 name, arguments = 'hr_tenure_summary', {}
