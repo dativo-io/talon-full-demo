@@ -39,6 +39,39 @@ class DocumentationContract(unittest.TestCase):
         spec=(CASE/"compose.isolated.yaml").read_text()
         self.assertIn("talon-cli:",spec)
         self.assertNotIn("talon-init:",spec)
+    def test_architecture_and_enforcement_diagrams(self):
+        body=(CASE/"README.md").read_text(encoding="utf-8")
+        diagrams=re.findall(r"```mermaid\n(.*?)\n```",body,re.DOTALL)
+        self.assertEqual(len(diagrams),2,
+                         "Keep one topology diagram and one business-outcome decision flow")
+        topology,decisions=diagrams
+        self.assertTrue(topology.startswith("flowchart LR"))
+        self.assertTrue(decisions.startswith("flowchart TB"))
+
+        # The browser never accesses Talon, OpenAI or the HR backend directly.
+        self.assertIn('B -->|"HTTP"| W',topology)
+        self.assertIn('W <-->|"Tool discovery, calls and receipts"| M',topology)
+        self.assertIn('W <-->|"Model requests and responses"| G',topology)
+        self.assertIn('M -->|"Allowed tool calls only"| H',topology)
+        self.assertNotIn('B -->|',topology.replace('B -->|"HTTP"| W',''))
+        self.assertIn('A -->|"Read-only aggregate queries"| D',topology)
+        self.assertIn('H -->|"Named aggregates; restricted SQL"| D',topology)
+        self.assertIn('C -->|"Session summaries and signature checks"| E',topology)
+
+        # A Talon denial, a post-dispatch HR SQL rejection and provider spend
+        # must be distinct paths, backed by the shared signed evidence store.
+        for node in ("Talon denies; not dispatched",
+                     "HR rejects SQL; Talon allowed tool",
+                     "Independent HR dispatch counter",
+                     "Talon model and budget policy?",
+                     "talon costs --session",
+                     "talon audit list / verify --session"):
+            self.assertIn(node,decisions)
+        self.assertIn('O -->|"If model requests a tool, app dispatches it"| T',decisions)
+        spec=(CASE/"compose.isolated.yaml").read_text()
+        self.assertIn("networks: [app_net, private_hr]",spec)
+        self.assertIn("volumes: [hr_data:/data:ro]",spec)
+
     def test_js_syntax(self):
         if not shutil.which("node"):self.skipTest("Node.js is not installed")
         from web_ui import HTML
