@@ -153,6 +153,33 @@ This includes Talon process output and the application's separately labeled `HR_
 
 No OpenAI key? Start `talon-mcp` alone, then start `ui` with the default **GUIDED · NO LLM** mode. SQL/MCP policy and signed evidence are still real, but the guided assistant uses deterministic wording. Don't present guided results as model-generated.
 
+### Demonstrate a policy flip: deny → allow employee export
+
+The upstream HR MCP server already defines `hr_employee_export`, which returns **at most eight fictional employee records**. The example agent capability list includes the tool; the **default MCP proxy** forbids it. The application does not override Talon's tool discovery or hardcode an employee-access refusal.
+
+To enable the tool, edit `.state/policy/proxy.isolated.talon.yaml` (not just the checked-in example): **move** `hr_employee_export` from `forbidden_tools` into `allowed_tools`:
+
+```yaml
+  allowed_tools:
+    - name: hr_attrition_summary
+    - name: hr_headcount_summary
+    - name: hr_tenure_summary
+    - name: hr_aggregate_sql
+    - name: hr_employee_export
+  forbidden_tools: []
+```
+
+Make sure `.state/talon/agent.talon.yaml` also includes `hr_employee_export` under `capabilities.allowed_tools` (the revised checked-in example does). Recreate the MCP proxy to load the edited policy:
+
+```bash
+docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
+docker compose -f compose.isolated.yaml up --no-deps -d --force-recreate talon-mcp
+```
+
+Refresh the Workforce page and click **Request individual employee records**. You should now see an **ALLOWED** receipt and the returned fictional rows. In LIVE mode, ask for an individual record; the LLM can discover and call the export tool, though model tool selection is not guaranteed. The button gives a deterministic end-to-end tool execution check independent of model selection. Restore the original proxy policy to show **BLOCKED / not dispatched** again.
+
+This is strictly a synthetic demonstration. Never enable this export tool against real employee data without independent HR authorization and identity checks.
+
 ## 4. Explore workforce analytics and see what policy changes
 
 The workforce application can answer several useful questions without exposing employee-level rows:
