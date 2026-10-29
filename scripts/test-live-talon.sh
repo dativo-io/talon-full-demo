@@ -207,19 +207,37 @@ echo "LLM call: coding-assistant reached the gateway (session $SESSION_MCP)"
 # 2) The MCP scene through the PROXY-ONLY process — agent bearer only, NO admin
 #    key. If the admin key were still required this call would 401.
 MCP_URL="http://127.0.0.1:$MCP_PROXY_PORT/mcp/proxy"
+# Talon v1.15.2 only speaks MCP 2026-07-28. There is no initialize
+# handshake. Each request declares its method, version, capabilities and
+# (for tool calls) tool name both in JSON and mirrored transport headers.
 mcp() {
+  local method name body
+  method="$(jq -r '.method' <<<"$1")"
+  name="$(jq -r '.params.name // empty' <<<"$1")"
+  body="$(jq -c '.params = ((.params // {}) + {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {"name":"live-check","version":"1.0"},
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
+  })' <<<"$1")"
+  local name_hdr=()
+  [[ -z "$name" ]] || name_hdr=(-H "Mcp-Name: $name")
   curl --fail --silent --show-error --max-time 10 "$MCP_URL" \
     -H "Authorization: Bearer $CA_KEY" \
     -H "X-Talon-Session-ID: $SESSION_MCP" \
     -H 'X-Talon-Client: live-check' \
+    -H 'Accept: application/json, text/event-stream' \
     -H 'Content-Type: application/json' \
-    -d "$1"
+    -H 'MCP-Protocol-Version: 2026-07-28' \
+    -H "Mcp-Method: $method" \
+    "${name_hdr[@]}" \
+    -d "$body"
 }
 
-mcp '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"live-check","version":"0.0.1"}}}' \
-  | jq -e '.result.serverInfo.name == "talon-mcp-proxy"' >/dev/null \
-  || { echo 'MCP initialize was not answered locally by the proxy (#367)' >&2; exit 1; }
-mcp '{"jsonrpc":"2.0","method":"notifications/initialized"}' >/dev/null
+mcp '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}' \
+  | jq -e '.result.supportedVersions == ["2026-07-28"] and (.result.capabilities.tools != null)' >/dev/null \
+  || { echo 'MCP 2026-07-28 server/discover was not answered by the proxy' >&2; exit 1; }
 # tools/list must advertise exactly the two allowed tools AND each must declare
 # run_nonce required (the schema the real client is driven by).
 # Control A — preventive filtering: the forbidden tool is ABSENT from discovery,
@@ -243,8 +261,8 @@ done
 # for a non-conforming client) submits the undiscovered release_publish anyway.
 # Talon must still block it. This is defence-in-depth, NOT "Copilot published".
 mcp "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"release_publish\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}" \
-  | jq -e '.error.data.talon_code == "TALON_TOOL_FORBIDDEN"' >/dev/null \
-  || { echo 'release_publish denial must carry talon_code TALON_TOOL_FORBIDDEN (#369)' >&2; exit 1; }
+  | jq -e '.error.data["io.dativo.talon/governance"].code == "TALON_TOOL_FORBIDDEN"' >/dev/null \
+  || { echo 'release_publish denial must carry the versioned governance extension code TALON_TOOL_FORBIDDEN' >&2; exit 1; }
 echo "control B (runtime enforcement): adversarial release_publish probe denied with TALON_TOOL_FORBIDDEN"
 
 RELEASE_RUN_NONCE="$NONCE" RELEASE_MCP_RECEIPTS="$RECEIPTS" \
@@ -310,7 +328,6 @@ cat > "$BUDGET/talon.config.yaml" <<EOF
 gateway:
   enabled: true
   listen_prefix: "/v1/proxy"
-  mode: "enforce"
   providers:
     mock-openai:
       enabled: true

@@ -38,7 +38,7 @@ The support-resolution gate proves reply generation, zero-cost `issue_refund` de
 
 ### 2. Prepare and start the real stack
 
-Clone `dativo-io/talon` next to this repository, put Talon v1.9.3+ on `PATH`, then:
+Clone `dativo-io/talon` next to this repository and check out the pinned **Talon v1.15.2** commit (see `TALON_PINNED_COMMIT`). Put the corresponding Talon binary on `PATH`, then:
 
 ```bash
 export OPENAI_API_KEY='sk-...'
@@ -62,7 +62,7 @@ The OpenShell case uses the same prepared Talon fleet and signed evidence as the
 
 In another terminal during the human gate: `make status-openshell-approval`, then `make approve-openshell` (or `make reject-openshell`). To re-present the same run: `make present-openshell-all`. Technical view: `make demo-openshell-tech`.
 
-**Integration status:** Talon PR #501 is merged but the latest published release predates it. The canonical main-Talon OpenShell showcase runner must be delivered and verified before this is a self-service demo. See [OpenShell demo contract](docs/OPENSHELL_DEMO.md). The option is off by default and does not affect existing cases.
+**Integration status (October 22, 2026):** Talon **v1.15.2** now publishes the OpenShell showcase runner and agent bundle. The Full Demo pins this release. Publication alone does not prove the customer pathway: the upstream release manifest currently omits the Talon binary digest expected by the runner, and the real Linux/Docker + shared-stack gate must be green before we advertise a fully verified self-service integration. See [OpenShell demo contract and validation status](docs/OPENSHELL_DEMO.md). The option remains off by default and does not affect existing cases.
 
 ## Choose a case and audience
 
