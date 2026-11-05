@@ -13,6 +13,12 @@ The support, n8n and Copilot cases provide their own evidence projections. The P
 
 See [Audience-specific demo views](docs/AUDIENCE_DEMOS.md) for the full command matrix and truth boundaries.
 
+## Proposed Claude Code × OpenShell incident demo — contract-first
+
+The planned **OrderDesk PostgreSQL incident** case combines a credential-drift staging recovery, a contained malicious Claude Code hook, and a company-governed denial of a simulated production volume deletion. It is a **proposed integration, not a shipped demo**.
+
+**Authoritative consumer-side contract:** [Claude/Postgres incident contract](docs/CLAUDE_POSTGRES_INCIDENT_CONTRACT.md). It defines supported versus unverified Talon capabilities, action/approval interfaces, trust boundaries, 12 mandatory proof gates and cross-repository responsibilities. The case must not be described as released until its real-runtime and published-artifact gates pass.
+
 ## People Analytics (standalone)
 
 Follow the [People Analytics integration guide](cases/people-analytics-copilot/README.md). DuckDB charts are ordinary read-only analytics; Talon controls model and MCP requests routed through it. Editing Talon policy changes whether the same SQL tool call can execute. Normal CI uses a fake LLM provider; real OpenAI is opt-in.
