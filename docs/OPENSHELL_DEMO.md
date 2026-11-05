@@ -4,17 +4,30 @@ This optional case uses the same Full Demo workflow as n8n, Copilot and
 Zendesk: prepare, start, status, run, approve or reject, present, stop.
 It does not create a second Talon runtime, evidence store or approval system.
 
-## Status
+## Status (2026-10-22)
 
-Talon PR #501 was merged at da61c47866a3d6aea787c762360f62f6b99089a2.
-The latest release checked (v1.10.0) predates it. The new full-demo adapters
-require the canonical main-repo runner at:
-talon/examples/openshell/showcase/demo.sh
+Talon PR #501 is merged at da61c47866a3d6aea787c762360f62f6b99089a2.
+**Talon v1.15.2 is the latest published release** as checked on 2026-10-22
+(tagged at be9f4f4310fe0c249b6755690512fc7102ad515b). It publishes the
+canonical OpenShell runner in
+`talon-openshell-showcase_1.15.2_linux_amd64.tar.gz` together with a release
+manifest and checksum. The Full Demo pin now follows that published Talon
+commit, rather than an earlier development snapshot.
 
-Until that runner ships and the version-pinned real-runtime lane is green, this
-is draft integration wiring and must not be described as a released showcase.
-Do not substitute talon/scripts/openshell-live.sh: it starts a separate Talon
-fixture and is an engineering test, not this shared customer demo.
+Publication is not an end-to-end pass: report the release as **published,
+runtime compatibility to be proven** until the new version-pinned live
+OpenShell CI lane passes and a human-gated Full Demo run is independently
+verified. The source-checkout and verified-release modes are distinct.
+Do not substitute `talon/scripts/openshell-live.sh`: it starts a separate
+Talon fixture, not this shared customer demo.
+
+**Known release limitation:** The upstream v1.15.2 showcase bundle builder
+puts mock/helper digests in `showcase-manifest.json`, but does not include
+`artifacts.talon.sha256`. The released runner checks the Talon binary
+against that field whenever a manifest is set, so the raw release bundle
+cannot yet pass that check without an upstream fix or an independently
+verified derived manifest. Do not disable signature/digest checks or claim
+the customer path works until it has been tested.
 
 ## Package resolution
 
@@ -121,3 +134,12 @@ denied/approved behavior is machine-checked against the same signed session.
 The published-artifact requirement is owned by Talon's #462 epic, not a new
 installation system in this repo. This advanced integration need not meet the
 60-second quickstart timing promise.
+
+
+## Release verification checklist
+
+1. Check the latest release at https://github.com/dativo-io/talon/releases/latest and compare the published tag to `TALON_PINNED_COMMIT`. The current tested target is v1.15.2.
+2. For a source-checkout integration, check out that pinned commit in the sibling `../talon`, and run `make validate-local` and `make openshell-validate` on a Linux Docker host.
+3. For a published-artifact integration, verify the release's `.sha256` assets before extraction, pass `TALON_OPENSHELL_SHOWCASE_RUNNER` and `TALON_OPENSHELL_RELEASE_MANIFEST` explicitly, and set `TALON_SHOWCASE_BUNDLE_DIR`. Verify the Talon binary and helper hashes against independently obtained release checksums. The current upstream manifest omission must be resolved before this mode can be declared working.
+4. Finally exercise `make real-prepare real-start demo-openshell-buyer`, approve or reject outside the sandbox, and confirm `make present-openshell-all` verifies the exact signed session and operation. A canonical standalone runtime test alone does not prove shared Full Demo integration.
+5. Record the Talon and OpenShell versions, the agent image reference, signed evidence count, approval outcome, replay count and downstream mutation count in the published write-up. Never invent them.

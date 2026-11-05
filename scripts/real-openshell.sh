@@ -16,8 +16,16 @@ fi
 # Same .env as all other Full Demo cases, retaining an explicit command-line
 # opt-in when the file was generated before OpenShell support existed.
 external_enabled="${TALON_OPENSHELL_ENABLED:-}"
+external_provider_mode="${TALON_OPENSHELL_PROVIDER_MODE:-}"
+external_runner="${TALON_OPENSHELL_SHOWCASE_RUNNER:-}"
+external_manifest="${TALON_OPENSHELL_RELEASE_MANIFEST:-}"
 [[ ! -f "$ROOT/.env" ]] || source "$ROOT/.env"
+# Explicit environment values take precedence over optional .env defaults,
+# including when the release bundle was resolved in the calling shell.
 [[ -z "$external_enabled" ]] || TALON_OPENSHELL_ENABLED="$external_enabled"
+[[ -z "$external_provider_mode" ]] || TALON_OPENSHELL_PROVIDER_MODE="$external_provider_mode"
+[[ -z "$external_runner" ]] || TALON_OPENSHELL_SHOWCASE_RUNNER="$external_runner"
+[[ -z "$external_manifest" ]] || TALON_OPENSHELL_RELEASE_MANIFEST="$external_manifest"
 : "${TALON_OPENSHELL_ENABLED:=0}"
 [[ "$TALON_OPENSHELL_ENABLED" == 0 || "$TALON_OPENSHELL_ENABLED" == 1 ]] \
   || die 'TALON_OPENSHELL_ENABLED must be 0 or 1'
@@ -50,7 +58,13 @@ if [[ "$COMMAND" != validate ]]; then
     || die 'Installed Talon CLI predates OpenShell runtime evidence support'
 fi
 
-export TALON_SHOWCASE_EMBEDDED=1
+# The canonical validate subcommand owns its own disposable standalone Talon
+# and sandbox. Other commands attach to Full Demo's shared Talon instance.
+if [[ "$COMMAND" == validate ]]; then
+  export TALON_SHOWCASE_EMBEDDED=0
+else
+  export TALON_SHOWCASE_EMBEDDED=1
+fi
 export TALON_SHOWCASE_CONFIG_DIR="$ROOT/config/generated"
 export TALON_SHOWCASE_TALON_DATA_DIR="${TALON_DATA_DIR:-$ROOT/.state/talon}"
 export TALON_SHOWCASE_RUN_DIR="$STATE"

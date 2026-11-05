@@ -1,10 +1,7 @@
-# Source-audited against dativo-io/talon main at
-# 24046ca690a616c2710c3084d59857839364bcf3 (v1.9.3, 2026-07-20).
-# Explicit intercept mode remains intentional even though current Talon now
-# defaults an omitted mode to intercept and rejects unknown values (#346).
-# Since v1.9.3 the proxy also answers the MCP initialize handshake locally
-# (#367) and returns stable machine codes in error.data.talon_code (#369):
-# a forbidden-tool denial carries TALON_TOOL_FORBIDDEN.
+# Validated against published Talon v1.15.2.
+# MCP proxy calls are always intercepted and enforced (#442).
+# There is no proxy.mode setting in this version.
+# A forbidden-tool denial carries TALON_TOOL_FORBIDDEN.
 agent:
   name: coding-assistant-release-tools
   type: mcp_proxy
@@ -12,7 +9,6 @@ agent:
   version: "0.1.0"
 
 proxy:
-  mode: intercept
   upstream:
     vendor: synthetic-release-mcp
     url: http://127.0.0.1:8090/mcp
