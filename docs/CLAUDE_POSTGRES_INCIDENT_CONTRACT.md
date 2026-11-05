@@ -4,6 +4,7 @@
 **Owner:** dativo-io/talon-full-demo (integration contract, scenario, proof and public claims)  
 **Producer:** dativo-io/talon (existing public API/policy/evidence behavior and necessary product work)  
 **Created:** 2026-11-05  
+**Tracking issue:** [Full Demo #41](https://github.com/dativo-io/talon-full-demo/issues/41) — ratification and cross-repository handoff  
 **Implementation:** NOT STARTED under this contract  
 **Authority:** This document is the source of truth for what the *Full Demo* requires. The Talon product documentation and actual runtime remain the source of truth for what Talon *currently provides*. A discrepancy is a documented gap, not permission to invent or silently change an API.
 
