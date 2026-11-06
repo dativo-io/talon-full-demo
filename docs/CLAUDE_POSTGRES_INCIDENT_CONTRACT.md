@@ -1,14 +1,28 @@
 # Claude Code + OpenShell + Talon: incident demo consumer contract
 
-**Status:** v0.1 — consumer-owned target contract, **not a shipped/demo-validated claim**  
+**Status:** v0.1 — **RATIFIED 2026-11-06; implementation authorized; C01–C12 UNVERIFIED** (not a shipped/demo-validated claim)  
 **Owner:** dativo-io/talon-full-demo (integration contract, scenario, proof and public claims)  
 **Producer:** dativo-io/talon (existing public API/policy/evidence behavior and necessary product work)  
 **Created:** 2026-11-05  
 **Tracking issue:** [Full Demo #41](https://github.com/dativo-io/talon-full-demo/issues/41) — ratification and cross-repository handoff  
-**Implementation:** NOT STARTED under this contract  
+**Implementation:** AUTHORIZED; execution tracked in Full Demo #42–#44 and Talon #528/#458/#146. No incident conformance outcome is claimed.  
 **Authority:** This document is the source of truth for what the *Full Demo* requires. The Talon product documentation and actual runtime remain the source of truth for what Talon *currently provides*. A discrepancy is a documented gap, not permission to invent or silently change an API.
 
-> Contract-first rule: **Do not begin Talon-side changes for this case until Full Demo has accepted this contract.** Implementation issues should cite this document and identify the exact unmet acceptance clause. Do not put demo-specific app code or an alternate approval engine into Talon.
+> Contract-first rule: **The Full Demo owner ratified v0.1 on 2026-11-06.** Implementation is authorized against the frozen contract and linked tickets. Any material mismatch requires a reviewed consumer-owned amendment before producer divergence. Do not put demo-specific app code or an alternate approval engine into Talon.
+
+## Ratification and implementation handoff — 2026-11-06
+
+**Product-owner approval:** [Full Demo #41 — ratification decision](https://github.com/dativo-io/talon-full-demo/issues/41#issuecomment-6693722192). All six action schemas, trust boundaries, seven architectural decisions in §9 and executable C01–C12 acceptance criteria are approved **unchanged**. This is **authorization to implement**, not evidence any incident criterion passed.
+
+**Pinned initial release baseline:** publicly published **Talon v1.16.0**, tag commit `28601ff744d1a3855da3d99da5c70d3aac0f1028`, verified executable SHA256 `ff02af78283129cd3a0dc50d6a6a3c893cce32ddf810d03a66b78b0408d809b6`, Talon image `sha256:e2cab1a9b2a3fe587d22cccebe4b48d5eb7e084b3821b25137d135da05dc0d15`, agent image `sha256:10d8ac218d54299d4a8cbc369b12061495de40d65702105a707764afea9d6fe3`. [#359 release-contract evidence](https://github.com/dativo-io/talon/issues/359#issuecomment-6693565310) and [independent clean-runner Install Smoke](https://github.com/dativo-io/talon/actions/runs/42279435113) passed. **The incident C01–C12 remains unverified.**
+
+| Consumer criteria | Full Demo implementation and independent proof owner | Talon producer relationship |
+|---|---|---|
+| C01–C03 (real Claude/Anthropic, DENY, credentials), C04–C05 (OpenShell containment) | [Full Demo #42](https://github.com/dativo-io/talon-full-demo/issues/42) | [Talon #528](https://github.com/dativo-io/talon/issues/528) C01–C03 product conformance; OpenShell (not Talon) enforces C04/C05 |
+| C06–C10 (company DENY, approvals, one dispatch, fail-closed, actual staging recovery) | [Full Demo #43](https://github.com/dativo-io/talon-full-demo/issues/43) | Reuse [Talon #458](https://github.com/dativo-io/talon/issues/458) exact gateway and [#146](https://github.com/dativo-io/talon/issues/146) evidence; no second authority |
+| C11–C12 (signed audit verification, verified shared proof, public artifact reproducibility) | [Full Demo #44](https://github.com/dativo-io/talon-full-demo/issues/44) | Published Talon v1.16.0, #146 audit; #359 complete; #473 may separately expand customer onboarding |
+
+**Hard public-claim gates:** C01 and C06 must pass on the **actual** runtime before buyer-facing claims. Pin exact Claude Code version, model and OpenShell credential profile only after an executable compatibility spike; if infeasible, raise a proposed amendment here, **never** silently use a direct proxy or downgrade evidence. Reuse one Talon instance and preserve existing support/refund demos. [Full Demo PR #37](https://github.com/dativo-io/talon-full-demo/pull/37) is a separate support-case update and needs reconciliation with v1.16.0.
 
 ## 1. Purpose and customer outcome
 
@@ -118,7 +132,7 @@ All actions are **explicit trusted HTTP definitions** compiled from configuratio
 
 Trusted schemas must constrain environment, service, revision and identifiers with `enum`/`const` as appropriate and set `additionalProperties: false`. The sample strings are **fixture IDs**, not real provider IDs. Review must show every material field (not masked placeholders). The trusted executor separately validates action semantics and intended target; accepting a request from Talon is not permission to run arbitrary SQL/commands. Destination URL and declared successful status codes are bound by Talon's action definition digest.
 
-**Policy gate:** the contract requires a true *company-level* forbidden action and inherited approval rules, not merely an agent-level `capabilities.forbidden_tools` configured to look like company enforcement. Talon #425 / PR #526 was not yet merged at the 2026-11-05 audit. Until verified on a released build this clause is **BLOCKED**. A use-case-level deny may be an interim technical probe but cannot be published as the company-wide proof.
+**Policy gate:** the contract requires a true *company-level* forbidden action and inherited approval rules, not merely an agent-level `capabilities.forbidden_tools` configured to look like company enforcement. Talon #425 / PR #526 is now merged, and company policy is present in **public Talon v1.16.0**. This meets the **published capability prerequisite**, but **C06 remains UNVERIFIED** until the real incident fixture records a company-sourced `volume_delete` DENY and zero downstream delete effects. A use-case-level deny cannot substitute for that proof.
 
 Do not introduce argument-sensitive authorization rules (Talon #205) for this demo: deny all `volume_delete`, and bind staging-only repair through trusted schema + hard-coded protected executor. Do not require Talon #431: direct HTTP Action Gateway is the selected spine.
 
@@ -177,12 +191,12 @@ Publication must not claim immutable evidence, proven actual runtime enforcement
 |---|---|---|
 | OpenShell middleware and workload hop | Existing implementation and live/fixture tests using OpenAI-compatible client | Talon #482 closed, #457 closed |
 | Direct Claude Code / Anthropic proxy | Documented and fixture-tested direct proxy, **not** this delegated path | Talon #193 closed |
-| Real Claude Code -> OpenShell -> Talon -> Anthropic | **UNVERIFIED**; must be tested before product changes are assumed | Talon-side narrow conformance ticket **if existing tickets do not cover it** |
+| Real Claude Code -> OpenShell -> Talon -> Anthropic | **UNVERIFIED** (C01–C03); contract ratified, execution authorized | [Talon #528](https://github.com/dativo-io/talon/issues/528) and [Full Demo #42](https://github.com/dativo-io/talon-full-demo/issues/42) |
 | Exact HTTP Action Gateway, trusted schema, local approver, signed proof | Initial working implementation; published-path acceptance still open | #427 closed; #458, #429, #428, #146 open |
-| Company hard-deny + inherited approvals + provenance | **NOT ON MAIN at last check** | Talon #425; PR #526 open |
+| Company hard-deny + inherited approvals + provenance | Source merged in PR #526 and shipped in public v1.16.0; incident C06 still **UNVERIFIED** | [Full Demo #43](https://github.com/dativo-io/talon-full-demo/issues/43), [Talon #458](https://github.com/dativo-io/talon/issues/458) |
 | Native MCP tool-to-ActionGateway convergence | Not necessary for this contract; stdio bridge calls the existing HTTP adapter | Talon #431 open, **deferred** |
 | Parameter-aware policy expressions | Not necessary; static deny and tightly scoped executor | Talon #205, **deferred** |
-| Source->published showcase artifact integrity | Source fix closed; v1.15.3 published manifest remains insufficient | Talon #507 closed, #359/#473 open |
+| Source->published showcase artifact integrity | **Verified public Talon v1.16.0** and independent clean-runner smoke; does not establish incident C12 | [Talon #359](https://github.com/dativo-io/talon/issues/359) closed; [Full Demo #44](https://github.com/dativo-io/talon-full-demo/issues/44) C12 proof; [#473](https://github.com/dativo-io/talon/issues/473) broader onboarding |
 | Full Demo existing OpenShell runner | Existing support/refund case, not this case; some docs and pinned versions stale | Full Demo PR #37 open, requires reconciliation |
 
 Relevant current producer documentation:
@@ -195,9 +209,9 @@ Relevant current producer documentation:
 
 ## 8. Work split, sequencing and source of truth
 
-**First, in Full Demo (contract/fixtures, no Talon work yet):** this document is ratified; the demo team writes exact fixture shape, negative-test expectations, API adapter interface test vectors, presenter proof assertions, without pretending anything is live.
+**First, in Full Demo (ratified; now authorized):** document the exact fixture shape, negative-test expectations, API adapter interface vectors and presenter proof assertions under #42–#44, without pretending anything is live.
 
-**Then in parallel, after contract acceptance:**
+**Then in parallel, following the 2026-11-06 acceptance:**
 - Talon Staff Engineer reviews #425/PR #526 and exact-action tickets and creates/updates a *single* Claude/OpenShell delegated conformance issue where missing. This engineer manages product work and does **not** build OrderDesk.
 - Full Demo engineers build disposable application, fake infrastructure/control plane, hook, bridge and tests against the **documented existing** Talon endpoints.
 
@@ -209,7 +223,7 @@ Relevant current producer documentation:
 
 ## 9. Decisions and amendment policy
 
-**Proposed defaults for ratification:**
+**Ratified architectural decisions (2026-11-06):**
 1. Claude Code (not Pi), OpenShell v0.1.3 first, real Anthropic only after passing integration test.
 2. Two real Postgres containers, fake Railway-style volume API; no actual infrastructure deletion.
 3. Company-wide hard deny for every `volume_delete`, no argument-aware exception.
@@ -218,6 +232,6 @@ Relevant current producer documentation:
 6. Consumer-owned MCP stdio bridge into existing HTTP Action Gateway; no dependency on #431.
 7. No custom approval UI, policy evaluator, SQL execution primitive or Talon feature branch running inside the demo.
 
-**Unresolved until verified:** exact Claude Code release/model and OpenShell credential configuration for Anthropic traffic; public Talon release containing company policy and the corrected manifest; whether current Full Demo orchestration can share the Talon process without a compatibility upgrade. Record resolution here with links to passing tests and commits.
+**Unresolved implementation/test gates:** exact Claude Code release/model and OpenShell Anthropic credential profile; actual C01 delegated path and C06 company-DENY incident proof; shared Full Demo topology compatibility without disturbing support/refund; the real C07–C12 action/recovery/evidence run. Public Talon v1.16.0 **is verified and pinned as the initial baseline** (see ratification record), but it is not incident proof. Record test outcomes and any reviewed amendment here with links to running evidence.
 
 All changes to externally visible claims, action schemas, required policy semantics or enforcement ownership must be reviewed in **Full Demo first**. Talon issues and PRs link back to this contract. The product's actual implementation is never overwritten by prose in this document.
