@@ -69,8 +69,8 @@ The final OpenShell policy must permit only the exact provider and Talon hop for
 This is the equivalent of People Analytics' **real Talon governance acceptance**. It exercises the documented Talon CLI, catalog, effective company policy, reviewer principal, Action Gateway and signed evidence with a disposable **host-only** agent key. It cannot satisfy sandbox-specific C01–C09 criteria.
 
 ```bash
-# Install the exact verified source tag; this is not a claim that
-# downloadable GitHub release assets have already passed verification.
+# Install the published version tag; clean-room checks of the release
+# archive/showcase manifest and image digests remain a separate gate.
 go install github.com/dativo-io/talon/cmd/talon@v1.16.1
 export PATH="$(go env GOPATH)/bin:$PATH"
 talon version
@@ -123,7 +123,7 @@ For **business observability**, export and verify the **same Talon session** thr
 
 ## 6. Release and consumer contract
 
-- **Talon v1.16.1 source tag exists**, annotated at `0cbcf96d1052e49fd020ac75b2f6ceccf02dda95` (2026-11-07). Its changelog records real Claude Code/OpenShell and real Anthropic `make test-smoke` integration. The GitHub published-release listing/asset integrity check is a **separate gate**, not inferred from the tag.
+- **Talon v1.16.1 is published as a GitHub release** and has an annotated source tag at `0cbcf96d1052e49fd020ac75b2f6ceccf02dda95` (2026-11-07). Its changelog records real Claude Code/OpenShell and real Anthropic `make test-smoke` integration. The published release entry and its Linux/macOS archives and showcase manifest are visible; **independent artifact checksums, clean install and image digests remain a separate #44 gate**.
 - `Dockerfile.agent` pins Claude Code **2.1.319** and its tested binary SHA256; `config/claude-mcp.json` defines the local stdio adapter; `config/claude-hook-settings.json` loads the synthetic malicious hook; `config/openshell-action-policy.yaml.template` is a **template**, not a complete approved sandbox policy.
 - Talon #528 is the producer-side real Claude/OpenShell conformance; Full Demo must still run independently in the **same shared topology** for C01–C12. Record exact Talon executable/image, Claude, OpenShell, provider and fixture digests before public-facing use.
 - The v0.1 contract's *historical initial baseline* was v1.16.0. Its six fixed actions and C01–C12 acceptance criteria remain unchanged. Releasing v1.16.1 **does not** retroactively mark those gates complete.
