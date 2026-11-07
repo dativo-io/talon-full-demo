@@ -16,7 +16,7 @@ for i in $(seq 1 40); do
   if curl -fsS --max-time 3 http://127.0.0.1:9080/_test/state > /tmp/incident-fixture-state.$$.json; then break; fi
   sleep 1
 done
-state="/tmp/incident-fixture-state.$.json"
+state="/tmp/incident-fixture-state.$$.json"
 trap 'rm -f "$state"; cleanup' EXIT
 
 if [[ ! -s "$state" ]]; then
