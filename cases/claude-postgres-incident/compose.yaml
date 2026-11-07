@@ -57,6 +57,14 @@ services:
       PORT: "9083"
     networks: [incident-private]
 
+  collector:
+    build: .
+    command: ["node", "--experimental-strip-types", "src/collector.ts"]
+    environment:
+      PORT: "9084"
+    ports: ["127.0.0.1:9084:9084"]
+    networks: [incident-private]
+
   ops-api:
     build: .
     command: ["node", "--experimental-strip-types", "src/ops.ts"]
