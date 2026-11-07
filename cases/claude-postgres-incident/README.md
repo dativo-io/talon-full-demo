@@ -81,7 +81,7 @@ make incident-talon-preflight
 
 The preflight starts real Talon against the disposable fixture and checks **403 company-sourced DENY** on `volume_delete` and zero downstream calls; **202 approval pending**, **409 attempt-before-approval**, a correctly authenticated reviewer decision that dispatches nothing, one later authorized dispatch, replay/changed-argument refusal, actual staging **business endpoint** recovery, production invariants and real Talon signature verification. It uses the released CLI commands `talon secrets set`, `talon validate`, `talon approver add`, `talon serve --gateway`, and `talon audit verify --operation`—not a substitute authorization engine.
 
-A **successful host-key preflight proves the public Action Gateway contract only**. It is not the #42 OpenShell live acceptance, because the request did not carry a verified sandbox identity.
+A **successful host-key preflight proves the public Action Gateway contract only**. It is not the #42 OpenShell live acceptance, because the request did not carry a verified sandbox identity. **Unlike the People Analytics MCP path, Talon intentionally leaves sandbox/session provenance empty for host-key Action Gateway operations.** Do not attach a client-declared session header to these requests and portray it as verified workload identity. The full session join is a #42/#44 acceptance requiring the authentic OpenShell hop.
 
 ## 4. Operator journey and proof
 
