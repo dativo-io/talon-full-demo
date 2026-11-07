@@ -3,5 +3,6 @@ WORKDIR /opt/incident
 COPY package.json ./
 RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund
 COPY src/ ./src/
+RUN mkdir -p /run/orderdesk && chown node:node /run/orderdesk
 USER node
 CMD ["node", "--experimental-strip-types", "src/app.ts"]
