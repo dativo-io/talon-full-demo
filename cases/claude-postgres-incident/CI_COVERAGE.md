@@ -20,7 +20,7 @@ In both cases, a policy ALLOW **does not** mean the backend accepted arbitrary d
 
 ## Release provenance
 
-The published Talon **v1.16.1 release and annotated Git tag** point to commit `0cbcf96d1052e49fd020ac75b2f6ceccf02dda95` and records a real Claude/OpenShell Anthropic proof plus real Anthropic `make test-smoke`. GitHub lists v1.16.1 downloadable binaries and the OpenShell showcase manifest. **Independent checksum/manifest and clean-runner verification** remain separate #44 acceptance tests; do not infer they passed from publication.
+The incident-specific [Talon release pin](TALON_RELEASE) is **v1.16.1**, separate from the People Analytics and other demos' pins. The published Talon **v1.16.1 release and annotated Git tag** point to commit `0cbcf96d1052e49fd020ac75b2f6ceccf02dda95`. Its changelog records real Claude/OpenShell Anthropic conformance and real Anthropic coverage in `make test-smoke`. GitHub lists v1.16.1 downloadable binaries and the OpenShell showcase manifest. **Independent checksum/manifest and clean-runner verification** remain separate #44 acceptance tests; do not infer they passed from publication.
 
 Prior successful work (v1.16.0, before the current release pin) showed host-key API enforcement, approval, single dispatch and signed evidence in GitHub Actions. Do not report that historical result as though it used v1.16.1 or the delegated sandbox.
 
