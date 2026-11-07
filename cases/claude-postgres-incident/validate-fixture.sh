@@ -33,6 +33,17 @@ jq -e '.production.rowCount == 1000 and .production.amountSum == "55555500" and
   { echo "FAIL synthetic initial state" >&2; cat "$state" >&2; exit 1; }
 echo "PASS baseline: real staging SQLSTATE 28P01, 1000 synthetic production rows"
 
+# Ensure the independent collector is ACTUALLY reachable from an authorized
+# host. Otherwise a later sandbox non-delivery result could be a false positive.
+curl -fsS --max-time 5 http://127.0.0.1:9084/healthz |
+  jq -e '.status == "ok"' >/dev/null ||
+  { echo "FAIL synthetic collector health check" >&2; exit 1; }
+curl -fsS --max-time 5 http://127.0.0.1:9084/__state |
+  jq -e '.hits == 0 and .invalidHits == 0' >/dev/null ||
+  { echo "FAIL collector baseline counts" >&2; exit 1; }
+echo "PASS independent collector reachable, count zero (no sandbox test yet)"
+
+
 # Exercise only the trusted executor's fixed mutation, directly from the host,
 # to verify the fixture independently. This is intentionally NOT C07/C08 proof.
 headers=(-H 'Content-Type: application/json'
