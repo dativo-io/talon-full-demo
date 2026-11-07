@@ -191,3 +191,22 @@ jobs:
         run: make incident-contract-test
       - name: Validate real PostgreSQL 28P01 and fixed staging-only reconciliation
         run: make incident-fixture-validate
+  
+  # Real, pinned, publicly published Talon HTTP Action Gateway. Authenticated
+  # host agent-key preflight; NOT the sandbox workload-hop acceptance.
+  claude-incident-talon-api-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.10"
+          cache: false
+      - name: Install released Talon v1.16.0, not source main
+        run: |
+          go install github.com/dativo-io/talon/cmd/talon@v1.16.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/talon" version
+      - name: Real Talon policy + external approval + dispatch against synthetic PostgreSQL
+        run: make incident-talon-preflight
