@@ -16,8 +16,15 @@ for i in $(seq 1 40); do
   if curl -fsS --max-time 3 http://127.0.0.1:9080/_test/state > /tmp/incident-fixture-state.$$.json; then break; fi
   sleep 1
 done
-state="/tmp/incident-fixture-state.$$.json"
+state="/tmp/incident-fixture-state.$.json"
 trap 'rm -f "$state"; cleanup' EXIT
+
+if [[ ! -s "$state" ]]; then
+  echo "FAIL: trusted executor is not reachable via loopback published port" >&2
+  "${compose[@]}" ps >&2 || true
+  "${compose[@]}" logs --no-color --tail=120 ops-api orderdesk fake-infra >&2 || true
+  exit 1
+fi
 
 jq -e '.production.rowCount == 1000 and .production.amountSum == "55555500" and
   .staging.httpStatus == 503 and .staging.body.sqlstate == "28P01" and
