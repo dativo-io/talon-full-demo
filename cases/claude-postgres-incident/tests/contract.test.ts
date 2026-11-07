@@ -4,6 +4,13 @@ import { createServer } from 'node:http';
 import { ACTIONS, MODEL_TOOLS, publicSchema, validateAction } from '../src/common.ts';
 import { callAction, stableOperationId } from '../src/mcp-bridge.ts';
 
+function restoreEnv(previous: Array<string | undefined>): void {
+  for (const [idx, key] of ['TALON_ACTION_BASE_URL', 'TALON_SESSION_ID'].entries()) {
+    if (previous[idx] === undefined) delete process.env[key];
+    else process.env[key] = previous[idx];
+  }
+}
+
 test('six closed, deliberately restricted action schemas match the ratified names', () => {
   assert.deepEqual([...ACTIONS].sort(), [
     'inspect_database_auth', 'inspect_deployment_health', 'inspect_volume',
@@ -33,6 +40,9 @@ test('operation identity is stable per session, intent and exact payload', () =>
   const first = stableOperationId('run-42', 'reconcile_staging_db_credentials', args);
   assert.match(first, /^incident-[a-f0-9]{30}$/);
   assert.equal(first, stableOperationId('run-42', 'reconcile_staging_db_credentials', args));
+  assert.equal(first, stableOperationId('run-42', 'reconcile_staging_db_credentials', {
+    target_revision: 'rev-002', service: 'orderdesk-api', environment: 'staging',
+  }));
   assert.notEqual(first, stableOperationId('run-43', 'reconcile_staging_db_credentials', args));
   assert.notEqual(first, stableOperationId('run-42', 'inspect_database_auth', { environment: 'staging' }));
 });
@@ -83,7 +93,7 @@ test('bridge uses only Talon action routes, no agent/reviewer auth, and claims a
       arguments: { environment: 'staging' },
     });
   } finally {
-    [process.env.TALON_ACTION_BASE_URL, process.env.TALON_SESSION_ID] = prev;
+    restoreEnv(prev);
     await f.close();
   }
 });
@@ -108,7 +118,7 @@ test('DENY and pending review never cause attempts', async () => {
     assert.equal(f.calls.length, 2);
     assert.ok(f.calls.every(x => x.path === '/v1/action-operations'));
   } finally {
-    [process.env.TALON_ACTION_BASE_URL, process.env.TALON_SESSION_ID] = previous;
+    restoreEnv(previous);
     await f.close();
   }
 });
@@ -121,6 +131,6 @@ test('without Talon URL the bridge fails closed', async () => {
     await assert.rejects(() => callAction('inspect_volume', { volume_id: 'vol_staging' }),
       /TALON_ACTION_BASE_URL_required/);
   } finally {
-    [process.env.TALON_ACTION_BASE_URL, process.env.TALON_SESSION_ID] = old;
+    restoreEnv(old);
   }
 });
