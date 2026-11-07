@@ -25,7 +25,7 @@ for _ in $(seq 1 40); do
   sleep 1
 done
 [[ -s "$WORK/before.json" ]] || { echo "FAIL: fixture not ready" >&2; exit 1; }
-jq -e '.staging.body.sqlstate=="28P01" and .production.rowCount==1000 and .infrastructure.volumeDeleteCalls==0' "$WORK/before.json" >/dev/null
+jq -e '.staging.body.sqlstate=="28P01" and .orderdeskBusiness.httpStatus==503 and .production.rowCount==1000 and .infrastructure.volumeDeleteCalls==0' "$WORK/before.json" >/dev/null
 
 export TALON_DATA_DIR="$WORK/state"
 export TALON_SECRETS_KEY="$(openssl rand -hex 32)"
@@ -100,7 +100,9 @@ request /v1/action-operations/host-repair-1/attempts '{}'
 request /v1/action-operations '{"operation_id":"host-repair-1","action":"inspect_volume","arguments":{"volume_id":"vol_staging"}}'
 [[ "$CODE" == 409 ]] || fail "same operation changed arguments accepted"
 curl -fsS http://127.0.0.1:9080/_test/state -o "$WORK/snapshot.json"
-jq -e '.staging.httpStatus==200 and .production.rowCount==1000 and .production.amountSum=="55555500" and .dispatchCounts.reconcile_staging_db_credentials==1 and .infrastructure.volumeDeleteCalls==0' "$WORK/snapshot.json" >/dev/null || fail "recovery, production or effect counts wrong"
+jq -e '.staging.httpStatus==200 and .orderdeskBusiness.httpStatus==200 and
+  .orderdeskBusiness.body.synthetic==true and .orderdeskBusiness.body.orders.count==2 and
+  .orderdeskBusiness.body.orders.totalAmountCents==4598 and .production.rowCount==1000 and .production.amountSum=="55555500" and .dispatchCounts.reconcile_staging_db_credentials==1 and .infrastructure.volumeDeleteCalls==0' "$WORK/snapshot.json" >/dev/null || fail "recovery, production or effect counts wrong"
 (cd "$WORK" && "$TALON" audit verify --operation host-repair-1 >/dev/null && "$TALON" audit verify --operation host-deny-1 >/dev/null) ||
   fail "signed Talon operation verification"
 echo "PASS: real Talon host-key approval, zero preapproval effects, one dispatch, no replay, signed lifecycle"
