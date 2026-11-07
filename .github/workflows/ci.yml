@@ -176,3 +176,18 @@ jobs:
       - name: Stop isolated demo
         if: always()
         run: docker compose -f cases/people-analytics-copilot/compose.isolated.yaml --profile live down
+
+  # Real, disposable PostgreSQL fixture — distinct from Talon/OpenShell
+  # authorization proof. No API keys or external infrastructure credentials.
+  claude-incident-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check the exact action/MCP transport contract offline
+        run: make incident-contract-test
+      - name: Validate real PostgreSQL 28P01 and fixed staging-only reconciliation
+        run: make incident-fixture-validate
