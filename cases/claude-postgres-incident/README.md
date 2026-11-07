@@ -61,6 +61,16 @@ This performs a fixture-only loopback call to the trusted executor to check that
 
 The command resets and removes its disposable database volumes using `docker compose down -v` on exit. It never mounts `/var/run/docker.sock` into the sandbox or calls a real cloud API. Compose exposes only the executor at 127.0.0.1:9080. Do not run on a shared host with untrusted local users.
 
+## Published Talon Action Gateway preflight (separate from OpenShell proof)
+
+On a Linux Docker host with an installed, pinned `talon` executable (baseline `v1.16.0`):
+
+```bash
+make incident-talon-preflight
+```
+
+The preflight starts the same disposable PostgreSQL fixture and a real local Talon process. It uses a **host-only, synthetic Talon agent key**, then checks the actual company-sourced `volume_delete` DENY, a real external `oncall` principal's exact approval, zero effects from approval itself, one authorized staging mutation, replay/argument conflict and Talon's signed operation verifier. This is an early **API compatibility preflight only**: it does not use the verified OpenShell workload hop and is **not C06–C09 acceptance**. The later #42/#43 integrated sandbox run must independently prove those criteria through the authenticated OpenShell identity path.
+
 ## Talon configuration and provider integration
 
 The Talon configuration in `config/agent.talon.yaml.template` contains all **six** action definitions, strict argument JSON schemas, reviewer projections and explicit HTTP destinations. The company-owned fragment is `config/company.talon.fragment.yaml`. Merge these into the **existing** Full Demo generated Talon configuration; do not run a second Talon or weaken an existing company policy. The action use case's `workload_identity.bindings[0].subject` must be replaced with the real verified OpenShell sandbox ID before Talon validation/restart, and the corresponding Talon key must exist **in Talon's vault, never the sandbox**.
