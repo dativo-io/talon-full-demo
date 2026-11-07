@@ -203,9 +203,9 @@ jobs:
         with:
           go-version: "1.26.10"
           cache: false
-      - name: Install released Talon v1.16.0, not source main
+      - name: Install Talon source tag v1.16.1 for incident action contract
         run: |
-          go install github.com/dativo-io/talon/cmd/talon@v1.16.0
+          go install github.com/dativo-io/talon/cmd/talon@v1.16.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           "$(go env GOPATH)/bin/talon" version
       - name: Real Talon policy + external approval + dispatch against synthetic PostgreSQL
