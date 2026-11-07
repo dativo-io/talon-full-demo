@@ -124,10 +124,25 @@ actions:
         success: {status_codes: [200]}
 
 policies:
+  # Match People Analytics' explicit operational budget posture. Claude Code
+  # may use more tokens than a single workforce request, so the per-session
+  # cap is deliberately higher and must be verified in the live #42 lane.
   cost_limits:
+    per_request: 1.00
+    daily: 10.00
     monthly: 100.00
+  session_limits:
+    max_cost: 2.00
   approvals:
     expires_after: 30m
+
+# As in People Analytics, the application emits safe diagnostics; Talon stores
+# decision/usage facts without retaining raw prompts, responses or DB secrets.
+audit:
+  log_level: detailed
+  retention_days: 30
+  include_prompts: false
+  include_responses: false
 
 metadata:
   team: platform-engineering
