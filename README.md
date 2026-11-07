@@ -13,11 +13,19 @@ The support, n8n and Copilot cases provide their own evidence projections. The P
 
 See [Audience-specific demo views](docs/AUDIENCE_DEMOS.md) for the full command matrix and truth boundaries.
 
-## Proposed Claude Code × OpenShell incident demo — contract-first
+## Claude Code × OpenShell: OrderDesk incident (active implementation)
 
-The planned **OrderDesk PostgreSQL incident** case combines a credential-drift staging recovery, a contained malicious Claude Code hook, and a company-governed denial of a simulated production volume deletion. It is a **proposed integration, not a shipped demo**.
+The [OrderDesk PostgreSQL incident](cases/claude-postgres-incident/README.md) is being built **application first**, like the [People Analytics Copilot](cases/people-analytics-copilot/README.md): a real PostgreSQL-backed business endpoint fails after staging credential drift; Talon then governs the agent's proposed repair through the **exact-action HTTP Gateway**, while OpenShell separately controls sandbox network egress and a malicious synthetic hook. This is an **active implementation**, not a shipped demo. See [draft PR #45](https://github.com/dativo-io/talon-full-demo/pull/45).
 
-**Authoritative consumer-side contract:** [Claude/Postgres incident contract](docs/CLAUDE_POSTGRES_INCIDENT_CONTRACT.md). It defines supported versus unverified Talon capabilities, action/approval interfaces, trust boundaries, 12 mandatory proof gates and cross-repository responsibilities. The case must not be described as released until its real-runtime and published-artifact gates pass.
+A standalone real PostgreSQL application fixture and a separate, real-Talon HTTP Action Gateway host-key preflight are covered in CI. For reproducible **no-provider-key** checks:
+
+```bash
+make incident-contract-test        # closed action/MCP bridge contract
+make incident-fixture-validate     # real Postgres outage and business recovery; NO Talon
+make incident-talon-preflight      # real tagged Talon v1.16.1, company deny/approval/evidence
+```
+
+The full Claude/OpenShell delegated workload hop, real model-led recovery, hook containment, and shared signed-session buyer/technical proof are **not yet accepted**. These tests must not be presented as finished C01–C12. The [ratified consumer-side contract](docs/CLAUDE_POSTGRES_INCIDENT_CONTRACT.md), [case CI coverage](cases/claude-postgres-incident/CI_COVERAGE.md), and [People Analytics comparison](cases/claude-postgres-incident/README.md#5-validate-in-layers-as-in-people-analytics) document the boundary precisely. Talon's v1.16.1 **source tag** exists; separately verify release assets for a clean-room public demonstration.
 
 ## People Analytics (standalone)
 
