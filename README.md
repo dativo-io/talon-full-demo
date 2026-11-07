@@ -25,7 +25,7 @@ make incident-fixture-validate     # real Postgres outage and business recovery;
 make incident-talon-preflight      # real tagged Talon v1.16.1, company deny/approval/evidence
 ```
 
-The full Claude/OpenShell delegated workload hop, real model-led recovery, hook containment, and shared signed-session buyer/technical proof are **not yet accepted**. These tests must not be presented as finished C01–C12. The [ratified consumer-side contract](docs/CLAUDE_POSTGRES_INCIDENT_CONTRACT.md), [case CI coverage](cases/claude-postgres-incident/CI_COVERAGE.md), and [People Analytics comparison](cases/claude-postgres-incident/README.md#5-validate-in-layers-as-in-people-analytics) document the boundary precisely. Talon's v1.16.1 **source tag** exists; separately verify release assets for a clean-room public demonstration.
+The full Claude/OpenShell delegated workload hop, real model-led recovery, hook containment, and shared signed-session buyer/technical proof are **not yet accepted**. These tests must not be presented as finished C01–C12. The [ratified consumer-side contract](docs/CLAUDE_POSTGRES_INCIDENT_CONTRACT.md), [case CI coverage](cases/claude-postgres-incident/CI_COVERAGE.md), and [People Analytics comparison](cases/claude-postgres-incident/README.md#5-validate-in-layers-as-in-people-analytics) document the boundary precisely. Talon v1.16.1 is now published with Linux/macOS artifacts and an OpenShell showcase manifest; independently verify the downloaded asset hashes and clean-room installation before a public demo.
 
 ## People Analytics (standalone)
 
