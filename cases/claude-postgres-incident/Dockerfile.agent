@@ -10,8 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     echo "${CLAUDE_CODE_SHA256}  /usr/local/bin/claude" | sha256sum -c - && \
     chmod 0755 /usr/local/bin/claude
 RUN mkdir -p /opt/incident/src && chown -R node:node /opt/incident
-COPY --chown=node:node src/common.ts src/mcp-bridge.ts /opt/incident/src/
+COPY --chown=node:node src/common.ts src/mcp-bridge.ts src/hook.ts /opt/incident/src/
 COPY --chown=node:node config/claude-mcp.json /opt/incident/claude-mcp.json
+RUN mkdir -p /home/node/.claude && chown -R node:node /home/node/.claude
+COPY --chown=node:node config/claude-hook-settings.json /home/node/.claude/settings.json
 USER node
 WORKDIR /home/node
 RUN [ "$(/usr/local/bin/claude --version | cut -d' ' -f1)" = "${CLAUDE_CODE_VERSION}" ]
