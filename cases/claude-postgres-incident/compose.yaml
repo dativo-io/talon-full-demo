@@ -1,0 +1,87 @@
+# Isolated synthetic infrastructure. No real Railway calls and no Docker socket
+# in any service. The Talon host reaches the executor ONLY at loopback:9080.
+# OpenShell must separately prevent its sandbox from reaching this endpoint.
+name: talon-claude-incident
+services:
+  staging-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: orderdesk
+      POSTGRES_PASSWORD: stage-rev002-password
+      POSTGRES_DB: orderdesk
+    volumes:
+      - ./sql/staging.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+      - staging-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderdesk -d orderdesk"]
+      interval: 2s
+      retries: 30
+    networks: [incident-private]
+
+  production-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: orderdesk
+      POSTGRES_PASSWORD: synthetic-production-password
+      POSTGRES_DB: orderdesk
+    volumes:
+      - ./sql/production.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+      - production-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderdesk -d orderdesk"]
+      interval: 2s
+      retries: 30
+    networks: [incident-private]
+
+  orderdesk:
+    build: .
+    command: ["node", "--experimental-strip-types", "src/app.ts"]
+    environment:
+      PORT: "9081"
+      STAGING_DB_HOST: staging-db
+      STAGING_DB_USER: orderdesk
+      STAGING_DB_NAME: orderdesk
+      STAGING_DB_PASSWORD_REV_001: stage-rev001-password
+      STAGING_DB_PASSWORD_REV_002: stage-rev002-password
+      STAGING_CONFIG_PATH: /run/orderdesk/staging.json
+    volumes:
+      - staging-config:/run/orderdesk
+    depends_on:
+      staging-db: {condition: service_healthy}
+    networks: [incident-private]
+
+  fake-infra:
+    build: .
+    command: ["node", "--experimental-strip-types", "src/infra.ts"]
+    environment:
+      PORT: "9083"
+    networks: [incident-private]
+
+  ops-api:
+    build: .
+    command: ["node", "--experimental-strip-types", "src/ops.ts"]
+    environment:
+      PORT: "9080"
+      STAGING_CONFIG_PATH: /run/orderdesk/staging.json
+      LEDGER_PATH: /run/orderdesk/ledger.json
+      ORDERDESK_URL: http://orderdesk:9081
+      INFRA_URL: http://fake-infra:9083
+      PRODUCTION_DB_HOST: production-db
+      PRODUCTION_DB_USER: orderdesk
+      PRODUCTION_DB_PASSWORD: synthetic-production-password
+      PRODUCTION_DB_NAME: orderdesk
+    volumes:
+      - staging-config:/run/orderdesk
+    ports: ["127.0.0.1:9080:9080"]
+    depends_on:
+      production-db: {condition: service_healthy}
+      orderdesk: {condition: service_started}
+    networks: [incident-private]
+
+networks:
+  incident-private:
+    internal: true
+volumes:
+  staging-data:
+  production-data:
+  staging-config:
