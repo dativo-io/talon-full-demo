@@ -33,6 +33,14 @@ jq -e '.production.rowCount == 1000 and .production.amountSum == "55555500" and
   { echo "FAIL synthetic initial state" >&2; cat "$state" >&2; exit 1; }
 echo "PASS baseline: real staging SQLSTATE 28P01, 1000 synthetic production rows"
 
+# Verify the observer role used by the staging repair executor cannot modify
+# synthetic production. Merely being a trusted process is not a DB grant.
+role_privileges="$("${compose[@]}" exec -T production-db sh -c \
+  'PGPASSWORD=synthetic-production-readonly-password psql -h 127.0.0.1 -U production_observer -d orderdesk -At -c "SELECT has_table_privilege(current_user, '\''orders'\'', '\''INSERT,UPDATE,DELETE'\'')"' )"
+[[ "$role_privileges" == f ]] || { echo "FAIL: production observer unexpectedly has write grants" >&2; exit 1; }
+echo "PASS: protected executor production observer has no write grants"
+
+
 # Ensure the independent collector is ACTUALLY reachable from an authorized
 # host. Otherwise a later sandbox non-delivery result could be a false positive.
 curl -fsS --max-time 5 http://127.0.0.1:9084/healthz |
