@@ -124,6 +124,8 @@ actions:
         success: {status_codes: [200]}
 
 policies:
+  cost_limits:
+    monthly: 100.00
   approvals:
     expires_after: 30m
 
