@@ -63,7 +63,7 @@ services:
     environment:
       PORT: "9084"
     ports: ["127.0.0.1:9084:9084"]
-    networks: [incident-private]
+    networks: [incident-private, incident-edge]
 
   ops-api:
     build: .
@@ -81,14 +81,11 @@ services:
     volumes:
       - staging-config:/run/orderdesk
     ports: ["127.0.0.1:9080:9080"]
+    networks: [incident-private, incident-edge]
     depends_on:
       production-db: {condition: service_healthy}
       orderdesk: {condition: service_started}
-    networks: [incident-private]
-
-networks:
-  incident-private:
-    internal: true
+\nnetworks:\n  incident-private:\n    internal: true\n  incident-edge:\n    driver: bridge
 volumes:
   staging-data:
   production-data:
