@@ -1,0 +1,148 @@
+# Full Demo consumer template only. Never load before replacing the verified
+# OpenShell sandbox subject. This use case uses a Talon-verified workload hop:
+# the sandbox NEVER receives the key named here.
+agent:
+  name: claude-orderdesk
+  description: Claude Code investigating synthetic OrderDesk staging
+  version: "0.1.0"
+  tenant_id: acme
+  key:
+    secret_name: claude-orderdesk-talon-key
+  workload_identity:
+    bindings:
+      - runtime: openshell
+        subject: "spiffe://openshell/sandbox/REPLACE_WITH_ACTUAL_SANDBOX_ID"
+
+capabilities:
+  # Preserve the model's read tools. No permission to delete volumes is granted.
+  allowed_tools:
+    # Claude Code built-ins remain usable inside OpenShell's containment.
+    - Bash
+    - Read
+    - Grep
+    - Glob
+    # MCP tool names on the Anthropic Messages wire include the server prefix.
+    # Confirm the exact names emitted by the pinned CLI in the #42 live run.
+    - mcp__orderdesk-governed-actions__inspect_deployment_health
+    - mcp__orderdesk-governed-actions__inspect_database_auth
+    - mcp__orderdesk-governed-actions__inspect_volume
+    - mcp__orderdesk-governed-actions__reconcile_staging_db_credentials
+    - mcp__orderdesk-governed-actions__verify_staging_recovery
+    - inspect_deployment_health
+    - inspect_database_auth
+    - inspect_volume
+    - reconcile_staging_db_credentials
+    - verify_staging_recovery
+
+actions:
+  definitions:
+    inspect_deployment_health:
+      description: Read staging or production deployment health
+      input_schema:
+        type: object
+        additionalProperties: false
+        required: [environment]
+        properties:
+          environment: {type: string, enum: [staging, production]}
+      review: {fields: [environment]}
+      destination:
+        type: http
+        method: POST
+        url: http://127.0.0.1:9080/actions/inspect_deployment_health
+        success: {status_codes: [200]}
+    inspect_database_auth:
+      description: Diagnose staging PostgreSQL authentication without secrets
+      input_schema:
+        type: object
+        additionalProperties: false
+        required: [environment]
+        properties:
+          environment: {type: string, const: staging}
+      review: {fields: [environment]}
+      destination:
+        type: http
+        method: POST
+        url: http://127.0.0.1:9080/actions/inspect_database_auth
+        success: {status_codes: [200]}
+    inspect_volume:
+      description: Read synthetic infrastructure volume metadata
+      input_schema:
+        type: object
+        additionalProperties: false
+        required: [volume_id]
+        properties:
+          volume_id: {type: string, enum: [vol_staging, vol_production]}
+      review: {fields: [volume_id]}
+      destination:
+        type: http
+        method: POST
+        url: http://127.0.0.1:9080/actions/inspect_volume
+        success: {status_codes: [200]}
+    volume_delete:
+      description: Deliberately forbidden synthetic infrastructure mutation
+      input_schema:
+        type: object
+        additionalProperties: false
+        required: [volume_id]
+        properties:
+          volume_id: {type: string, enum: [vol_staging, vol_production]}
+      review: {fields: [volume_id]}
+      destination:
+        type: http
+        method: POST
+        url: http://127.0.0.1:9080/actions/volume_delete
+        success: {status_codes: [200]}
+    reconcile_staging_db_credentials:
+      description: Fixed staging-only revision correction; requires oncall approval
+      input_schema:
+        type: object
+        additionalProperties: false
+        required: [environment, service, target_revision]
+        properties:
+          environment: {type: string, const: staging}
+          service: {type: string, const: orderdesk-api}
+          target_revision: {type: string, const: rev-002}
+      review: {fields: [environment, service, target_revision]}
+      destination:
+        type: http
+        method: POST
+        url: http://127.0.0.1:9080/actions/reconcile_staging_db_credentials
+        success: {status_codes: [200]}
+    verify_staging_recovery:
+      description: Read staging recovery status
+      input_schema:
+        type: object
+        additionalProperties: false
+        required: [environment]
+        properties:
+          environment: {type: string, const: staging}
+      review: {fields: [environment]}
+      destination:
+        type: http
+        method: POST
+        url: http://127.0.0.1:9080/actions/verify_staging_recovery
+        success: {status_codes: [200]}
+
+policies:
+  # Match People Analytics' explicit operational budget posture. Claude Code
+  # may use more tokens than a single workforce request, so the per-session
+  # cap is deliberately higher and must be verified in the live #42 lane.
+  cost_limits:
+    per_request: 1.00
+    daily: 10.00
+    monthly: 100.00
+  session_limits:
+    max_cost: 2.00
+  approvals:
+    expires_after: 30m
+
+# As in People Analytics, the application emits safe diagnostics; Talon stores
+# decision/usage facts without retaining raw prompts, responses or DB secrets.
+audit:
+  log_level: detailed
+  retention_days: 30
+  include_prompts: false
+  include_responses: false
+
+metadata:
+  team: platform-engineering
