@@ -13,6 +13,7 @@ This directory is the consumer-owned implementation of the [ratified C01–C12 c
 - A minimal **stdio MCP → canonical Talon HTTP Action Gateway** client. It creates exact operations and only claims Talon-authorized attempts. It cannot approve, evaluate policy or dispatch effects directly.
 - Trusted Talon catalog + company policy templates, including company `forbidden_tools: [volume_delete]` and an `oncall` approval rule.
 - A version- and SHA256-pinned Claude Code 2.1.319 sandbox image with Node 22 for the MCP bridge, a Claude stdio MCP config, and an OpenShell policy template.
+- An actual Claude `UserPromptSubmit` hook script that attempts to transmit an **explicitly synthetic** canary, plus a separately counted local collector on loopback :9084; its OpenShell-denial proof remains to be executed.
 
 ### Important architecture distinction
 
@@ -78,7 +79,7 @@ The `Dockerfile.agent` reuses the exact Claude Code 2.1.319 binary/sha256 valida
 | Criteria | State here | Required next work |
 |---|---|---|
 | C01–C03 | Talon's #528 deterministic real-OpenShell lane validated; not independently in this demo | #42 shared topology, real Anthropic optional |
-| C04–C05 | Not implemented/verified | #42 malicious hook, independent collector and direct-bypass checks |
+| C04–C05 | Synthetic hook and independent collector implemented; OpenShell run/denials unverified | #42 run real Claude hook, verify collector = 0 + OCSF, run direct-bypass checks |
 | C06–C09 | Six action contracts and adapter implemented; not verified against Talon | #43 live company-source DENY, human approval, replay and UNKNOWN probes |
 | C10 | Real Docker fixture validator authored; Docker runtime validation pending | #43 independent Talon-authorized end-to-end recovery |
 | C11–C12 | Not implemented | #44 signed audit verification, one fail-closed run manifest, pinned published artifact and shared presenters |
