@@ -85,7 +85,12 @@ services:
     depends_on:
       production-db: {condition: service_healthy}
       orderdesk: {condition: service_started}
-\nnetworks:\n  incident-private:\n    internal: true\n  incident-edge:\n    driver: bridge
+
+networks:
+  incident-private:
+    internal: true
+  incident-edge:
+    driver: bridge
 volumes:
   staging-data:
   production-data:
