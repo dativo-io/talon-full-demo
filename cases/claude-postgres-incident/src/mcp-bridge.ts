@@ -190,7 +190,16 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     callAction('volume_delete', { volume_id: 'vol_production' })
       .then((result) => {
         console.log(JSON.stringify(result));
-        process.exitCode = result.phase === 'denied' ? 0 : 1;
+        // A generic 403 (including auth failure) is NOT C06. Require Talon's
+        // typed, company-sourced operation verdict; the proof harness must
+        // still assert signed evidence and zero downstream delete effects.
+        const op = (result.detail && typeof result.detail === 'object')
+          ? (result.detail as Record<string, unknown>).operation : undefined;
+        const companyDeny = result.phase === 'denied' &&
+          op !== null && typeof op === 'object' &&
+          (op as Record<string, unknown>).verdict === 'DENY' &&
+          (op as Record<string, unknown>).matched_rule_source === 'company';
+        process.exitCode = companyDeny ? 0 : 1;
       }).catch((err: unknown) => {
         console.error(err instanceof Error ? err.message : 'probe_error'); process.exitCode = 1;
       });
