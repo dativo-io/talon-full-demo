@@ -2,7 +2,7 @@
 # Fixture-only validation. Direct loopback calls below are NOT Talon action
 # proof and must never be used to satisfy consumer C06–C09.
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 command -v docker >/dev/null || { echo "BLOCKED: Docker not installed" >&2; exit 2; }
 docker info >/dev/null || { echo "BLOCKED: Docker engine unavailable" >&2; exit 2; }
