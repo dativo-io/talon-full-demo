@@ -71,8 +71,8 @@ request() {
   local url="$1" body="$2" actor="${3:-agent}"
   local token="$AGENT_KEY"
   [[ "$actor" != reviewer ]] || token="$REVIEW_TOKEN"
-  CODE="$(curl -sS --max-time 10 -o "$WORK/result.json" -w '%{http_code}' -X POST
-    -H "Authorization: Bearer $token" -H 'Content-Type: application/json'
+  CODE="$(curl -sS --max-time 10 -o "$WORK/result.json" -w '%{http_code}' -X POST \
+    -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
     --data "$body" "http://127.0.0.1:18080$url")"
 }
 fail() { echo "FAIL: $*" >&2; cat "$WORK/result.json" >&2; exit 1; }
