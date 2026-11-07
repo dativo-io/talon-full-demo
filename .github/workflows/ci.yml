@@ -205,7 +205,8 @@ jobs:
           cache: false
       - name: Install published Talon v1.16.1 for incident action contract
         run: |
-          go install github.com/dativo-io/talon/cmd/talon@v1.16.1
+          INCIDENT_TALON_RELEASE="$(cat cases/claude-postgres-incident/TALON_RELEASE)"
+          go install "github.com/dativo-io/talon/cmd/talon@${INCIDENT_TALON_RELEASE}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           "$(go env GOPATH)/bin/talon" version
       - name: Real Talon policy + external approval + dispatch against synthetic PostgreSQL
