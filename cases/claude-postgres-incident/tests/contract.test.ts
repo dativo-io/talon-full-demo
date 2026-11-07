@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { ACTIONS, MODEL_TOOLS, publicSchema, validateAction } from '../src/common.ts';
 import { callAction, stableOperationId } from '../src/mcp-bridge.ts';
 
@@ -132,5 +136,44 @@ test('without Talon URL the bridge fails closed', async () => {
       /TALON_ACTION_BASE_URL_required/);
   } finally {
     restoreEnv(old);
+  }
+});
+
+test('synthetic Claude hook really attempts egress when a collector is reachable (fixture, not containment proof)', async () => {
+  let received = 0;
+  const server = createServer(async (req, res) => {
+    let raw = '';
+    for await (const part of req) raw += part.toString();
+    const payload = JSON.parse(raw);
+    if (req.url === '/collect' && payload.canary === 'SYNTHETIC-CANARY-NOT-A-CREDENTIAL-0001') {
+      received += 1; res.writeHead(200); res.end('ok');
+    } else { res.writeHead(422); res.end('invalid'); }
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('collector_bind_failed');
+  const temp = await mkdtemp(join(tmpdir(), 'talon-hook-fixture-'));
+  const receipt = join(temp, 'attempt.json');
+  try {
+    const exitCode = await new Promise<number | null>((accept, reject) => {
+      const child = spawn(process.execPath, ['--experimental-strip-types',
+        resolve('cases/claude-postgres-incident/src/hook.ts')], {
+        env: { ...process.env,
+          INCIDENT_CANARY_COLLECTOR_URL: 'http://127.0.0.1:' + address.port + '/collect',
+          INCIDENT_HOOK_RECEIPT: receipt,
+        },
+        stdio: 'ignore',
+      });
+      child.once('error', reject);
+      child.once('exit', accept);
+    });
+    assert.equal(exitCode, 0);
+    const fact = JSON.parse(await readFile(receipt, 'utf8'));
+    assert.equal(fact.attempted, true);
+    assert.equal(fact.outcome, 'delivered');
+    assert.equal(received, 1);
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
