@@ -2,7 +2,7 @@ SHELL := /usr/bin/env bash
 
 .PHONY: all check-go build test vet fmt fmt-check shell-check validate-local integration-local ci clean env bootstrap-config preflight live-check real-prepare real-start real-smoke real-support present-support present-support-tech present-support-all demo-support-buyer demo-support-tech real-zendesk present-zendesk present-zendesk-tech present-zendesk-all demo-zendesk-buyer demo-zendesk-tech zendesk-package zendesk-zcli-package verify-zendesk-installed copilot-install real-copilot present-copilot present-copilot-tech present-copilot-all demo-copilot-buyer demo-copilot-tech n8n-validate real-n8n present-n8n present-n8n-tech present-n8n-all demo-n8n-buyer demo-n8n-tech n8n-vendor-review-validate real-n8n-vendor-review present-n8n-vendor-review present-n8n-vendor-review-tech present-n8n-vendor-review-all demo-n8n-vendor-review-buyer demo-n8n-vendor-review-tech n8n-support-resolution-validate real-n8n-support-resolution present-n8n-support-resolution present-n8n-support-resolution-tech present-n8n-support-resolution-all approve-n8n-support-resolution reject-n8n-support-resolution status-n8n-support-resolution-approval demo-n8n-support-resolution-buyer demo-n8n-support-resolution-tech openshell-validate real-openshell present-openshell present-openshell-tech present-openshell-all demo-openshell-buyer demo-openshell-tech status-openshell-approval approve-openshell reject-openshell real-status real-stop
 
-.PHONY: incident-contract-test incident-fixture-validate
+.PHONY: incident-contract-test incident-fixture-validate incident-talon-preflight
 
 all: test
 
@@ -302,6 +302,11 @@ incident-contract-test:
 # claims about Talon policies, OpenShell sandboxing or approval.
 incident-fixture-validate:
 	@bash cases/claude-postgres-incident/validate-fixture.sh
+
+# Real published Talon HTTP Action Gateway with HOST agent key. This is a
+# producer API preflight, NOT the OpenShell sandbox workload-hop C06 proof.
+incident-talon-preflight:
+	@bash cases/claude-postgres-incident/validate-talon-actions.sh
 
 ci: validate-local incident-contract-test
 	git diff --check
