@@ -75,8 +75,8 @@ services:
       ORDERDESK_URL: http://orderdesk:9081
       INFRA_URL: http://fake-infra:9083
       PRODUCTION_DB_HOST: production-db
-      PRODUCTION_DB_USER: orderdesk
-      PRODUCTION_DB_PASSWORD: synthetic-production-password
+      PRODUCTION_DB_USER: production_observer
+      PRODUCTION_DB_PASSWORD: synthetic-production-readonly-password
       PRODUCTION_DB_NAME: orderdesk
     volumes:
       - staging-config:/run/orderdesk
