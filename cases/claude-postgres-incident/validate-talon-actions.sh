@@ -32,7 +32,6 @@ export TALON_SECRETS_KEY="$(openssl rand -hex 32)"
 export TALON_SIGNING_KEY="$(openssl rand -hex 32)"
 export TALON_ADMIN_KEY="$(openssl rand -hex 24)"
 AGENT_KEY="talon-host-preflight-$(openssl rand -hex 10)"
-SESSION_ID="incident-host-preflight-001" # one synthetic, ephemeral run/session
 cp config/agent.talon.yaml.template "$WORK/agent.talon.yaml"
 sed -i 's/REPLACE_WITH_ACTUAL_SANDBOX_ID/host-preflight-not-a-sandbox/' "$WORK/agent.talon.yaml"
 cat >"$WORK/talon.config.yaml" <<'YAML'
@@ -74,7 +73,6 @@ request() {
   [[ "$actor" != reviewer ]] || token="$REVIEW_TOKEN"
   CODE="$(curl -sS --max-time 10 -o "$WORK/result.json" -w '%{http_code}' -X POST \
     -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
-    -H "X-Talon-Session-ID: $SESSION_ID" \
     --data "$body" "http://127.0.0.1:18080$url")"
 }
 fail() { echo "FAIL: $*" >&2; cat "$WORK/result.json" >&2; exit 1; }
@@ -107,14 +105,9 @@ jq -e '.staging.httpStatus==200 and .orderdeskBusiness.httpStatus==200 and
   .orderdeskBusiness.body.orders.totalAmountCents==4598 and .production.rowCount==1000 and .production.amountSum=="55555500" and .dispatchCounts.reconcile_staging_db_credentials==1 and .infrastructure.volumeDeleteCalls==0' "$WORK/snapshot.json" >/dev/null || fail "recovery, production or effect counts wrong"
 (cd "$WORK" && "$TALON" audit verify --operation host-repair-1 >/dev/null && "$TALON" audit verify --operation host-deny-1 >/dev/null) ||
   fail "signed Talon operation verification"
-# Like People Analytics, verify the whole session rather than treating a
-# chosen application log or one operation's receipt as an audit timeline.
-(cd "$WORK" && 
-  "$TALON" audit export --format signed-json --session "$SESSION_ID" --output "$WORK/session-signed.json" >/dev/null &&
-  "$TALON" audit verify --file "$WORK/session-signed.json" >/dev/null &&
-  "$TALON" audit verify --session "$SESSION_ID" >/dev/null) ||
-  fail "signed session export/verification"
-jq -e '.records | length >= 3' "$WORK/session-signed.json" >/dev/null ||
-  fail "signed session does not cover denied, pending and dispatched actions"
-echo "PASS: real Talon host-key approval, zero preapproval effects, one dispatch, no replay, signed operation + session verification"
+# IMPORTANT: Talon deliberately leaves SessionID and verified workload fields
+# EMPTY on host-agent-key action operations. Only an OpenShell-authenticated hop
+# can produce C11 signed action/session attribution; do not forge this through
+# a client-asserted X-Talon-Session-ID on the host-key preflight.
+echo "PASS: real Talon host-key approval, zero preapproval effects, one dispatch, no replay, signed operation lifecycle verification"
 echo "NOT PROVEN: OpenShell verified workload hop, containment, Claude runtime, consumer C06–C12"
