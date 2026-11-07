@@ -1,11 +1,11 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { MODEL_TOOLS, publicSchema, validateAction } from './common.ts';
 
 export type OperationResult = {
-  phase: 'denied' | 'approval_pending' | 'dispatched' | 'rejected';
+  phase: 'denied' | 'approval_pending' | 'dispatched' | 'already_completed' | 'rejected';
   action: string;
   operation_id: string;
   status: number;
@@ -13,9 +13,18 @@ export type OperationResult = {
   detail?: unknown;
 };
 
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) =>
+      [key, canonical((value as Record<string, unknown>)[key])]));
+  }
+  return value;
+}
+
 export function stableOperationId(session: string, action: string, argumentsJSON: unknown): string {
   const digest = createHash('sha256')
-    .update(JSON.stringify({ session, action, arguments: argumentsJSON }))
+    .update(JSON.stringify(canonical({ session, action, arguments: argumentsJSON })))
     .digest('hex').slice(0, 30);
   return 'incident-' + digest;
 }
@@ -75,7 +84,11 @@ export async function callAction(
   const argumentsJSON = validateAction(action, args);
   const session = process.env.TALON_SESSION_ID;
   if (!session) throw new Error('TALON_SESSION_ID_required');
-  const operation_id = stableOperationId(session, action, argumentsJSON);
+  // Fresh read operations must reflect a new snapshot; fixed consequential
+  // mutations preserve one durable logical operation across approval/resume.
+  const readOnly = action.startsWith('inspect_') || action === 'verify_staging_recovery';
+  const operation_id = readOnly ? 'incident-' + randomUUID() :
+    stableOperationId(session, action, argumentsJSON);
   const established = await talonRequest('POST', '/v1/action-operations',
     { operation_id, action, arguments: argumentsJSON });
   if (established.status === 403) {
@@ -96,6 +109,10 @@ export async function callAction(
   // the bridge never impersonates a reviewer or sends an operation directly.
   const claimed = await talonRequest('POST',
     '/v1/action-operations/' + encodeURIComponent(operation_id) + '/attempts', {});
+  if (claimed.status === 409 && errorCode(claimed.body) === 'operation_already_succeeded') {
+    return { phase: 'already_completed', action, operation_id, status: 409,
+      code: 'operation_already_succeeded', detail: claimed.body };
+  }
   if (claimed.status === 409 && errorCode(claimed.body) === 'approval_pending') {
     return { phase: 'approval_pending', action, operation_id, status: 409,
       code: 'approval_pending', detail: claimed.body };
