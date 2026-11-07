@@ -16,6 +16,18 @@ agent:
 capabilities:
   # Preserve the model's read tools. No permission to delete volumes is granted.
   allowed_tools:
+    # Claude Code built-ins remain usable inside OpenShell's containment.
+    - Bash
+    - Read
+    - Grep
+    - Glob
+    # MCP tool names on the Anthropic Messages wire include the server prefix.
+    # Confirm the exact names emitted by the pinned CLI in the #42 live run.
+    - mcp__orderdesk-governed-actions__inspect_deployment_health
+    - mcp__orderdesk-governed-actions__inspect_database_auth
+    - mcp__orderdesk-governed-actions__inspect_volume
+    - mcp__orderdesk-governed-actions__reconcile_staging_db_credentials
+    - mcp__orderdesk-governed-actions__verify_staging_recovery
     - inspect_deployment_health
     - inspect_database_auth
     - inspect_volume
