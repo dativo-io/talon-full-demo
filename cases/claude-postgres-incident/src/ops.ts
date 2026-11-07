@@ -58,6 +58,10 @@ async function stagingHealth(): Promise<{ httpStatus: number; body: unknown }> {
   return fetchJSON(orderdeskUrl + '/health');
 }
 
+async function businessSummary(): Promise<{ httpStatus: number; body: unknown }> {
+  return fetchJSON(orderdeskUrl + '/api/orders/summary');
+}
+
 async function productionState(): Promise<{ rowCount: number; amountSum: string }> {
   const result = await db.query('SELECT count(*)::integer AS count, sum(amount_cents)::text AS amount_sum FROM orders');
   return { rowCount: result.rows[0].count, amountSum: result.rows[0].amount_sum };
@@ -109,7 +113,16 @@ async function effect(action: string, args: Record<string, unknown>): Promise<un
     }
     case 'verify_staging_recovery': {
       const health = await stagingHealth();
-      return { status: health.httpStatus === 200 ? 'recovered' : 'unhealthy', health: health.body };
+      const business = await businessSummary();
+      const summary = isObject(business.body) ? business.body : {};
+      const orders = isObject(summary.orders) ? summary.orders : {};
+      // The result requires real application business functionality, not only
+      // a green TCP connection or SELECT 1. This is exactly the independent
+      // app-level behavior People Analytics validates after Talon policy.
+      const recovered = health.httpStatus === 200 && business.httpStatus === 200
+        && orders.count === 2 && orders.totalAmountCents === 4598;
+      return { status: recovered ? 'recovered' : 'unhealthy',
+        health: health.body, business: business.body };
     }
     default: throw new Error('unknown_action');
   }
@@ -126,6 +139,7 @@ serve(port, async (req, res) => {
       dispatchCounts,
       ledger,
       staging: await stagingHealth(),
+      orderdeskBusiness: await businessSummary(),
       production: await productionState(),
       infrastructure: infra.body,
     });
