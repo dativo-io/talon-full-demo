@@ -93,7 +93,7 @@ class DocumentationContract(unittest.TestCase):
         body=(CASE/"README.md").read_text(encoding="utf-8")
         shots=(CASE/"screenshots"/"README.md").read_text(encoding="utf-8")
         spec=(CASE/"compose.isolated.yaml").read_text(encoding="utf-8")
-        match=re.search(r"(?ms)^  talon-ui:\\n(?P<service>.*?)(?=^  [\\w-]+:|\\Z)",spec)
+        match=re.search(r"(?ms)^  talon-ui:\n(?P<service>.*?)(?=^  [\w-]+:|\Z)",spec)
         self.assertIsNotNone(match,"Expected a separately managed talon-ui service")
         service=match.group("service")
         for term in ("talon", "ui", "serve", "--listen", "0.0.0.0:8787",
