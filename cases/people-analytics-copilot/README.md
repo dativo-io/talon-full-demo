@@ -160,7 +160,7 @@ In another terminal, from this same directory and with `HR_DEMO_TALON_BIN` expor
 export HR_DEMO_TALON_BIN="$(command -v talon)"
 HR_DEMO_AI_MODE=live docker compose -f compose.isolated.yaml up --no-deps -d ui
 # Separate read-only operator view; does not restart the gateway or proxy.
-docker compose -f compose.isolated.yaml up -d talon-ui
+docker compose -f compose.isolated.yaml --profile operator up -d talon-ui
 ```
 
 Open **http://127.0.0.1:8501**. Its charts remain backed by DuckDB. SQL requests invoke the `hr_aggregate_sql` MCP tool through Talon, and AI questions use Talon's OpenAI-compatible gateway.
@@ -169,7 +169,7 @@ You can also follow the HR backend and application traces with `docker compose -
 
 This includes Talon process output and the application's separately labeled `HR_AI_TRACE` events. The latter describe requests observed at the application/Talon boundary, **not** a packet capture inside OpenAI. Full prompt and response bodies are not logged by default.
 
-No OpenAI key? Run `docker compose -f compose.isolated.yaml up --build -d talon-mcp talon-ui ui` (after the initialization in step 2). The Workforce app starts in **GUIDED · NO LLM** mode. SQL/MCP policy and signed evidence are still real, but the guided assistant uses deterministic wording. Don't present guided results as model-generated.
+No OpenAI key? Run `docker compose -f compose.isolated.yaml --profile operator up --build -d talon-mcp talon-ui ui` (after the initialization in step 2). The Workforce app starts in **GUIDED · NO LLM** mode. SQL/MCP policy and signed evidence are still real, but the guided assistant uses deterministic wording. Don't present guided results as model-generated.
 
 ### Open Talon's read-only operator console (recommended when explaining a decision)
 
@@ -177,14 +177,14 @@ The two UIs have different jobs. **Workforce app** at [127.0.0.1:8501](http://12
 
 ```bash
 # From cases/people-analytics-copilot: the code is in this service's logs.
-docker compose -f compose.isolated.yaml logs --tail=40 talon-ui
+docker compose -f compose.isolated.yaml --profile operator logs --tail=40 talon-ui
 
 # If the code expired or was used, reissue it inside the console container:
-docker compose -f compose.isolated.yaml exec -T talon-ui talon ui pair
-docker compose -f compose.isolated.yaml logs --tail=20 talon-ui
+docker compose -f compose.isolated.yaml --profile operator exec -T talon-ui talon ui pair
+docker compose -f compose.isolated.yaml --profile operator logs --tail=20 talon-ui
 ```
 
-Open **http://127.0.0.1:8787/** and enter the fresh, single-use pairing code. The browser gets a **read-only session cookie**, not an admin, provider, vault or agent key. Do not expose this port beyond localhost or publish pairing codes in screenshots or shared logs. The Compose service mounts the **same Talon state and policy files**, but runs on `app_net` only (no `private_hr` network); only the evidence **signing** key is passed to it for HMAC verification.
+Open **http://127.0.0.1:8787/** and enter the fresh, single-use pairing code. The browser gets a **read-only session cookie**, not an admin, provider, vault or agent key. Do not expose this port beyond localhost or publish pairing codes in screenshots or shared logs. The **`operator` Compose profile** keeps the console opt-in (the existing CI uses a pinned earlier Talon release). The Compose service mounts the **same Talon state and policy files**, but runs on `app_net` only (no `private_hr` network); only the evidence **signing** key is passed to it for HMAC verification.
 
 **First operator check — System:** confirm the MCP proxy is *running*, the evidence store is readable and a configuration generation is reported. In GUIDED mode the LLM gateway is deliberately not started; because its gateway config exists, it may read *offline*. That does not mean the MCP proxy or the HR application is down. Use **System** for process liveness; the AI Use Cases health metric is derived from recorded activity, not a live probe.
 
