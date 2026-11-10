@@ -101,7 +101,7 @@ class DocumentationContract(unittest.TestCase):
         match=re.search(r"(?ms)^  talon-ui:\n(?P<service>.*?)(?=^  [\w-]+:|\Z)",spec)
         self.assertIsNotNone(match,"Expected a separately managed talon-ui service")
         service=match.group("service")
-        for term in ("talon", "ui", "serve", "--listen", "0.0.0.0:8787",
+        for term in ('profiles: ["operator"]', "talon", "ui", "serve", "--listen", "0.0.0.0:8787",
                      "--allow-non-loopback", "/policies/proxy.isolated.talon.yaml",
                      "/policies/gateway.talon.yaml", "volumes: *talon-volumes",
                      "TALON_SIGNING_KEY:", 'ports: ["127.0.0.1:8787:8787"]',
@@ -109,7 +109,7 @@ class DocumentationContract(unittest.TestCase):
             self.assertIn(term,service)
         for excluded in ("private_hr", "TALON_ADMIN_KEY:", "TALON_SECRETS_KEY:"):
             self.assertNotIn(excluded,service,"Read-only console must not gain HR network or privileged credentials")
-        self.assertIn("docker compose -f compose.isolated.yaml exec -T talon-ui talon ui pair",body)
+        self.assertIn("docker compose -f compose.isolated.yaml --profile operator exec -T talon-ui talon ui pair",body)
         self.assertIn("talon ui serve --help",body)
         self.assertIn("http://127.0.0.1:8787/",body)
         self.assertIn("read-only",body.lower())
