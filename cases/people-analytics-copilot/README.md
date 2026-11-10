@@ -34,7 +34,7 @@ Talon is introduced **between the application and its model/MCP endpoints**. We 
 ```mermaid
 flowchart LR
     B["Workforce browser :8501"]
-    OB["Operator browser :8787"]
+    OperatorBrowser["Operator browser :8787"]
     subgraph AppNet["Application network"]
         W["Workforce application server"]
         A["Read-only chart / aggregate API"]
@@ -53,7 +53,7 @@ flowchart LR
 
     Seed -->|"Creates 1,200 fictional rows"| D
     B -->|"HTTP"| W
-    OB -->|"One-time pairing, read-only"| OC
+    OperatorBrowser -->|"One-time pairing, read-only"| OC
     OC -->|"Read-only evidence and runtime status"| E
     W -->|"Charts and fixed metrics; bypass Talon"| A
     A -->|"Read-only aggregate queries"| D
