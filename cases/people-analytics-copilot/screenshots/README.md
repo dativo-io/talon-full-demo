@@ -2,7 +2,7 @@
 
 The [People Analytics walkthrough](../README.md) includes five **screenshot slots**. They are intentionally text placeholders until a maintainer captures the real running installation; this PR does **not** ship mocked or generated UI screenshots.
 
-Capture these in a browser at `http://127.0.0.1:8787/`, after pairing with the code from `docker compose -f compose.isolated.yaml logs talon-ui`. Save the images in this directory using the filenames below, then replace the corresponding `> **Screenshot slot ...**` text in the case README with a Markdown image:
+Capture these in a browser at `http://127.0.0.1:8787/`, after pairing with the code from `docker compose -f compose.isolated.yaml --profile operator logs talon-ui`. Save the images in this directory using the filenames below, then replace the corresponding `> **Screenshot slot ...**` text in the case README with a Markdown image:
 
 ```markdown
 ![Descriptive screenshot caption](screenshots/01-talon-system.png)
