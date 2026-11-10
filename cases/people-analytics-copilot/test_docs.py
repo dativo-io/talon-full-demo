@@ -7,7 +7,7 @@ import unittest
 
 CASE=Path(__file__).resolve().parent
 ROOT=CASE.parents[1]
-DOCS=[CASE/"README.md",CASE/"CI_COVERAGE.md",ROOT/"README.md",ROOT/"docs"/"AUDIENCE_DEMOS.md"]
+DOCS=[CASE/"README.md",CASE/"CI_COVERAGE.md",CASE/"screenshots"/"README.md",ROOT/"README.md",ROOT/"docs"/"AUDIENCE_DEMOS.md"]
 
 class DocumentationContract(unittest.TestCase):
     def test_links_and_fences(self):
@@ -87,6 +87,35 @@ class DocumentationContract(unittest.TestCase):
         spec=(CASE/"compose.isolated.yaml").read_text()
         self.assertIn("networks: [app_net, private_hr]",spec)
         self.assertIn("volumes: [hr_data:/data:ro]",spec)
+
+    def test_read_only_operator_console_compose_and_walkthrough(self):
+        """The optional operator view must not become a second HR app or an admin surface."""
+        body=(CASE/"README.md").read_text(encoding="utf-8")
+        shots=(CASE/"screenshots"/"README.md").read_text(encoding="utf-8")
+        spec=(CASE/"compose.isolated.yaml").read_text(encoding="utf-8")
+        match=re.search(r"(?ms)^  talon-ui:\\n(?P<service>.*?)(?=^  [\\w-]+:|\\Z)",spec)
+        self.assertIsNotNone(match,"Expected a separately managed talon-ui service")
+        service=match.group("service")
+        for term in ("talon", "ui", "serve", "--listen", "0.0.0.0:8787",
+                     "--allow-non-loopback", "/policies/proxy.isolated.talon.yaml",
+                     "/policies/gateway.talon.yaml", "volumes: *talon-volumes",
+                     "TALON_SIGNING_KEY:", 'ports: ["127.0.0.1:8787:8787"]',
+                     "networks: [app_net]"):
+            self.assertIn(term,service)
+        for excluded in ("private_hr", "TALON_ADMIN_KEY:", "TALON_SECRETS_KEY:"):
+            self.assertNotIn(excluded,service,"Read-only console must not gain HR network or privileged credentials")
+        self.assertIn("docker compose -f compose.isolated.yaml exec -T talon-ui talon ui pair",body)
+        self.assertIn("talon ui serve --help",body)
+        self.assertIn("http://127.0.0.1:8787/",body)
+        self.assertIn("read-only",body.lower())
+        self.assertIn("GUIDED",body)
+        self.assertIn("evidence-observed",body)
+        for screenshot in ("01-talon-system.png", "02-talon-effective-policy.png",
+                           "03-talon-session-timeline.png", "04-talon-evidence-verification.png",
+                           "05-talon-costs-live.png"):
+            self.assertIn("screenshots/"+screenshot,body)
+            self.assertIn(screenshot,shots)
+        self.assertIn("Never include the one-time pairing code",shots)
 
     def test_web_app_does_not_fabricate_employee_access_denials(self):
         app=(CASE/"demo.py").read_text(encoding="utf-8")
