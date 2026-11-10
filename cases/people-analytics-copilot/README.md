@@ -92,9 +92,20 @@ export HR_DEMO_TALON_BIN="$(command -v talon)"
 
 # Local secrets for the Talon vault, audit signatures and admin access.
 # .env is ignored by Git; it contains no OpenAI key.
-umask 077
-printf 'HR_DEMO_SECRETS_KEY=%s\nHR_DEMO_SIGNING_KEY=%s\nHR_DEMO_ADMIN_KEY=%s\nHR_DEMO_UID=%s\nHR_DEMO_GID=%s\n' \
-  "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(id -u)" "$(id -g)" > .env
+# Generate keys ONCE. Keep the same .env as long as .state/talon exists.
+# Re-generating keys over existing secrets.db breaks decryption; replacing
+# the signing key also invalidates verification of existing signed evidence.
+if [ ! -f .env ]; then
+  if [ -e .state/talon/secrets.db ] || [ -e .state/talon/evidence.db ]; then
+    echo "Existing Talon state but no .env: recover the original keys or follow the reset procedure below." >&2
+    exit 1
+  fi
+  umask 077
+  printf 'HR_DEMO_SECRETS_KEY=%s\nHR_DEMO_SIGNING_KEY=%s\nHR_DEMO_ADMIN_KEY=%s\nHR_DEMO_UID=%s\nHR_DEMO_GID=%s\n' \
+    "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(id -u)" "$(id -g)" > .env
+else
+  echo "Reusing existing .env: do not replace its keys while .state/talon contains data."
+fi
 
 mkdir -p .state/policy .state/talon
 docker compose -f compose.isolated.yaml up --build -d seed hr-server dashboard
@@ -102,6 +113,34 @@ docker compose -f compose.isolated.yaml exec -T hr-server python3 warehouse.py s
 ```
 
 DuckDB is an **embedded file**, not a database server. The `hr-server` service has read-only access to it; the separate `dashboard` service exposes fixed aggregate charts. At this point, the LLM/MCP portion has not been connected to Talon.
+
+### Existing state: `cipher: message authentication failed`
+
+If `talon-gateway` repeatedly exits while resolving `hr-analytics-assistant-talon-key`, or `talon-mcp` says the agent identity registry is unavailable, **the vault's encryption key and the current `.env` probably differ**. This is not a Docker build failure. Do not keep regenerating `.env`: `HR_DEMO_SECRETS_KEY` encrypts `secrets.db`; `HR_DEMO_SIGNING_KEY` verifies historical evidence. Changing either while keeping the original state has consequences.
+
+**Preserve old sessions and evidence:** stop the Compose services, then restore the *original* `.env` (both secrets and signing keys) from your secure backup and restart. Do not paste key values into a log, issue or screenshot.
+
+**Fresh synthetic demo, if the old keys cannot be recovered:** back up the Talon state before initializing a clean installation under the existing `.env`. This intentionally starts with a **new** vault, evidence history and session store; the old state remains in the backup folder.
+
+```bash
+# From cases/people-analytics-copilot; stop writers before touching state.
+docker compose -f compose.isolated.yaml --profile live --profile operator down
+backup=".state/talon.backup-$(date +%Y%m%d-%H%M%S)"
+mv .state/talon "$backup"
+mkdir -p .state/talon
+
+# Use the SAME existing .env; do not run the key-generation snippet again.
+docker compose -f compose.isolated.yaml run --rm talon-cli \
+  talon init --scaffold --name hr-analytics-assistant
+cp agent.talon.yaml .state/talon/agent.talon.yaml
+docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
+docker compose -f compose.isolated.yaml run --rm talon-cli \
+  talon secrets set hr-analytics-assistant-talon-key talon-hr-demo-key-0001
+```
+
+For **LIVE** mode, re-store the OpenAI provider secret in the new vault using the instructions below before starting `talon-gateway`; **GUIDED** mode needs no provider key. Keep the backup until any prior data you need is accounted for. Avoid `docker compose down -v`: it would also delete the DuckDB volume, which is unnecessary for this repair.
+
+As an alternative when intentionally retaining the existing state, `talon secrets set` can overwrite individual ciphertext values using the current encryption key (the vault upserts without decrypting an old value). That only repairs the secrets you replace; it **does not recover old secret values or restore HMAC verification** if the original signing key was lost. For accurate screenshots and demo session evidence, prefer restoring both original keys or the clean backed-up state above.
 
 ## 2. Initialize Talon and configure the AI use case
 
