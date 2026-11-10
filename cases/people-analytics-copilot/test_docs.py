@@ -64,8 +64,13 @@ class DocumentationContract(unittest.TestCase):
         self.assertNotIn("L --> D",business)
         self.assertIn("existing charts use a separate read-only analytics path",body)
 
-        # The browser never accesses Talon, OpenAI or the HR backend directly.
+        # The Workforce browser never accesses Talon, OpenAI or the HR
+        # backend directly. The separately paired operator browser connects
+        # only to the read-only Talon console.
         self.assertIn('B -->|"HTTP"| W',topology)
+        self.assertIn('OperatorBrowser -->|"One-time pairing, read-only"| OC',topology)
+        self.assertIn('OC -->|"Read-only evidence and runtime status"| E',topology)
+        self.assertNotIn('OperatorBrowser -->|"HTTP"| H',topology)
         self.assertIn('W <-->|"Tool discovery, calls and receipts"| M',topology)
         self.assertIn('W <-->|"Model requests and responses"| G',topology)
         self.assertIn('M -->|"Allowed tool calls only"| H',topology)
