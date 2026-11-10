@@ -99,6 +99,36 @@ services:
     networks: [app_net]
     restart: unless-stopped
 
+  # Talon operator console: separate read-only process, NOT the Workforce UI.
+  # It sees the same signed evidence and policy files as MCP/gateway, but has
+  # no route to the private HR network and receives no admin/vault credentials.
+  talon-ui:
+    <<: *talon-image
+    user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
+    depends_on:
+      talon-mcp:
+        condition: service_started
+    environment:
+      TALON_DATA_DIR: /state
+      HOME: /state
+      TALON_SIGNING_KEY: ${HR_DEMO_SIGNING_KEY:?Set the evidence signing key in .env}
+    volumes: *talon-volumes
+    working_dir: /state
+    command:
+      - talon
+      - ui
+      - serve
+      - --listen
+      - 0.0.0.0:8787
+      - --allow-non-loopback
+      - --proxy-config
+      - /policies/proxy.isolated.talon.yaml
+      - --gateway-config
+      - /policies/gateway.talon.yaml
+    networks: [app_net]
+    ports: ["127.0.0.1:8787:8787"]
+    restart: unless-stopped
+
   ui:
     <<: *case-image
     command: ["python", "demo.py", "ui"]
