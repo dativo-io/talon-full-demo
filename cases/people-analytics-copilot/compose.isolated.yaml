@@ -104,6 +104,7 @@ services:
   # no route to the private HR network and receives no admin/vault credentials.
   talon-ui:
     <<: *talon-image
+    profiles: ["operator"]
     user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
     depends_on:
       talon-mcp:
