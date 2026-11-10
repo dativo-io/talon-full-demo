@@ -93,6 +93,18 @@ class DocumentationContract(unittest.TestCase):
         self.assertIn("networks: [app_net, private_hr]",spec)
         self.assertIn("volumes: [hr_data:/data:ro]",spec)
 
+    def test_existing_vault_key_continuity_guard(self):
+        """Do not advise regenerating credentials over persisted demo evidence."""
+        body=(CASE/"README.md").read_text(encoding="utf-8")
+        self.assertIn('if [ ! -f .env ]; then',body)
+        self.assertIn('[ -e .state/talon/secrets.db ]',body)
+        self.assertIn('[ -e .state/talon/evidence.db ]',body)
+        self.assertIn('cipher: message authentication failed',body)
+        self.assertIn('HR_DEMO_SECRETS_KEY',body)
+        self.assertIn('HR_DEMO_SIGNING_KEY',body)
+        self.assertIn('mv .state/talon "$backup"',body)
+        self.assertIn('docker compose -f compose.isolated.yaml --profile live --profile operator down',body)
+
     def test_read_only_operator_console_compose_and_walkthrough(self):
         """The optional operator view must not become a second HR app or an admin surface."""
         body=(CASE/"README.md").read_text(encoding="utf-8")
