@@ -69,18 +69,18 @@ flowchart LR
 
 This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The **Workforce browser** reaches only the Workforce application on port 8501; a separate **operator browser** can pair with the read-only Talon operations console on host-loopback port 8787. Neither browser directly reaches the private HR service. The fixed chart API reads the DuckDB **file** via a read-only Docker volume without Talon. DuckDB is embedded, not a network database; the private HR service reads the same volume. The Talon MCP proxy is the only application-side service connected to the private HR network. Talon governs intercepted model requests and MCP capabilities, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
 
-All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2, OpenSSL, Go, and Talon installed.
+All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2 and OpenSSL. Talon itself must come from a verified release artifact; Go is not required.
 
-**Install a Talon binary that includes the read-only operations console** (on the Linux host running Docker). The console is merged on Talon's `main` branch; if a tagged release does not yet contain `talon ui`, use `@main` rather than an older `@latest`:
+**Release acceptance gate:** the Operations Console is merged but the first console-enabled stable release has not yet been verified for this walkthrough. Prior to publication use the exact release-manager-approved candidate artifact and record its tag/commit, SHA256 and platform. After publication repeat with the stable artifact and update this guide with the tested pin and exact installation command. See [official releases](https://github.com/dativo-io/talon/releases), [release verification](https://github.com/dativo-io/talon/blob/main/scripts/verify-release.sh) and [Talon #533](https://github.com/dativo-io/talon/issues/533). Do not use a floating source build as customer installation or claim this gate passed until the artifact run is recorded.
+
+Install the verified Linux binary following the release's instructions, then check:
 
 ```bash
-go install github.com/dativo-io/talon/cmd/talon@main
-export PATH="$(go env GOPATH)/bin:$PATH"
 talon version
 talon ui serve --help  # Must show --listen, --proxy-config and --allow-non-loopback
 ```
 
-If you set a custom `GOBIN`, add that directory to `PATH` instead. The demo mounts the installed **Linux** binary into its Linux containers; do not mount a macOS binary into Docker. The existing policy/CLI walkthrough requires Talon even when you choose not to open the console.
+The demo mounts that installed **Linux** binary into its Linux containers; do not mount a macOS binary into Docker. The existing policy/CLI walkthrough requires Talon even when you choose not to open the console.
 
 ## 1. Start DuckDB and the existing analytics services
 
@@ -215,7 +215,8 @@ No OpenAI key? Run `docker compose -f compose.isolated.yaml --profile operator u
 The two UIs have different jobs. **Workforce app** at [127.0.0.1:8501](http://127.0.0.1:8501/) makes AI/HR requests and shows the synthetic workforce charts. **Talon operations console** at [127.0.0.1:8787](http://127.0.0.1:8787/) explains what Talon saw: runtime status, current versus loaded policy, session evidence, denials, and costs. The console never sends requests to the HR backend or changes policy.
 
 ```bash
-# From cases/people-analytics-copilot: the code is in this service's logs.
+# From cases/people-analytics-copilot: start the operator console, then read its code.
+docker compose -f compose.isolated.yaml --profile operator up -d talon-ui
 docker compose -f compose.isolated.yaml --profile operator logs --tail=40 talon-ui
 
 # If the code expired or was used, reissue it inside the console container:
@@ -225,7 +226,9 @@ docker compose -f compose.isolated.yaml --profile operator logs --tail=20 talon-
 
 Open **http://127.0.0.1:8787/** and enter the fresh, single-use pairing code. The browser gets a **read-only session cookie**, not an admin, provider, vault or agent key. Do not expose this port beyond localhost or publish pairing codes in screenshots or shared logs. The **`operator` Compose profile** keeps the console opt-in (the existing CI uses a pinned earlier Talon release). The Compose service mounts the **same Talon state and policy files**, but runs on `app_net` only (no `private_hr` network); only the evidence **signing** key is passed to it for HMAC verification.
 
-**First operator check — System:** confirm the MCP proxy is *running*, the evidence store is readable and a configuration generation is reported. In GUIDED mode the LLM gateway is deliberately not started; because its gateway config exists, it may read *offline*. That does not mean the MCP proxy or the HR application is down. Use **System** for process liveness; the AI Use Cases health metric is derived from recorded activity, not a live probe.
+**First operator check — Overview:** distinguish installation readiness from use-case attention. Select **AI Use Cases → hr-analytics-assistant → Summary** to show its actual identity, policy and available activity. Fresh traffic history is not proof of health. In **Configuration**, inspect the organization/use-case settings and the current versus loaded generation (only claim activation when proven).
+
+**Then check System:** confirm the MCP proxy is *running*, the evidence store is readable and a configuration generation is reported. In GUIDED mode the LLM gateway is deliberately not started; because its gateway config exists, it may read *offline*. That does not mean the MCP proxy or the HR application is down. Use **System** for process liveness; the AI Use Cases health metric is derived from recorded activity, not a live probe.
 
 > **Screenshot slot 1:** `screenshots/01-talon-system.png` — System showing MCP proxy running, gateway state and shared evidence-store status. Add the real capture to this PR; omit the pairing code.
 
@@ -399,10 +402,10 @@ docker compose -f compose.isolated.yaml exec -T hr-server \
 | Were individual records actually exposed? | Talon `not_dispatched` plus an unchanged HR `hr_employee_export` counter proves this **intercepted route** never executed. It does not prove that no unrelated bypass exists. |
 | What tools were available versus invoked? | Tool discovery omits `hr_employee_export`; the session rollup lists intercepted `tool_calls`, `tool_calls_denied`, and `tool_names`. The browser shows recent committed allowed/denied tool receipts. A discovered tool is not necessarily executed. |
 | What did this interaction cost? | `talon costs --session "$SESSION" --json` returns evidence-derived `total_cost`, `currency`, `input_tokens`, `output_tokens` and related session statistics. In GUIDED mode there are no real model calls, so model spend should be zero. |
-| What budget constrained that spending? | The loaded `agent.talon.yaml` example enforces a **per-session** cap of `0.10`, in addition to per-request, daily and monthly caps. This cap is configuration, **not** an amount to fabricate from logs. A genuine `session_budget_exceeded` decision must appear in evidence if the limit is reached. |
+| What budget constrained that spending? | The loaded `agent.talon.yaml` example enforces a **per-session** cap of `0.10`, in addition to per-request, daily and monthly caps. This cap is configuration, **not** an amount to fabricate from logs. A genuine `session_budget_exceeded` decision must appear in evidence when admission is denied by that cap. Admission is estimate-based, not an invoice ceiling; do not infer denial from settled spend alone. |
 | Was the operation rejected by Talon or the backend? | A Talon `deny` / `not_dispatched` is a policy block. An `allow` receipt followed by `HR_SQL_REJECTED` is a backend validation failure. Keep those outcomes separate in any report. |
 
-For an operator-level spend overview, open the Talon **Costs** page in LIVE mode: it displays fixed UTC-day/month accounting windows and any unavailable/unpriced amounts. **Do not substitute those fleet windows for the session-specific total:** the `talon costs --session "$SESSION" --json` command above remains the exact per-session proof. In GUIDED mode there is no model spend to demonstrate.
+For an operator-level spend overview, open the Talon **Costs** page in both modes. In GUIDED, show the genuine empty/unavailable or measured-zero state, not invented spend. In LIVE after real priced model calls, it displays fixed UTC-day/month accounting windows and any unavailable/unpriced amounts. **Do not substitute those fleet windows for the session-specific total:** the `talon costs --session "$SESSION" --json` command above remains the exact per-session proof. In GUIDED mode there is no model spend to demonstrate.
 
 > **Optional screenshot slot 5 (LIVE only):** `screenshots/05-talon-costs-live.png` — Costs page after genuine priced model traffic, with accounting window and currency visible.
 
@@ -430,7 +433,7 @@ docker compose -f compose.isolated.yaml logs -f ui hr-server
 | `agent_config_reload_enabled interval=30000 source=/state/agent.talon.yaml` | Talon enabled polling of the **agent** configuration every 30,000 milliseconds (30 seconds). It does not mean a policy change occurred. The separate MCP **proxy** YAML is loaded when the proxy service starts; after editing that file, recreate `talon-mcp` as described above. |
 | `agent_identity_registry_loaded agents=1 tenants=1` | Talon's identity registry loaded one agent and one tenant scope. This is not a count of human users or open workforce sessions. |
 | `talon_serve_started addr=0.0.0.0:8080 ... gateway=false mcp_proxy=true` | The MCP proxy is listening on **container** port 8080. It controls HR tool discovery and invocation. |
-| `talon_serve_started addr=0.0.0.0:8082 ... gateway=true mcp_proxy=false` | A separate service is listening on **container** port 8082 for model traffic. `dashboard=true` / `gateway_dashboard=true` refer to Talon's own runtime dashboard/metrics capability, not a second Workforce application on port 8501. |
+| `talon_serve_started addr=0.0.0.0:8082 ... gateway=true mcp_proxy=false` | A separate service is listening on **container** port 8082 for model traffic. The released Operations Console runs separately; legacy dashboards and their routes are retired. |
 | `openshell_middleware=false` / `cron_entries=0` | Those Talon runtime features are not active in this example; neither field is an error. |
 
 ### Follow a request through the harness
@@ -464,11 +467,11 @@ The application's separately prefixed `HR_AI_TRACE` records describe events it o
 talon-gateway INF metrics_reconcile_recovered recovered_events=5
 ```
 
-Talon persists signed evidence as the system of record, and its dashboard/metrics collector maintains a faster in-memory projection. By default, approximately every **30 seconds**, reconciliation rebuilds the projection from a bounded evidence-store window (default **24 hours**, up to **10,000** records). The `recovered_events` value is the **positive difference between the rebuilt request count and the collector count immediately before the rebuild**. It does **not** mean five failed requests, five extra OpenAI calls, or five newly discovered security violations. Reconciliation is designed to be idempotent, so the same evidence is not counted twice merely by replaying it.
+Talon persists signed evidence as the system of record, and its metrics collector maintains a faster in-memory projection. By default, approximately every **30 seconds**, reconciliation rebuilds the projection from a bounded evidence-store window (default **24 hours**, up to **10,000** records). The `recovered_events` value is the **positive difference between the rebuilt request count and the collector count immediately before the rebuild**. It does **not** mean five failed requests, five extra OpenAI calls, or five newly discovered security violations. Reconciliation is designed to be idempotent, so the same evidence is not counted twice merely by replaying it.
 
 Here, `talon-mcp` and `talon-gateway` are separate processes using the **same persisted Talon state directory**. Each process's live in-memory collector can observe its own evidence commits, while the gateway's periodic reconciliation can pick up evidence committed by the MCP process. That is a **likely explanation** for nonzero counts such as `5`, `2`, `4` during active testing; these lines alone cannot identify precisely which records were recovered.
 
-Repeated recovery does not automatically indicate data loss. If it continues unexpectedly when traffic is idle, or if dashboard numbers differ from audit evidence, inspect collector health: `metrics_collector_event_dropped` warnings, `dropped_events` in `/api/v1/metrics`, and `metrics_events_dropped` / reconcile status in `/v1/status`. A `metrics_reconcile_failed` warning warrants investigation. The metrics projection is not a replacement for the signed evidence store.
+Repeated recovery does not automatically indicate data loss. If it continues unexpectedly when traffic is idle, or if metrics projections differ from audit evidence, inspect collector health: `metrics_collector_event_dropped` warnings, `dropped_events` in `/api/v1/metrics`, and `metrics_events_dropped` / reconcile status in `/v1/status`. A `metrics_reconcile_failed` warning warrants investigation. The metrics projection is not a replacement for the signed evidence store.
 
 ### Establish the actual outcome, not just the log line
 
