@@ -4,6 +4,15 @@
 
 This demo uses the **same application-first engineering method** as [People Analytics](../people-analytics-copilot/README.md): establish that a real application and its synthetic database behave as expected; introduce Talon at its supported AI/action boundary; use an independently restricted backend; and compare real business effects with Talon's signed decisions. It is a **terminal coding-agent workflow**, not a second workforce browser. The workflow-specific transport is different because this case requires exact-action approval and execution.
 
+## Customer integration recipe (target; integrated proof pending)
+
+- **Before Talon:** OrderDesk serves its own application and PostgreSQL; the staging credential-drift failure is independently reproducible. The agent integration is not yet verified end to end.
+- **Connection:** use the released delegated OpenShell provider middleware and request-bound action bridge, a registered use-case identity, trusted action catalog and explicit company policy. Follow the native configuration and commands below; do not replace sandbox identity with a host key for customer acceptance.
+- **Governed:** model requests routed through middleware and exact catalogued operations submitted to the Action Gateway. Production volume-delete is company-denied; staging repair requires an authenticated external reviewer.
+- **Outside Talon:** direct shell/network/database activity, the real OpenShell containment decision, executor internals and ordinary application traffic. Independently protect destinations.
+- **Business value / verification:** compare actual 503/200 service health, independent DB integrity and fake-volume/repair counters with exact signed lifecycle proof; verify all C01–C12. The released read-only Operations Console is the investigation view under #44; use native CLI/API for fields not exposed. No approvals in the console. Show no unverified success.
+- **Adoption:** record exact stable artifact pins, friction and persistent recovery evidence where applicable; do not conflate reset with recovery. This is the deep ACME scene, not a prerequisite for [OSS #561](https://github.com/dativo-io/talon/issues/561) or the short support-refund pilot. Real customer activation belongs to [Enterprise #32](https://github.com/dativo-io/talon-enterprise/issues/32).
+
 ## Talon at a glance
 
 ```mermaid
