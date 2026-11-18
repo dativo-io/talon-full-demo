@@ -1,0 +1,14 @@
+# Customer adoption friction — First Production Pilot
+
+This report records actual observations, not assumed customer feedback. A source review is not a clean-install or runtime test. Append dated, reproducible results (artifact tag/checksum, platform, commands, evidence links; no credentials). Severity is the impact on adoption, not a claim about exploitability. Distinguish OSS product defects, Full Demo defects and presentation improvements. Report demonstrated product defects to [OSS #533](https://github.com/dativo-io/talon/issues/533) or [#561](https://github.com/dativo-io/talon/issues/561); customer activation is [Enterprise #32](https://github.com/dativo-io/talon-enterprise/issues/32).
+
+| Attempted step / evidence | Expected experience | Actual observation | Workaround / next action | Severity and owner |
+| --- | --- | --- | --- | --- |
+| 2026-11-18: source review of PR #46 installation guide | Install a verified published artifact without Go/source build | Prior guide used floating @main. Runtime installation NOT RUN. | PR #46 now documents candidate/stable artifact gate; exact tested stable pin and command still required. | High — Full Demo #46; upstream release readiness #533/#561 |
+| 2026-11-18: static Compose mount review of PR #46 | Console gets only required files/credentials | Prior console inherited whole case mount including secret-bearing .env; no runtime leak test performed. | PR #46 removes that mount and adds static regression guard; validate with actual paired console. SQLite WAL directory access retained. | High — Full Demo #46 |
+| 2026-11-18: source review of PR #45 and #42–44 | Existing application recovery with verified agent and exact policy | Fixture/host-key preflight described; real shared-session C01–C12 not verified independently. | Keep buyer-ready false; run ratified integration contract with pinned published artifacts. | High for full showcase — Full Demo #42–44 |
+| Published artifact install, first use-case registration and browser pairing | Supported clean install and observable real traffic | NOT RUN | Record exact commands, duration and results; no claims until observed. | Unassessed — #46/#48; OSS #561 if reproduced product defect |
+| Argument-aware refund, exact approval/replay/unauthorized tests | Real released authorization and zero unauthorized downstream calls | NOT RUN | Use released #205/#433/#434 contract and independent finance ledger. | Unassessed — #34/#49; OSS #561 if product defect |
+| Persistent restart/recovery and second inherited use case | State/keys/evidence preserved; policy inheritance proved | NOT RUN | Follow documented supported runbook; record backup/restore where practical. Reset is not recovery. | Unassessed — #48; OSS #561 if product defect |
+
+At each rehearsal replace or append rows with actual evidence; keep failed and NOT RUN outcomes visible. Presentation polish never substitutes for customer acceptance.
