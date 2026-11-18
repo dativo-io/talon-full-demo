@@ -115,11 +115,13 @@ class DocumentationContract(unittest.TestCase):
         service=match.group("service")
         for term in ('profiles: ["operator"]', "talon", "ui", "serve", "--listen", "0.0.0.0:8787",
                      "--allow-non-loopback", "/policies/proxy.isolated.talon.yaml",
-                     "/policies/gateway.talon.yaml", "volumes: *talon-volumes",
+                     "/policies/gateway.talon.yaml", "./.state/talon:/state",
+                     "./.state/policy:/policies:ro", "/usr/local/bin/talon:ro",
                      "TALON_SIGNING_KEY:", 'ports: ["127.0.0.1:8787:8787"]',
                      "networks: [app_net]"):
             self.assertIn(term,service)
-        for excluded in ("private_hr", "TALON_ADMIN_KEY:", "TALON_SECRETS_KEY:"):
+        for excluded in ("private_hr", "TALON_ADMIN_KEY:", "TALON_SECRETS_KEY:",
+                         "volumes: *talon-volumes", "./:/case:ro", "env_file:"):
             self.assertNotIn(excluded,service,"Read-only console must not gain HR network or privileged credentials")
         self.assertIn("docker compose -f compose.isolated.yaml --profile operator exec -T talon-ui talon ui pair",body)
         self.assertIn("talon ui serve --help",body)
