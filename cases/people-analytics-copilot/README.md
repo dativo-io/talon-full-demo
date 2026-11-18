@@ -29,6 +29,15 @@ This example begins with an ordinary workforce application: **DuckDB** stores 1,
 
 Talon is introduced **between the application and its model/MCP endpoints**. We keep the database and chart API as they are; we do not give the AI application raw DuckDB access.
 
+## Customer integration recipe
+
+- **Before Talon:** the Workforce web app renders fixed aggregate charts from a read-only analytics API over DuckDB.
+- **Connect:** configure the application to use the Talon MCP endpoint and, in LIVE, the OpenAI-compatible Talon gateway; provision the application's Talon identity separately from the provider secret. Native initialization, validation, policy and activation steps follow below.
+- **Company policy:** configure shared defaults and the use-case overlay via the supported release; explicitly restrict employee export and set the model budget. Inspect effective/loaded policy rather than assuming a file edit is active.
+- **Governed:** routed model requests, MCP discovery and calls. **Not governed:** fixed charts, separate database access or other bypass paths. HR's independent SQL validation is not a Talon denial.
+- **Value / verify:** useful aggregate answers with bounded capability access, visible decisions and usage; compare allow/deny/upstream rejection with HR counters, console, CLI/API and signature verification. Repeat a policy change without changing application source.
+- **Adoption:** use verified stable artifact for customer-facing use; candidate acceptance is internal only. Log step, expected/actual behavior, workaround, adoption severity and linked issue (product: [OSS #533](https://github.com/dativo-io/talon/issues/533) / [#561](https://github.com/dativo-io/talon/issues/561); demo fixes here). Exercise documented persistent restart/recovery where practical without resetting state or keys; record NOT RUN if unavailable.
+
 ## The existing application
 
 ```mermaid
