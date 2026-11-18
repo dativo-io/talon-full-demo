@@ -9,11 +9,43 @@
 | Business use case | Existing implementation | Primary value |
 | --- | --- | --- |
 | People Analytics | [Workforce/DuckDB](../cases/people-analytics-copilot/README.md) | Shared policy |
-| Customer Support | [Existing support/adapter paths](AUDIENCE_DEMOS.md) | Reliability |
+| Customer Support | [Existing support/adapter paths](AUDIENCE_DEMOS.md) | Reliability and governed business actions |
 | OrderDesk | [Claude/Postgres contract](CLAUDE_POSTGRES_INCIDENT_CONTRACT.md) | Bounded agent actions |
 | Document Processing | [Existing n8n workflows](AUDIENCE_DEMOS.md) | Cost control |
 
-People Analytics is the launch demo (PR #46); ACME is the post-release product flagship. The n8n refund pilot (#34–35) remains a focused action-governance scenario. Full ACME and OrderDesk do not block #533. No new console features, approval UI, second evidence store, business applications or policy engine.
+People Analytics is the launch demo (PR #46); ACME is the post-release product flagship. The n8n refund pilot (#34–35) is a focused action-governance scenario integrated into Customer Support, not a fifth application. Full ACME and OrderDesk do not block #533. No new console features, approval UI, second evidence store, business applications or policy engine.
+
+## First Production Pilot — adoption comes first
+
+The Full Demo exists to (1) independently validate the product as a customer, (2) reduce integration effort, and (3) demonstrate value. [OSS #561](https://github.com/dativo-io/talon/issues/561) owns engineering readiness; [Enterprise #32](https://github.com/dativo-io/talon-enterprise/issues/32) owns activation of a real external company's AI use case. A demo run is neither a release verdict nor customer activation. #533 publishes independently; PR #46 corroborates acceptance. Customer-facing demonstrations use verified official stable releases only.
+
+### Short LIVE customer journey (10–15 minutes, target)
+
+Use a subset of the exact same runtime and application, not another demo implementation. This path is gated on the published #561 checkpoint B contract and consumer #34/#49 proof.
+
+| Stage | What the customer sees and verifies |
+| --- | --- |
+| 0–3 min | Install released Talon, initialize, pair Operations Console; show actual config, no secrets. |
+| 3–5 min | Connect existing Customer Support workflow; register identity and show the actual company policy syntax, trusted action catalog and governed path. |
+| 5–10 min | Run real EUR 25 allow, EUR 750 deny and EUR 249 approval-required refund requests. Reviewer sees exact subject; approval alone causes zero dispatch; authorized attempt creates one synthetic finance request. |
+| 10–12 min | Inspect real session, signed evidence, actual provenance and independent finance ledger. |
+| 12–15 min | Register second existing use case (HR), show inherited company policy using supported released registration/activation. |
+
+Use the released #205/#433/#434 typed argument-aware rule and Talon-forwarded dispatch: EUR <=50 allow; >50 and <=500 exact human approval; >500 deny. Test boundaries 50/50.01/500/500.01, missing/wrong currency or type, unauthorized attempts, altered arguments, exact replay and ambiguous failure. No direct n8n finance dispatch, local approval authority or missing product logic supplied by demo. A synthetic refund request never moves real money. Preserve the existing support reliability, HR, OrderDesk and document budget scenes: no fifth application.
+
+### Reusable customer integration recipes
+
+Each application guide must independently state: what it does before Talon, exact native connection changes, identity/company policy, intercepted and bypass paths, business value, and independent verification. Publish exact artifact pins and tested commands only after execution. Keep application integration visible; wrappers are optional conveniences.
+
+### Production recovery and customer friction
+
+Exercise the documented OSS supported single-node persistent restart/recovery runbook (#48, OSS #465); preserve vault keys, config, evidence, operations and ledger, verify before/after. Backup/restore where practical. Record NOT RUN if unavailable. Demo reset is not recovery.
+
+Maintain a friction report during implementation, not an invented outcome:
+| Attempted step / exact version | Expected customer experience | Actual result or NOT RUN | Workaround | Adoption severity | Owner / issue |
+| --- | --- | --- | --- | --- | --- |
+| Clean artifact install/pair, register, policy, action, evidence, restart, second use case | As documented for selected release | Record actual result | Record only used workaround | Blocker / high / medium / low | OSS #533/#561 for product defects; Full Demo for demo defects; presenter polish separately |
+
 
 ## Modes and preflight
 
@@ -58,6 +90,7 @@ Each Do step below states the operation and owning acceptance task. Replace it w
 - **Do:** onboard support in shared runtime (#48/#49), run synthetic email/IBAN request with controlled local primary failure, prohibited fallback candidate and approved real OpenAI fallback.
 - **Show:** actual support reply, provider path/decision, cost and session outcome. **Expect / Prove:** actual fallback and redaction as recorded; independent request/fixture observations; signed session and genuine provider spend.
 - **Troubleshoot:** verify model pricing, provider configuration, policy and live credentials; do not claim fallback if provider failed.
+- **Action-governance extension:** once #561 checkpoint B is released, run the same real allow/deny/approval refund path from the short pilot in Customer Support. Inspect exact action proof, actual provenance and independent finance ledger; use the short version here to fit the full target, with extended tests outside live presentation.
 - **Transition:** AI agents can perform consequential actions as well as generate text.
 
 ### 5. OrderDesk (12–17; gated)
@@ -102,6 +135,7 @@ Reuse existing make targets wherever possible. #48 and #50 own the actual execut
 - [ ] #46 passes candidate then stable published artifact People Analytics acceptance, six pages and documented secure pairing; record in #533.
 - [ ] #48 supports one proved runtime, secure real key entry, actual identities and active config.
 - [ ] #49 support and n8n end-to-end proof; #42–44 integrated incident gates and shared-runtime compatibility.
-- [ ] #50 exact native step-by-step commands and prompts, interactive LIVE rehearsal, automated LIVE and keyless verification, safe reset and actual timings.
+- [ ] #50 exact native step-by-step commands and prompts, four integration recipes, short 10–15 min production-pilot and deep 20–25 min ACME LIVE rehearsals, automated LIVE and keyless verification, actual timings, safe reset and separately verified persistent restart/recovery.
+- [ ] #34/#49 released argument-aware customer-support action contract passes allow/deny/approval, replay and unauthorized checks; adoption friction report links actual defects and observations.
 - [ ] One same-run fail-closed manifest references versions/digests, policy identity where recorded, session/operation IDs, independent counts, actual cost/currency/availability and signature results. Reuse OrderDesk proof.
 - [ ] Actual console screenshots/recordings safely redacted and labeled with verified published artifact provenance. Buyer and technical views of same run. No secrets, fabricated data, unsupported claims or preloaded success.
