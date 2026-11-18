@@ -13,6 +13,12 @@ The support, n8n and Copilot cases provide their own evidence projections. The P
 
 See [Audience-specific demo views](docs/AUDIENCE_DEMOS.md) for the full command matrix and truth boundaries.
 
+## Customer adoption roadmap (not yet released)
+
+The first launch demo is People Analytics, aligned with [Talon Operations Console release acceptance](https://github.com/dativo-io/talon/issues/533). The planned product-level flagship is **ACME: one company, multiple AI use cases, one control plane**. It will progressively onboard HR, Customer Support, OrderDesk and Document Processing using one supported installation and real provider credentials, with automated and keyless alternatives.
+
+See the [interactive LIVE walkthrough specification](docs/SHOWCASE_LIVE_WALKTHROUGH.md) and [ACME epic #47](https://github.com/dativo-io/talon-full-demo/issues/47). These are implementation plans, not available unified commands. Existing independently runnable cases below remain available as documented. Full ACME, OrderDesk and n8n do not block the Operations Console release.
+
 ## Proposed Claude Code × OpenShell incident demo — contract-first
 
 The planned **OrderDesk PostgreSQL incident** case combines a credential-drift staging recovery, a contained malicious Claude Code hook, and a company-governed denial of a simulated production volume deletion. It is a **proposed integration, not a shipped demo**.
@@ -325,7 +331,7 @@ make real-stop
 - An offline Zendesk ZIP is not described as Zendesk server-validated.
 - Zendesk browser-only observations are operator-confirmed, not misrepresented as Talon evidence.
 - Talon does not govern Copilot's local shell commands, filesystem changes, browser actions, or direct API calls.
-- Session limits are soft caps.
+- Budget behavior is version-specific. For the console-enabled release, session admission uses atomic estimate reservations and binding caps fail closed when required budget state or pricing is unavailable; actual charges can exceed estimates. This is preventive admission, not an invoice ceiling. Verify the behavior against the pinned artifact and its [limitations](https://github.com/dativo-io/talon/blob/main/LIMITATIONS.md); do not extrapolate newer guarantees to older standalone pins.
 - Vendor-contract review output is advisory, synthetic, and requires human review.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.
 - Only synthetic data belongs in this repository and demo.
