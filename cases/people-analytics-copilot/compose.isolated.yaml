@@ -113,7 +113,12 @@ services:
       TALON_DATA_DIR: /state
       HOME: /state
       TALON_SIGNING_KEY: ${HR_DEMO_SIGNING_KEY:?Set the evidence signing key in .env}
-    volumes: *talon-volumes
+    # SQLite WAL readers can need writable directory access; Talon opens the
+    # database read-only. Never mount /case: it contains the secret-bearing .env.
+    volumes:
+      - ./.state/talon:/state
+      - ./.state/policy:/policies:ro
+      - ${HR_DEMO_TALON_BIN:?Supply absolute Talon binary path}:/usr/local/bin/talon:ro
     working_dir: /state
     command:
       - talon
