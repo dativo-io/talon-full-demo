@@ -12,3 +12,17 @@ This report records actual observations, not assumed customer feedback. A source
 | Persistent restart/recovery and second inherited use case | State/keys/evidence preserved; policy inheritance proved | NOT RUN | Follow documented supported runbook; record backup/restore where practical. Reset is not recovery. | Unassessed — #48; OSS #561 if product defect |
 
 At each rehearsal replace or append rows with actual evidence; keep failed and NOT RUN outcomes visible. Presentation polish never substitutes for customer acceptance.
+
+## Native v1.17.0 consumer acceptance — pending
+
+The complete stable release (core #562–569 and #572) is required for integrated pilot/ACME. RC.1 is not complete. Core #563's no-clone quickstart is a separate disposable proof (no actual provider or console); follow the supported persistent profile for adoption. Do not mark the quickstart as an enduring shared installation. No new runtime tests were performed in this product-alignment update.
+
+| Measure | Target on prepared host | Actual / evidence |
+| --- | --- | --- |
+| Native install + console pair | <3 min | NOT RUN |
+| First use case registered through governed traffic | <5 min | NOT RUN |
+| Second use case with inherited applicable mandatory control and first still working | <2 min | NOT RUN |
+| Denied-action explanation and evidence verification | <1 min | NOT RUN |
+| New application-specific governance infrastructure | None | NOT RUN |
+
+For each use case record independent registered, loaded, connected and governed verdicts with exact artifact digest, runtime/effective policy, request/session/evidence references and downstream outcomes. Measure elapsed time from each first native operation to verified outcome; show excluded prebuild/download time separately. Keep actual failures visible. Verify company policy cannot be weakened by a use-case override according to the released contract. Do not count a config file alone as a governed application.
