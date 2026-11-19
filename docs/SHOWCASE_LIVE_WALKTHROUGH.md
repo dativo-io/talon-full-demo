@@ -144,18 +144,21 @@ Each Do step below states the operation and owning acceptance task. Replace it w
 - **Troubleshoot:** distinguish not configured, degraded, offline, unavailable and unknown. Show any missing measurement honestly. Configuration/approval writes remain outside read-only console.
 - **Transition:** one bounded customer pilot, not a claim of universal governance.
 
-## Proposed fixture command surface (not implemented)
+## Proposed command ownership (not implemented)
 
-Prefer the released native commands for all Talon operations. #48 and #50 own the executable interface; these names are optional fixture-oriented conveniences or transparent delegates, not a second lifecycle manager. Omit wrappers that duplicate the official quickstart, registration, approval or recovery path:
+Use the core release's exact native interfaces for Talon operations, including the published artifact install, initialization/persistent deployment, provider secret provisioning, console pairing, use-case registration/effective policy, reviewer, audit verification and backup/restore. Do not introduce showcase-install/init/connect-providers/console/onboard wrappers as mandatory substitutes. Verify the final syntax before publishing runnable commands.
 
-| Operation | Candidate target |
+Full Demo owns only fixture orchestration and same-run proof; reuse current Makefile conventions. These candidate names are NOT implemented:
+
+| Fixture operation | Candidate target |
 | --- | --- |
-| Preflight/dependency prep, app-only start | `showcase-preflight`, `showcase-apps-start` |
-| Install/init/connect providers | `showcase-install`, `showcase-init`, `showcase-connect-providers` |
-| Start runtime/pair console | `showcase-talon-start`, `showcase-console` |
-| Staged application identity/config | `showcase-onboard-hr`, `showcase-onboard-support`, `showcase-onboard-engineering`, `showcase-onboard-documents` |
-| Independent modes and proof | `showcase-live`, `showcase-guided`, `showcase-verify` |
-| Operator lifecycle | `showcase-status`, `showcase-reset`, `showcase-stop` |
+| Check environment and prebuild application fixtures | `showcase-preflight` |
+| Start ordinary applications without Talon | `showcase-apps-start` |
+| Run existing application scenes against configured Talon (shared implementation) | `showcase-live`, `showcase-guided` |
+| Verify independent business effects and join canonical evidence references | `showcase-verify` |
+| Inspect and stop/reset demo-owned application state | `showcase-status`, `showcase-stop`, `showcase-reset` |
+
+Convenience automation may invoke native operations transparently for CI and automated LIVE; it must expose the exact equivalent customer commands, preserve secrets and failure semantics, and never build an alternate Talon lifecycle manager. Reset is not production recovery.
 
 ## Exit gates
 
