@@ -1,0 +1,64 @@
+# Shopify AI customer support — read, draft and refund handoff
+
+**Stage A implementation preview.** This is the existing ACME customer-support use case in an e-commerce setting, not another use case or a standalone authorization system. The default export is inactive, contains only stock n8n nodes, and cannot send email or dispatch a financial operation. Stage B canonical refund authorization and Stage C development-store refund execution are NOT implemented. Do not present this as a completed governed refund demo.
+
+## Business journey
+
+1. A support operator opens a customer email about order status, shipping delay, damaged/wrong products, returns or refunds. The committed Manual Trigger + editable sample stand in for a trusted intake; no Gmail trigger or proof of mailbox identity yet. Operator must verify the authenticated customer/requester out of band; never convert an email From header into a verification flag.
+2. Parse the synthetic or attested test input, extract exactly one #order number and bounded issue hints; unsupported/ambiguous inputs go to manual review.
+3. Read the order via Shopify Admin GraphQL with a dedicated read-only credential. Require one exact order, matching email, test=true and no GraphQL errors. Missing protected data, non-test orders or mismatches stop before model access.
+4. Send only fixed structured issue hints, payment/fulfillment status and a screened decimal EUR proposal (if any) through the configured Talon model route; no raw customer email, body, order number, Shopify token or payment details in the model prompt. The original email remains with the support operator. This conservative first edition does not infer open-ended details; human review is required.
+5. Validate the model's JSON classification, recommendation and draft. The amount screen is simple presentment-currency arithmetic, **not** eligibility or authorization. For unsupported, wrong currency, nonrefundable-looking or unverified inputs use manual review. Every output is an internal untrusted draft; no email send and no refund execution.
+6. Inspect the actual Talon session and evidence by session ID; in stable v1.17.0, verify the six-page read-only Operations Console against the same run. Costs and PII/failover claims must come from actual Talon records, not estimated application fields.
+
+## Architecture and trust boundary
+
+```mermaid
+flowchart LR
+  E["Trusted operator / test email"] --> N["n8n: intake + draft orchestration"]
+  N -->|"read_orders only; X-Shopify-Access-Token"| R["Shopify Admin GraphQL / visible synthetic fixture"]
+  R -->|"exact test order + email match"| N
+  N -->|"minimized facts; use-case key"| T["Talon model gateway / company policy"]
+  T -->|"vault-held provider credential"| P["Approved LLM / deterministic provider"]
+  T --> V["Signed evidence / native CLI / Console"]
+  N --> H["Internal draft / manual refund review"]
+  N -. "Stage B gated: canonical operation + claim" .-> A["Talon Action Gateway"]
+  U["Independent reviewer (future native path)"] -.-> A
+  A -. "Stage C gated: trusted dispatch" .-> S["Business-specific refund adapter"]
+  S -. "isolated write credential; test only" .-> F["Shopify refund API / independent financial effect"]
+```
+
+The current graph is solid arrows only. Raw email and read lookup bypass Talon by design. The future adapter (not built) must be reachable only by authenticated Talon, with separate Shopify write access never in n8n. The model does not authorize. No separate approval server is used by this export; the existing legacy demo remains independently available as historical comparison until canonical replacement passes.
+
+## Standalone setup and clean export
+
+- n8n target: **2.30.4** (existing repository pin). Import `shopify-support.workflow.json` from the n8n UI; no Full Demo checkout or Makefile needed for a configured real Shopify read-only path. All nodes are stock; no credential values in the JSON. Inactive by default.
+- Prepare a running Talon installation with the existing customer-support operational identity, approved provider route and company data/cost policy; configure actual provider keys in Talon only. Use official published release artifacts, not source builds. The Stage A deterministic acceptance runner pins Linux/amd64 v1.16.1; it cannot certify v1.17.0 Console/Action Gateway. The complete stable v1.17.0 release is the final ACME target. RC.1 is incomplete.
+- In n8n create Header Auth credentials for the two HTTP nodes: `X-Shopify-Access-Token` = read-only token from an installed Shopify app; `Authorization` = Bearer followed by the Talon use-case key. Rebind both after import. Do not store values in workflow code or export credential records.
+- For the visible synthetic mode, start the co-packaged `fixture.py --port 19091 --log <disposable-path>` locally with Python 3. Connect Talon's OpenAI provider config to that fixture's base URL and vault the synthetic provider credential. The local runner provisions ephemeral synthetic tokens, policy and exact release binary; the endpoint has no mutation handler. These synthetic values are not suitable for any remote or shared host.
+- For development-store read-only mode, obtain an installed app token scoped to `read_orders` (no write scope; confirm granted scopes). Shopify may require protected customer data access for Order.email; deny on missing permission. Select `development_store` in Operator settings, use an HTTPS `<store>.myshopify.com/admin/api/2026-10/graphql.json` endpoint, verified test-order requester, and set the trusted HTTPS Talon URL (or local loopback). Use only development-store test orders; no real customer data. Token expiry/renewal is operator-managed in this edition. No credentials supplied or real store tested here. API version/schema still requires a live development-store check.
+- Set the input fields and execute the workflow manually. Review the output; do not enable automated sends. See the terminal node, inspect the matching actual Talon session in CLI, export signed JSON and verify (`talon audit export --format signed-json --session <session> --output evidence.json`, `talon audit verify --file evidence.json`). Validate actual version flags. No bypass or direct LLM API calls.
+- The exported workflow disables normal execution-data retention; this is not a guarantee that n8n logs, editors, task runners or backups never contain data. Control access, encryption, log redaction and retention before real customer use. Do not export execution data or credentials to community templates.
+
+### Verification
+
+```bash
+node workflow.test.cjs
+bash test-n8n.sh  # Linux/amd64, Docker, curl, jq, Python 3, openssl
+```
+
+The first evaluates the actual exported Code nodes. The second downloads the exact v1.16.1 archive, verifies the pinned SHA256, runs actual Talon, imports into pinned n8n and executes the ordinary enquiry, clean re-import refund handoff and unauthorized sender cases. It asserts actual terminal node output, independent fixture/provider counts and exact-session Talon signature verification. No real Shopify, real provider, approval or financial effect. CI `Shopify support acceptance` must be green before making any claim of this runtime pass. Native Console, fallback, PII redaction (as distinct from local minimization), real costs, Shopify read and all Stage B/C gates remain NOT RUN or NOT IMPLEMENTED until separately verified. Import-to-first-governed-request <15 min on a configured host is a target, not measured.
+
+## Stage B — canonical governed action (pending release)
+
+Reuse the actual official #566 stock-node workflow and #564 generic exact-decimal company rule, #565 native reviewer and #569 runbook once complete stable v1.17.0 is verified. Do not copy unreleased product policy or use the old approval service. Bind trusted order ID, ticket, exact EUR amount, currency and eligible transaction details to the operation and independent reviewer. Use a synthetic ledger with explicit results first. Required allow 25, approval 249 (zero before and on approval, one dispatch after claim), deny 750 zero dispatch, edges 50/50.01/500/500.01, malformed/missing inputs, company override, merchant invalid refund, replay, changed arguments, unauthorized reviewer, restart and UNKNOWN. The model's proposed resolution does not determine eligibility. Use actual registered/loaded/connected/governed evidence and shared baseline across HR/support. Talon at-most-once dispatch in durable state is not exactly-once external effects. No blind redispatch. Buyer and technical views must reference same execution and evidence.
+
+## Stage C — Shopify integration research / design gate
+
+Shopify official documents: [Order schema (2026-10)](https://shopify.dev/docs/api/admin-graphql/2026-10/objects/Order), [scopes](https://shopify.dev/docs/api/usage/access-scopes), [authentication](https://shopify.dev/docs/apps/build/authentication-authorization), [access tokens](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens), [dev stores](https://shopify.dev/docs/apps/build/stores/development-stores), [refundCreate](https://shopify.dev/docs/api/admin-graphql/latest/mutations/refundcreate), [idempotent requests](https://shopify.dev/docs/api/usage/idempotent-requests). In 2026-10 Admin API use `refundCreate(input: RefundInput!) @idempotent(key: ...) `; idempotency mandatory since 2026-04. The business adapter must use an installed Shopify app with least-privilege order write access (verify actual granted scope, protected data and staff permissions), isolated from n8n. Use test gateway/test transactions only; explicit developer authorization required before test refunds.
+
+Read the order, original successful payment transactions, suggested refund, remaining refundable amounts and relevant return/line-item state. Derive stable Shopify idempotency key from the sealed Talon logical operation plus store identity in the durable adapter ledger. Verify currency and exact decimal, eligibility, unchanged bound order/transaction/details and balance at dispatch; fail closed when these changed; require new proposal/operation and reviewer if material changes. Construct `RefundInput` with order GID, eligible line items and/or refund transaction details (parent transaction GID, gateway, kind REFUND, exact amount, currency per schema); confirm pinned mutation schema and permissions against a dev store before coding. Never treat HTTP 200 or a refund ID alone as proven settled payment. Check top-level GraphQL errors, userErrors, actual refund/transaction status and independent Shopify query; pending/partial or lost response needs reconciliation, not blind retries. Store operation/idempotency key/argument hash and observed outcome with minimum personal data. Shopify owns financial effects; adapter maps business outcomes; Talon authorizes/dispatches. Confirm idempotency retention, ambiguous response semantics, full/partial transaction success, over-refund and currency constraints in test store. No actual Shopify mutation implemented or tested.
+
+## Marketplace preview (not published)
+
+**AI Shopify customer support with governed refund requests** — read-only/draft/handoff edition preview. Search terms: Shopify customer support, Gmail support automation (future), AI customer service, AI cost control, refund request review, OpenAI. Do not claim actual automated refunds/human approval until Stage B/C verified; do not claim Gmail trigger in current edition. Future verified title: Automate Shopify customer support with AI and policy-controlled refunds. Export and this setup guide can be consumed by a future template repository; synthetic fixture is explicit, not a hidden dependency. No new template repository or listing created.
