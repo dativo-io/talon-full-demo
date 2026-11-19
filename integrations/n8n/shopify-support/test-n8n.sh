@@ -18,7 +18,9 @@ archive=talon_1.16.1_linux_amd64.tar.gz
 curl -fsSL --retry 3 "https://github.com/dativo-io/talon/releases/download/$version/$archive" -o "$WORK/$archive"
 printf '%s  %s\n' bc5147dedfb59608b0be1ec07b6da78ef430bc833ccc7fddfa444760f2e94a4e "$WORK/$archive" | sha256sum -c -
 tar -xzf "$WORK/$archive" -C "$BIN" talon
-"$BIN/talon" version | grep -F 'v1.16.1'
+reported="$("$BIN/talon" version)"
+printf '%s\n' "$reported"
+[[ "$(printf '%s\n' "$reported" | head -n1)" == "Talon 1.16.1" ]] || { echo 'Unexpected released binary version'; exit 1; }
 sha256sum "$BIN/talon"
 export TALON_SECRETS_KEY="$(openssl rand -hex 32)"
 export TALON_SIGNING_KEY="$(openssl rand -hex 32)"
