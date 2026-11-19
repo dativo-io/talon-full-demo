@@ -6,6 +6,8 @@ This demo uses the **same application-first engineering method** as [People Anal
 
 ## Customer integration recipe (target; integrated proof pending)
 
+For the integrated ACME customer path, consume the complete verified official v1.17.0 stable release (RC.1 is incomplete). Use the released native use-case registration, reviewer and operations commands where applicable. Establish shared company policy in talon.config.yaml, one agent.talon.yaml / operational identity / active key per use case; prove registered, loaded, connected and governed using actual runtime/evidence and independent effects, not invented Console state. Preserve delegated OpenShell identity, all six trusted actions and ratified C01–C12. At-most-once dispatch per operation within supported durable state is not exactly-once external business effects; UNKNOWN may or may not have effected a call. Historical standalone fixture pins are unchanged pending verified compatibility; no migration is claimed.
+
 - **Before Talon:** OrderDesk serves its own application and PostgreSQL; the staging credential-drift failure is independently reproducible. The agent integration is not yet verified end to end.
 - **Connection:** use the released delegated OpenShell provider middleware and request-bound action bridge, a registered use-case identity, trusted action catalog and explicit company policy. Follow the native configuration and commands below; do not replace sandbox identity with a host key for customer acceptance.
 - **Governed:** model requests routed through middleware and exact catalogued operations submitted to the Action Gateway. Production volume-delete is company-denied; staging repair requires an authenticated external reviewer.
