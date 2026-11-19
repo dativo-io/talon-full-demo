@@ -127,10 +127,43 @@ run_case() {
   local id
   id="$(python3 -c 'import json,sys; w=json.load(open(sys.argv[1])); print((w[0] if isinstance(w,list) else w)["id"])' "$dir/config/export.json")"
   ! grep -Eq 'synthetic-read-only|synthetic-talon-agent-key|synthetic-provider-key' "$dir/config/export.json"
-  run_n8n "$dir" execute --id="$id" >"$dir/result.log" 2>&1 || { cat "$dir/result.log"; exit 1; }
-  # The CLI prints execution data. Check actual final node output fields, not the graph.
-  grep -F "$expected" "$dir/result.log" >/dev/null || { cat "$dir/result.log"; exit 1; }
-  grep -F 'unavailable' "$dir/result.log" >/dev/null
+  run_n8n "$dir" execute --id="$id" --rawOutput >"$dir/result.log" 2>&1 || { cat "$dir/result.log"; exit 1; }
+  # n8n can emit startup log lines before the JSON. Locate actual execution data
+  # and assert the terminal node result (never grep the embedded workflow source).
+  python3 - "$dir/result.log" "$scenario" "$expected" "$dir/final.json" <<'PY'
+import json,sys
+from pathlib import Path
+log,scenario,expected,dest=sys.argv[1:]
+raw=Path(log).read_text()
+decoder=json.JSONDecoder()
+data=None
+for i,line in enumerate(raw.splitlines(keepends=True)):
+    if line.strip().startswith("{"):
+        try:
+            candidate,_=decoder.raw_decode("".join(raw.splitlines(keepends=True)[i:]).lstrip())
+        except ValueError:
+            continue
+        if isinstance(candidate,dict) and isinstance(candidate.get("data"),dict) and "resultData" in candidate["data"]:
+            data=candidate
+            break
+assert data is not None, "no structured n8n execution result"
+res=data["data"]["resultData"]
+assert not res.get("error"),res.get("error")
+node="Manual review only" if scenario=="wrong_sender" else "Review-only support result"
+assert res["lastNodeExecuted"]==node,res.get("lastNodeExecuted")
+items=res["runData"][node][-1]["data"]["main"][0]
+assert len(items)==1,items
+out=items[0]["json"]
+assert out["refund_execution"]=="unavailable" and out["message_sent"] is False,out
+if scenario=="wrong_sender":
+    assert out["status"]=="manual_review" and out["reason"]==expected,out
+    assert "Draft through Talon" not in res["runData"]
+else:
+    assert out["status"]==expected and out["draft"].startswith("Fixture only:"),out
+    assert out["proposed_refund_eur"]==("249.00" if scenario=="refund" else None),out
+    assert out["merchant_eligibility"]=="not_established"
+Path(dest).write_text(json.dumps(out))
+PY
   echo "PASS n8n $scenario: $expected"
 }
 run_case "$WORK/one" "$ROOT/shopify-support.workflow.json" status draft_ready_for_operator_review
@@ -147,12 +180,14 @@ print("PASS: 3 read-only Shopify requests, 2 minimized upstream calls, unauthori
 PY
 "$BIN/talon" audit export --format signed-json --output "$WORK/output/evidence.json"
 "$BIN/talon" audit verify --file "$WORK/output/evidence.json"
-python3 - "$WORK/output/evidence.json" <<'PY'
+python3 - "$WORK/output/evidence.json" "$WORK/one/final.json" "$WORK/two/final.json" <<'PY'
 import json,sys
 d=json.load(open(sys.argv[1]))
 records=d["records"]
 s=[r for r in records if str(r.get("session_id","")).startswith("shopify-support-")]
-assert len(s)>=2, records
+expected={json.load(open(p))["session_id"] for p in sys.argv[2:]}
+assert len(expected)==2,expected
+assert expected.issubset({r["session_id"] for r in s}), records
 print("PASS: signed evidence for actual Shopify-support Talon requests:",len(s))
 PY
 echo 'PASS Stage A real n8n + checksum-pinned Talon + synthetic Shopify and provider (NOT live Shopify or model)'
