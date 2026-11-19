@@ -1,0 +1,396 @@
+{
+  "name": "AI Shopify customer support — read, draft and refund handoff",
+  "id": "talonShopifySupport01",
+  "active": false,
+  "nodes": [
+    {
+      "id": "manual",
+      "name": "Manual test input",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -900,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "settings",
+      "name": "Operator settings and sample",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Operator-only test input. Never map untrusted mail headers to sender_verified.\nconst config = {\n  edition: 'synthetic', // synthetic or development_store (read/draft only)\n  shopify_url: 'http://127.0.0.1:19091/admin/api/2026-10/graphql.json',\n  talon_url: 'http://127.0.0.1:8080',\n  provider: 'openai',\n  model: 'gpt-4o-mini'\n};\nconst email = {\n  ticket_id: 'SUP-1001',\n  sender: 'buyer@example.test',\n  sender_verified: true, // synthetic fixture or attestation by trusted support operator\n  subject: 'Order #1001 status',\n  body: 'When will my order #1001 arrive?'\n};\nreturn {json:{config,email}};"
+      }
+    },
+    {
+      "id": "prepare",
+      "name": "Prepare request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const {config:c,email:e}=$json;\nconst stop=reason=>({json:{ready:'no',status:'manual_review',reason,refund_execution:'unavailable',message_sent:false}});\nif (!c || !['synthetic','development_store'].includes(c.edition)) throw new Error('Choose a supported read-only edition');\nif (c.edition==='synthetic' ? !/^http:\\/\\/127\\.0\\.0\\.1:\\d{1,5}\\/admin\\/api\\/2026-10\\/graphql\\.json$/.test(c.shopify_url) : !/^https:\\/\\/[a-z0-9][a-z0-9-]*\\.myshopify\\.com\\/admin\\/api\\/2026-10\\/graphql\\.json$/.test(c.shopify_url)) throw new Error('Configure the permitted Shopify endpoint for this edition');\nif (!/^(?:https:\\/\\/[a-zA-Z0-9.-]+(?::\\d+)?|http:\\/\\/127\\.0\\.0\\.1:\\d+)$/.test(c.talon_url) || !['openai','local-llama'].includes(c.provider) || !/^[a-zA-Z0-9._:-]{1,100}$/.test(c.model)) throw new Error('Configure a trusted Talon endpoint and approved model route');\nif (!e || !/^[A-Z]{1,10}-[0-9]{1,12}$/.test(e.ticket_id||'') || e.sender_verified!==true || typeof e.sender!=='string' || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(e.sender) || typeof e.subject!=='string' || typeof e.body!=='string' || e.subject.length>500 || e.body.length>8000) return stop('requester_or_input_unverified');\nif(c.edition==='synthetic'&&!e.sender.toLowerCase().endsWith('.test'))return stop('synthetic_only');\nconst message=e.subject+' '+e.body;\nconst orders=[...new Set((message.match(/#[0-9]{1,12}\\b/g)||[]))];\nif(orders.length!==1)return stop('one_order_number_required');\nconst hints=[];\nfor(const [name,re] of [['refund_request',/\\b(refund|money back|duplicate charge)\\b/i],['damaged_product',/\\b(damaged|broken|defective)\\b/i],['incorrect_product',/\\b(wrong|incorrect)\\b/i],['return_request',/\\b(return|exchange)\\b/i],['shipping_delay',/\\b(delay|late|not arrived|missing delivery)\\b/i],['order_status',/\\b(status|track|arrive|shipping|delivery|where)\\b/i]])if(re.test(message))hints.push(name);\nif(!hints.length)return stop('unsupported_issue');\nconst amounts=[...new Set([...message.matchAll(/\\bEUR\\s+(\\d{1,7}(?:\\.\\d{1,2})?)(?![\\d.,])/gi)].map(m=>m[1]))];\nreturn {json:{ready:'yes',ticket_id:e.ticket_id,requester:e.sender.trim().toLowerCase(),order_name:orders[0],hints,requested_amount:amounts.length===1?amounts[0]:null,session_id:'shopify-support-'+String($execution.id),edition:c.edition}};"
+      }
+    },
+    {
+      "id": "inputgate",
+      "name": "Input verified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -240,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "inputgate-condition",
+              "leftValue": "={{ $json.ready }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "lookup",
+      "name": "Read Shopify order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Operator settings and sample').first().json.config.shopify_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": false,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"query SupportOrder($search: String!) { orders(first: 2, query: $search) { nodes { name email test displayFinancialStatus displayFulfillmentStatus totalReceivedSet { presentmentMoney { amount currencyCode } } totalRefundedSet { presentmentMoney { amount currencyCode } } } pageInfo { hasNextPage } } }\", variables: { search: 'name:' + $json.order_name } }) }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ShopifyReadOnlyHeader",
+          "name": "Shopify read-only (X-Shopify-Access-Token)"
+        }
+      }
+    },
+    {
+      "id": "minimize",
+      "name": "Verify order and minimize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        -100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const q=$('Prepare request').first().json;\nconst stop=reason=>({json:{ready:'no',status:'manual_review',reason,session_id:q.session_id,refund_execution:'unavailable',message_sent:false}});\nconst b=$json.body;\nif($json.statusCode!==200||!b||b.errors?.length)return stop('shopify_lookup_failed');\nconst conn=b.data?.orders;\nconst o=conn?.nodes?.length===1&&!conn.pageInfo?.hasNextPage?conn.nodes[0]:null;\nif(!o||o.name!==q.order_name||typeof o.email!=='string'||o.email.trim().toLowerCase()!==q.requester||o.test!==true)return stop('order_or_requester_not_verified');\nconst money=m=>{\n if(m?.currencyCode!=='EUR'||typeof m.amount!=='string'||!/^(0|[1-9]\\d{0,8})(\\.\\d{1,2})?$/.test(m.amount))return null;\n const [a,f='']=m.amount.split('.');return Number(a)*100+Number(f.padEnd(2,'0'));\n};\nconst received=money(o.totalReceivedSet?.presentmentMoney),refunded=money(o.totalRefundedSet?.presentmentMoney);\nconst request=money({amount:q.requested_amount,currencyCode:'EUR'});\nconst validFinancial=['PAID','PARTIALLY_REFUNDED','REFUNDED','PENDING','AUTHORIZED','PARTIALLY_PAID','VOIDED','EXPIRED'];\nconst validFulfillment=['FULFILLED','UNFULFILLED','PARTIALLY_FULFILLED','IN_PROGRESS','ON_HOLD','OPEN','PENDING_FULFILLMENT','REQUEST_DECLINED','RESTOCKED','SCHEDULED'];\nif(!validFinancial.includes(o.displayFinancialStatus)||!validFulfillment.includes(o.displayFulfillmentStatus))return stop('unsupported_order_status');\nlet candidate=null;\nif(q.hints.includes('refund_request')&&received!==null&&refunded!==null&&request!==null&&request>0&&request<=received-refunded&&['PAID','PARTIALLY_REFUNDED'].includes(o.displayFinancialStatus)){\n  candidate=request; // arithmetic screening only; not merchant eligibility or authorization\n}\nconst facts={issue_hints:q.hints,financial_status:o.displayFinancialStatus,fulfillment_status:o.displayFulfillmentStatus,proposed_refund_eur:candidate===null?null:(Math.floor(candidate/100)+'.'+String(candidate%100).padStart(2,'0'))};\nreturn {json:{ready:'yes',session_id:q.session_id,ticket_id:q.ticket_id,edition:q.edition,facts,refund_screen:q.hints.includes('refund_request')?(candidate===null?'manual_review':'amount_screen_passed_eligibility_unverified'):'not_requested'}};"
+      }
+    },
+    {
+      "id": "ordergate",
+      "name": "Order verified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        -100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ordergate-condition",
+              "leftValue": "={{ $json.ready }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "inference",
+      "name": "Draft through Talon",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        720,
+        -220
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Operator settings and sample').first().json.config.talon_url + '/v1/proxy/' + $('Operator settings and sample').first().json.config.provider + '/v1/chat/completions' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Talon-Session-ID",
+              "value": "={{ $json.session_id }}"
+            },
+            {
+              "name": "X-Talon-Client",
+              "value": "n8n-shopify-support"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: $('Operator settings and sample').first().json.config.model,max_tokens:450,messages:[{role:'system',content:\"You are a merchant support drafting assistant. Use only the supplied structured order facts; never assume shipment tracking, delivery dates or refund eligibility. Classify the issue using one of issue_hints. Return ONLY a JSON object with exactly issue, recommendation, draft, proposed_refund_eur. recommendation is status_reply, refund_review or manual_review. If proposed_refund_eur is non-null, you may recommend refund_review with that exact string for manual eligibility review; otherwise proposed_refund_eur must be null. Damaged/incorrect/return questions require manual review if not refund_review. Draft a helpful short customer response, never assert a refund was completed, never promise money, no personal identifiers, no links. This is an internal draft, never sent.\"},{role:'user',content:JSON.stringify($json.facts)}]}) }}",
+        "options": {
+          "timeout": 60000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "TalonSupportHeader",
+          "name": "Talon customer-support (Authorization)"
+        }
+      }
+    },
+    {
+      "id": "draft",
+      "name": "Review-only support result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -220
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source=$('Verify order and minimize').first().json;\nconst stop=reason=>({json:{status:'manual_review',reason,session_id:source.session_id,refund_execution:'unavailable',message_sent:false}});\nif($json.statusCode!==200)return stop('model_request_not_successful');\nconst raw=$json.body?.choices?.[0]?.message?.content;\nif(typeof raw!=='string'||raw.length>4000)return stop('invalid_model_response');\nlet v;try{v=JSON.parse(raw);}catch{return stop('invalid_model_json');}\nif(!v||Array.isArray(v)||Object.keys(v).sort().join(',')!=='draft,issue,proposed_refund_eur,recommendation'||!source.facts.issue_hints.includes(v.issue)||!['status_reply','refund_review','manual_review'].includes(v.recommendation)||typeof v.draft!=='string'||v.draft.trim().length<10||v.draft.length>800||/@|https?:|\\b(?:refund(?:ed| (?:was |has been )?(?:completed|processed|issued|sent|approved))|money (?:was |has been )?returned)\\b/i.test(v.draft))return stop('model_output_needs_review');\nif(v.recommendation==='refund_review'?(source.facts.proposed_refund_eur===null||v.proposed_refund_eur!==source.facts.proposed_refund_eur):v.proposed_refund_eur!==null)return stop('invalid_refund_recommendation');\nif(v.recommendation==='status_reply'&&(!['order_status','shipping_delay'].includes(v.issue)||source.facts.issue_hints.some(x=>!['order_status','shipping_delay'].includes(x))))return stop('merchant_review_required');\nif(source.refund_screen==='manual_review'&&v.recommendation!=='manual_review')return stop('merchant_review_required');\nreturn {json:{status:'draft_ready_for_operator_review',session_id:source.session_id,ticket_id:source.ticket_id,edition:source.edition,order_facts:source.facts,issue:v.issue,recommendation:v.recommendation,proposed_refund_eur:v.proposed_refund_eur,merchant_eligibility:'not_established',draft:v.draft.trim(),draft_is_untrusted:true,refund_execution:'unavailable',message_sent:false}};"
+      }
+    },
+    {
+      "id": "escalate",
+      "name": "Manual review only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        180
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {json:{status:'manual_review',reason:$json.reason,session_id:$json.session_id||null,refund_execution:'unavailable',message_sent:false}};"
+      }
+    },
+    {
+      "id": "note1",
+      "name": "Setup and safety",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -950,
+        -360
+      ],
+      "parameters": {
+        "content": "## Shopify support — read/draft/handoff\nOperator-attested test input only. Configure the two Header Auth credentials, Shopify endpoint and Talon endpoint. Default sample is synthetic, requires a visible fixture service. No Gmail send, mutation, action claim or payment credential. Use development store test orders only. All drafts require review.",
+        "width": 700,
+        "height": 300
+      }
+    },
+    {
+      "id": "note2",
+      "name": "Trust boundary",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        80,
+        190
+      ],
+      "parameters": {
+        "content": "## Boundaries\nShopify lookup is read-only and outside Talon. Sender match follows trusted operator verification; no raw email or body goes to the model. LLM sees minimized structured facts through Talon. Amount screening is not eligibility, approval or authorization. Refund execution disabled.",
+        "width": 530,
+        "height": 250
+      }
+    }
+  ],
+  "connections": {
+    "Manual test input": {
+      "main": [
+        [
+          {
+            "node": "Operator settings and sample",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Operator settings and sample": {
+      "main": [
+        [
+          {
+            "node": "Prepare request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare request": {
+      "main": [
+        [
+          {
+            "node": "Input verified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input verified?": {
+      "main": [
+        [
+          {
+            "node": "Read Shopify order",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Manual review only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Shopify order": {
+      "main": [
+        [
+          {
+            "node": "Verify order and minimize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify order and minimize": {
+      "main": [
+        [
+          {
+            "node": "Order verified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Order verified?": {
+      "main": [
+        [
+          {
+            "node": "Draft through Talon",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Manual review only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft through Talon": {
+      "main": [
+        [
+          {
+            "node": "Review-only support result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": false,
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "executionTimeout": 180
+  },
+  "pinData": {},
+  "tags": []
+}
