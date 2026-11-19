@@ -31,6 +31,9 @@ Talon is introduced **between the application and its model/MCP endpoints**. We 
 
 ## Customer integration recipe
 
+**Company-first adoption:** establish `talon.config.yaml` company policy before registering the HR AI use case. One use case = one `agent.talon.yaml`, identity and active Talon key. Prefer the final released native registration path (core PR #567 proposes `talon agents add`) and verify its exact syntax before replacing the existing standalone fixture instructions. The latter remain an older isolated topology, not verified native fleet onboarding. Prove registration, loaded policy/runtime identity, actual intercepted application traffic and governed outcome separately, using the real Console/CLI/API and independent HR counters. Do not claim a file edit or registration alone proves enforcement. For the short pilot/ACME, show the same applicable mandatory company control inherited by another use case, with first still operating. Measure prepared installation/pairing, integration and denied-action investigation time; record actual results, not targets as results.
+
+
 - **Before Talon:** the Workforce web app renders fixed aggregate charts from a read-only analytics API over DuckDB.
 - **Connect:** configure the application to use the Talon MCP endpoint and, in LIVE, the OpenAI-compatible Talon gateway; provision the application's Talon identity separately from the provider secret. Native initialization, validation, policy and activation steps follow below.
 - **Company policy:** configure shared defaults and the use-case overlay via the supported release; explicitly restrict employee export and set the model budget. Inspect effective/loaded policy rather than assuming a file edit is active.
@@ -80,16 +83,14 @@ This shows the **server-side** boundaries, not direct browser connections to Ope
 
 All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2 and OpenSSL. Talon itself must come from a verified release artifact; Go is not required.
 
-**Release acceptance gate:** the Operations Console is merged but the first console-enabled stable release has not yet been verified for this walkthrough. Prior to publication use the exact release-manager-approved candidate artifact and record its tag/commit, SHA256 and platform. After publication repeat with the stable artifact and update this guide with the tested pin and exact installation command. See [official releases](https://github.com/dativo-io/talon/releases), [release verification](https://github.com/dativo-io/talon/blob/main/scripts/verify-release.sh) and [Talon #533](https://github.com/dativo-io/talon/issues/533). Do not use a floating source build as customer installation or claim this gate passed until the artifact run is recorded.
+**Release acceptance gate:** the complete official v1.17.0 stable release is the customer baseline (core #562–569/#572). RC.1 is incomplete; earlier compatible candidate runs can provide internal Console evidence only. Record the exact tag/commit, platform, executable checksum and image digest. Follow the released [official installation guidance](https://github.com/dativo-io/talon/releases) and verify its artifacts using the matching release's verification instructions. This draft has not yet been exercised on that stable release; do not replace the pin with a floating source build.
 
-Install the verified Linux binary following the release's instructions, then check:
+The supported no-source-build paths are the verified Linux binary or published image. Use the final release's supported persistent deployment and Console pairing instructions. The new no-clone quickstart is a separate disposable, keyless policy proof (it does not open the console or call a provider, and cleans up by default); it is not this application's running deployment. This isolated fixture currently mounts the installed Linux Talon binary into its Linux containers. Do not mount a macOS binary into Docker or silently build Talon from source. Before customer acceptance reconcile the fixture with the released supported path and verify by actually running it.
 
 ```bash
 talon version
-talon ui serve --help  # Must show --listen, --proxy-config and --allow-non-loopback
+talon ui serve --help  # Check the installed release's supported flags
 ```
-
-The demo mounts that installed **Linux** binary into its Linux containers; do not mount a macOS binary into Docker. The existing policy/CLI walkthrough requires Talon even when you choose not to open the console.
 
 ## 1. Start DuckDB and the existing analytics services
 
