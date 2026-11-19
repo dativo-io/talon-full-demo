@@ -29,3 +29,7 @@ bash scripts/test-people-analytics-real-provider.sh
 ```
 
 Not proven by no-key CI: real OpenAI model selection, production IAM/row security, legal compliance, arbitrary SQL safety or interception of direct bypass paths. Application-observed gateway traces are not OpenAI wire captures.
+
+## Complete v1.17.0 consumer acceptance (not run)
+
+Existing green workflows use an earlier tagged Talon source build, not the new published artifact. Do not use them as evidence of native v1.17.0 registration or paired Console acceptance. Once complete stable v1.17.0 is verified (RC.1 is incomplete), run the supported artifact deployment and actual operator browser, independently prove registered/loaded/connected/governed, record exact artifact digests and actual timings, and confirm policy/CLI/API/Console/evidence and independent HR counter parity. Keep native deployment and registration steps visible. Company-policy inheritance across applications belongs to integrated #48/#50; no alternate policy engine. This consumer test does not gate OSS release.
