@@ -28,7 +28,8 @@ for filename, needles in expect.items():
         assert value.lower() in txt.lower(), (filename, f"missing: {value}")
     print("PASS demo proof contract:", filename)
 walk = (ROOT / "docs/SHOWCASE_LIVE_WALKTHROUGH.md").read_text().lower()
-for obsolete in ("six pages", "six-page", "competing approval inbox", "exactly-once external"):
+for obsolete in ("six pages", "six-page", "competing approval inbox"):
     assert obsolete not in walk, f"obsolete claim in walkthrough: {obsolete}"
-print("PASS: no obsolete console-count or unsafe exactly-once claims")
+assert "not exactly-once external" in walk, "missing explicit negative exactly-once external effects disclaimer"
+print("PASS: no obsolete console count, explicit denial of exactly-once external effects")
 print("NOTE: this is a static demo truth contract; does not test runtime, published artifact, provider, reviewer or finance")
