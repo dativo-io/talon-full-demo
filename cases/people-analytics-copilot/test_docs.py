@@ -135,6 +135,10 @@ class DocumentationContract(unittest.TestCase):
             self.assertIn("screenshots/"+screenshot,body)
             self.assertIn(screenshot,shots)
         self.assertIn("Never include the one-time pairing code",shots)
+        for term in ("Approvals", "read only", "empty", "independent reviewer", "No action approval requests"):
+            self.assertIn(term.lower(), shots.lower())
+        self.assertIn("Approvals", body)
+        self.assertNotIn("approve/reject buttons", body.lower())
 
     def test_web_app_does_not_fabricate_employee_access_denials(self):
         app=(CASE/"demo.py").read_text(encoding="utf-8")
