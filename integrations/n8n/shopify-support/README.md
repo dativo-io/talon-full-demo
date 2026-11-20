@@ -2,6 +2,30 @@
 
 **Stage A released-artifact synthetic test + Stage B development-only synthetic integration.** This is the existing ACME customer-support use case in an e-commerce setting, not another use case or a standalone authorization system. The standalone `shopify-support.workflow.json` remains an inactive, read/draft-only stock-node export; by itself it cannot send email or dispatch financial actions. The source-main integration harness *also imports the official canonical n8n refund workflow* under the **same native customer-support Talon key**, passes actual verified draft outputs to a trusted synthetic caller and proves company allow/deny/independent approval against a counting synthetic refund adapter. This second path passed in [CI run 44826296354](https://github.com/dativo-io/talon-full-demo/actions/runs/44826296354), using **source-built** pinned Talon main and n8n 2.48.5. It is not a completed one-click joined community template or published v1.17.0 customer acceptance. Actual Shopify mutations, paid inference and Stage C are NOT implemented or tested.
 
+## Skeptical buyer proof — why not an established gateway?
+
+**The buying problem is not "can AI draft a support answer?"** A customer running Bifrost or LiteLLM already has models, budgets, MCP policy and routing. Portkey offers an agent registry and central policy. Solo.io can apply MCP/HTTP guardrails and ext-auth; TrueFoundry has native MCP human approval. Talon has to show the company can adopt an **existing** support app and authorize a consequential **business operation** with less additional operational code and risk.
+
+| Rival | What it already contributes | Required Talon differentiation, not assumed superiority |
+| --- | --- | --- |
+| Bifrost (Maxim AI) | MCP gateway/tool execution, policies and audit; approval depending on capability/edition | Exact typed **refund operation** lifecycle, durable independent claim/UNKNOWN, independent counted result; reduce per-app custom plumbing |
+| LiteLLM | Virtual keys/team budgets/provider fallback/MCP access | Native linked model+business-action policy **without** needing the app team to build its own approval/operation store |
+| Portkey | Agent registry, org policy, tool control and operational traces | Concrete time-to-second-use-case and exact policy-to-dispatch/effect proof |
+| Solo.io agentgateway | HTTP/MCP authorization and enterprise argument guardrails, ext-auth to custom policy service | Fewer independently operated ext-auth/reviewer/dispatch/state services with comparable correctness |
+| TrueFoundry | MCP tool approval and agent identity | Show approval itself never dispatches, exact argument binding, durable claim, retry/UNKNOWN, independent merchant result |
+
+### Procurement acceptance, not a happy-path video
+
+1. **Customer value:** actual support case and verified synthetic order data, a helpful response draft, explicit human handoff; unverified sender and ambiguous order are rejected, raw email/payment details do not flow to provider.
+2. **Two distinct policy surfaces:** actual Talon model routing and generic trusted **Action Gateway**. The approved demo uses a read/draft n8n graph plus the official action n8n graph, the same native Talon key and process; not a single installed standalone combined template. A read-only Shopify lookup is **outside Talon** and may be outside the gateway path.
+3. **Exact action lifecycle:** only an independently merchant-eligible synthetic order can reach trusted dispatch; company €25 allow / €249 independent review / €750 deny; company rule cannot be weakened by app policy. Zero downstream before and immediately on reviewer approval, one after a separate claim; signed operation and 2-call fake ledger.
+4. **Failure and negative cases:** malformed/wrong currency and missing typed arguments, €50/50.01/500/500.01 bands, changed arguments, replay/concurrent claims, unauthorized reviewer, restart and `UNKNOWN` reconciliation. Do not confuse the upstream reference's standalone UNKNOWN suite with this same Shopify ticket.
+5. **Release and adoption:** verify the official published release artifact hash and n8n compatibility, exact current version/identity, source-of-truth company policy, re-import credentials (never in export), one other independently governed existing use case and seven-area read-only Console correlation. No external financial mutation during a general buyer demo.
+
+**Existing proof:** source-main real-n8n + synthetic Shopify/provider/finance CI has passed a joined same-identity refund flow. **Not proven:** live Shopify store/test transactions, real mail sender identity, paid provider request, single export that installs both graphs, full native restore/replay across restart, end-to-end shared two-app fleet, published v1.17.0 acceptance. The latest PR check status must be consulted; a previously green run never overwrites a newer red check. A signed record is tamper-evident, not immutable; Talon at-most-once dispatch within its durable boundaries is not exactly-once external payment effect. The legacy bespoke approval server is not an alternative authorization path in this canonical demo.
+
+**Sales rule:** First explain the ordinary support value, then show why the company operator trusts a bounded business action. If the buyer wants only AI drafting or model routing, LiteLLM/Bifrost/Portkey are credible simpler choices. Full positioning and evidence gates: [competitor scorecard](https://github.com/dativo-io/talon-full-demo/blob/docs/acme-release-aligned-showcase/docs/COMPETITOR_PROOF_SCORECARD.md) · [buyer-win strategy](https://github.com/dativo-io/talon-full-demo/blob/docs/acme-release-aligned-showcase/docs/TALON_BUYER_WIN_STRATEGY.md).
+
 ## Business journey
 
 1. A support operator opens a customer email about order status, shipping delay, damaged/wrong products, returns or refunds. The committed Manual Trigger + editable sample stand in for a trusted intake; no Gmail trigger or proof of mailbox identity yet. Operator must verify the authenticated customer/requester out of band; never convert an email From header into a verification flag.
