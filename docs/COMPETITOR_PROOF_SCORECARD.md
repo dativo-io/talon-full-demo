@@ -41,6 +41,8 @@
 
 For Full ACME, spend additional minutes on provider failover/PII, preventive session budget, and the OrderDesk incident. Do **not** run all capabilities through every application or build another dashboard. Full demo stays 20–25 minutes and the short First Production Pilot 10–15; be candid if native recovery is a longer technical appendix.
 
+**Version-compatibility gate:** Talon's native refund reference has been runtime-tested on **n8n 2.48.5**, while Full Demo's older n8n workflows pin 2.30.4. Do not call its action reference integrated without a verified full consumer run on the selected version. All current-main integration checks are **source-built** development evidence, not a verified v1.17.0 release artifact.
+
 ## Product limitations and comparison hygiene
 
 - **Console** is read-only and has seven primary areas on core `main` after #565 (including **Approvals**). Reviewer CLI/API authorizes separately; approval does not dispatch.
