@@ -13,15 +13,26 @@ trap cleanup EXIT
 umask 077
 BIN="$WORK/bin"
 mkdir -p "$BIN" "$WORK/talon" "$WORK/output"
-version=v1.16.1
-archive=talon_1.16.1_linux_amd64.tar.gz
-curl -fsSL --retry 3 "https://github.com/dativo-io/talon/releases/download/$version/$archive" -o "$WORK/$archive"
-printf '%s  %s\n' bc5147dedfb59608b0be1ec07b6da78ef430bc833ccc7fddfa444760f2e94a4e "$WORK/$archive" | sha256sum -c -
-tar -xzf "$WORK/$archive" -C "$BIN" talon
-reported="$("$BIN/talon" version)"
-printf '%s\n' "$reported"
-[[ "$(printf '%s\n' "$reported" | head -n1)" == "Talon 1.16.1" ]] || { echo 'Unexpected released binary version'; exit 1; }
+# Default is a published checksum-verified archive. For an explicitly
+# development-only compatibility test, supply a pinned core-main binary.
+if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then
+  [[ -x "$TALON_EXTERNAL_BIN" ]] || { echo 'Missing pinned core-main binary' >&2; exit 1; }
+  cp "$TALON_EXTERNAL_BIN" "$BIN/talon"
+  echo "DEVELOPMENT-ONLY source-built Talon: ${TALON_CORE_SHA:?set immutable Talon core main SHA}"
+  "$BIN/talon" version
+  echo "This is NOT evidence of a published v1.17.0 customer artifact."
+else
+  version=v1.16.1
+  archive=talon_1.16.1_linux_amd64.tar.gz
+  curl -fsSL --retry 3 "https://github.com/dativo-io/talon/releases/download/$version/$archive" -o "$WORK/$archive"
+  printf '%s  %s\n' bc5147dedfb59608b0be1ec07b6da78ef430bc833ccc7fddfa444760f2e94a4e "$WORK/$archive" | sha256sum -c -
+  tar -xzf "$WORK/$archive" -C "$BIN" talon
+  reported="$("$BIN/talon" version)"
+  printf '%s\n' "$reported"
+  [[ "$(printf '%s\n' "$reported" | head -n1)" == "Talon 1.16.1" ]] || { echo 'Unexpected released binary version'; exit 1; }
+fi
 sha256sum "$BIN/talon"
+
 export TALON_SECRETS_KEY="$(openssl rand -hex 32)"
 export TALON_SIGNING_KEY="$(openssl rand -hex 32)"
 export TALON_ADMIN_KEY="$(openssl rand -hex 32)"
@@ -80,7 +91,7 @@ talon_pid=$!
 for _ in $(seq 1 100); do curl -fsS "http://127.0.0.1:$TALON_PORT/health" >/dev/null 2>&1 && break; sleep .2; done
 curl -fsS "http://127.0.0.1:$TALON_PORT/health" >/dev/null || { cat "$WORK/talon.log"; exit 1; }
 
-IMAGE=docker.n8n.io/n8nio/n8n:2.30.4
+IMAGE="${N8N_IMAGE:-docker.n8n.io/n8nio/n8n:2.30.4}"
 docker pull "$IMAGE"
 echo "n8n image digest:"
 docker image inspect "$IMAGE" --format '{{join .RepoDigests ","}}'
@@ -192,4 +203,5 @@ assert len(expected)==2,expected
 assert expected.issubset({r["session_id"] for r in s}), records
 print("PASS: signed evidence for actual Shopify-support Talon requests:",len(s))
 PY
-echo 'PASS Stage A real n8n + checksum-pinned Talon + synthetic Shopify and provider (NOT live Shopify or model)'
+echo 'PASS Stage A real n8n + actual Talon binary + synthetic Shopify and provider (NOT live Shopify or model)'
+if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then echo 'NOTE: source-built pinned core main is development only, not a released artifact'; fi
