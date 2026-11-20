@@ -1,0 +1,68 @@
+name: Shopify support against Talon current main (development only)
+
+# Compatibility gate: source-built Talon current main is NOT an official release.
+# This validates the real business-reference contract before v1.17.0 publication.
+on:
+  pull_request:
+    paths:
+      - 'integrations/n8n/shopify-support/**'
+      - '.github/workflows/shopify-core-main.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-main-reference:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TALON_CORE_SHA: 5912dc1215ccfc27a90ede9366b41450450359ea
+    steps:
+      - name: Check out Full Demo PR
+        uses: actions/checkout@v4
+        with:
+          path: full-demo
+          persist-credentials: false
+      - name: Check out exact reviewed Talon main commit
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: ${{ env.TALON_CORE_SHA }}
+          path: talon
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache: true
+          cache-dependency-path: talon/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build pinned core main, without claiming released artifact
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev
+          (cd talon && go build -o "$RUNNER_TEMP/talon" ./cmd/talon/)
+          "$RUNNER_TEMP/talon" version
+          sha256sum "$RUNNER_TEMP/talon"
+      - name: Execute Full Demo Shopify Stage A against core main
+        env:
+          TALON_EXTERNAL_BIN: ${{ runner.temp }}/talon
+          N8N_IMAGE: docker.n8n.io/n8nio/n8n:2.30.4
+        run: bash full-demo/integrations/n8n/shopify-support/test-n8n.sh
+      - name: Install core-reference n8n 2.48.5
+        run: |
+          mkdir -p "$RUNNER_TEMP/n8n"
+          cd "$RUNNER_TEMP/n8n"
+          npm install --ignore-scripts --no-audit --no-fund --loglevel=error n8n@2.48.5
+          npm rebuild sqlite3
+          test "$(./node_modules/.bin/n8n --version | tail -n1)" = "2.48.5"
+      - name: Execute native canonical action integration and independent counts
+        env:
+          N8N_BIN: ${{ runner.temp }}/n8n/node_modules/.bin/n8n
+          TALON_BIN: ${{ runner.temp }}/talon
+        run: |
+          cd talon
+          bash scripts/n8n-refund-live.sh 2>&1 | tee "$RUNNER_TEMP/core-n8n-proof.log"
+          grep -E '^(PASS|FAIL)' "$RUNNER_TEMP/core-n8n-proof.log" >> "$GITHUB_STEP_SUMMARY"
