@@ -19,7 +19,7 @@ must_have("five approved competitors", scorecard, [
     "signed", "at most once", "UNKNOWN", "n8n 2.48.5",
     "not a published benchmark", "TALON_BUYER_WIN_STRATEGY.md",
 ])
-assert all(n not in scorecard.split("## Five credible")[0] for n in ["Langfuse", "Helicone"]), "Obsolete shortlist lead"
+assert "| **Langfuse**" not in scorecard and "| **Helicone**" not in scorecard, "Old vendors must not appear as competitors"
 
 must_have("all cases and challenger objections", scorecard, [
     "Case A", "Case B", "Case C", "Case D", "Case E", "Case F",
