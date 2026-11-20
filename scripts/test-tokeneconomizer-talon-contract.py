@@ -118,14 +118,35 @@ def main():
         raise RuntimeError("Invalid pinned Talon release tag: " + RELEASE)
     installed = run(["talon", "version"], cwd=ROOT, env=DEMO["safe_env"]())
     version_line = installed.splitlines()[0].strip() if installed.strip() else ""
-    if version_line != "Talon " + RELEASE:
-        raise RuntimeError(
-            "TokenEconomizer requires the reviewed Talon stable release "
-            + RELEASE + "; installed binary reports " + repr(version_line)
-            + ". Install with: go install "
-            "github.com/dativo-io/talon/cmd/talon@" + RELEASE
-            + " ; export PATH=\"$(go env GOPATH)/bin:$PATH\" "
-            "or set TALON_BIN to that release's binary.")
+    # The existing paid showcase remains pinned to the reviewed v1.15.3.
+    # Compatibility CI opts in explicitly to a *specific* source SHA or
+    # checksum-verified release candidate; never silently accept "latest".
+    candidate_mode = os.getenv("TALON_TOKEN_CONTRACT_MODE", "")
+    if candidate_mode == "core-main":
+        source_sha = os.getenv("TALON_CORE_SHA", "")
+        if (len(source_sha) != 40 or
+                any(ch not in "0123456789abcdef" for ch in source_sha) or
+                not version_line.startswith("Talon v0.0.0-") or
+                not version_line.endswith("-" + source_sha[:12]) or
+                "Commit: " + source_sha[:7] not in installed):
+            raise RuntimeError("Candidate binary does not identify as pinned core main " + source_sha)
+        tested_version = "source-main " + source_sha[:12] + " (development only)"
+    elif candidate_mode == "published-rc2":
+        if version_line not in ("Talon 1.17.0-rc.2", "Talon v1.17.0-rc.2"):
+            raise RuntimeError("Expected published v1.17.0-rc.2 artifact, got " + repr(version_line))
+        tested_version = "pre-release v1.17.0-rc.2 (not stable)"
+    elif candidate_mode == "":
+        if version_line != "Talon " + RELEASE:
+            raise RuntimeError(
+                "TokenEconomizer requires the reviewed Talon stable release "
+                + RELEASE + "; installed binary reports " + repr(version_line)
+                + ". Install with: go install "
+                "github.com/dativo-io/talon/cmd/talon@" + RELEASE
+                + " ; export PATH=\"$(go env GOPATH)/bin:$PATH\" "
+                "or set TALON_BIN to that release's binary.")
+        tested_version = "reviewed stable " + RELEASE
+    else:
+        raise RuntimeError("Unsupported explicit compatibility mode " + repr(candidate_mode))
     Provider.calls = 0
     with tempfile.TemporaryDirectory(prefix="talon-token-contract-") as tmp:
         root = Path(tmp)
@@ -221,7 +242,7 @@ gateway:
                             raise AssertionError(f"{arm} denial not evidenced: {denied}")
                     if Provider.calls != 2:
                         raise AssertionError(f"denials reached mock provider: {Provider.calls}")
-                    print("PASS: Talon stable release " + RELEASE + " compatibility — two separately budgeted "
+                    print("PASS: Talon " + tested_version + " compatibility — two separately budgeted "
                           "$5.00 agents; Anthropic-wire requests, priced usage, two preventive "
                           "denials (zero dispatch), verified signed evidence; no paid calls")
                 except Exception:
