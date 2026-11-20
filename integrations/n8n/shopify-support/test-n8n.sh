@@ -26,10 +26,13 @@ if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then
       echo "This is NOT evidence of a published Talon artifact." ;;
     published-rc2)
       [[ "${TALON_RELEASE_TAG:-}" == "v1.17.0-rc.2" ]] || { echo 'Unexpected RC2 identity' >&2; exit 1; }
-      echo "OFFICIAL PRE-RELEASE ARTIFACT: $TALON_RELEASE_TAG (checksum must be verified by caller)"
+      echo "OFFICIAL PRE-RELEASE ARTIFACT: $TALON_RELEASE_TAG (checksum verified by caller)"
       reported="$("$BIN/talon" version)"
-      printf '%s\\n' "$reported"
-      printf '%s\\n' "$reported" | head -n1 | grep -Eq '^Talon v?1\\.17\\.0-rc\\.2
+      printf '%s\n' "$reported"
+      printf '%s\n' "$reported" | head -n1 | grep -Eq '^Talon v?1\.17\.0-rc\.2$' ||
+        { echo 'Downloaded binary does not identify as v1.17.0-rc.2' >&2; exit 1; } ;;
+    *) echo 'Unsupported TALON_EXTERNAL_KIND' >&2; exit 1 ;;
+  esac
 else
   version=v1.16.1
   archive=talon_1.16.1_linux_amd64.tar.gz
