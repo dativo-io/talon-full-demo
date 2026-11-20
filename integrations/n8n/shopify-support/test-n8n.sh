@@ -45,6 +45,7 @@ fixture_pid=$!
 for _ in $(seq 1 50); do curl -fsS "http://127.0.0.1:$SHOPIFY_PORT/health" >/dev/null 2>&1 && break; sleep .2; done
 curl -fsS "http://127.0.0.1:$SHOPIFY_PORT/health" >/dev/null
 cd "$WORK/talon"
+if [[ -z "${TALON_EXTERNAL_BIN:-}" ]]; then
 cat >agent.talon.yaml <<'YAML'
 agent:
   name: customer-support
@@ -67,7 +68,19 @@ audit:
   include_prompts: false
   include_responses: false
 YAML
+fi
+if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then
+  company_agents='agents_dir: ./agents'
+  company_constraints='    constraints:
+      forbidden_tools: ["delete_*"]'
+  pii_action=block
+else
+  company_agents=''
+  company_constraints=''
+  pii_action=redact
+fi
 cat >talon.config.yaml <<YAML
+${company_agents}
 gateway:
   enabled: true
   providers:
@@ -78,12 +91,24 @@ gateway:
       allowed_models: ["gpt-4o-mini"]
   organization_policy:
     defaults:
-      pii_action: redact
+      pii_action: ${pii_action}
       daily_cost: 10.00
     log_prompts: false
     log_responses: false
+${company_constraints}
 YAML
-"$BIN/talon" secrets set customer-support-talon-key synthetic-talon-agent-key >/dev/null
+if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then
+  # Native registration has one independently authenticated operational key.
+  registration="$("$BIN/talon" agents add customer-support --tenant acme --owner support-operations --description "Shopify support draft through Talon" 2>&1)"
+  DEMO_TALON_KEY="$(printf '%s\n' "$registration" | grep -oE 'talon_uc_[0-9a-f]{48}' | head -n1)"
+  [[ -n "$DEMO_TALON_KEY" ]] || { echo 'Native registration failed' >&2; printf '%s\n' "$registration" | sed -E 's/talon_uc_[0-9a-f]{48}/[REDACTED]/g' >&2; exit 1; }
+  echo 'PASS: native registered customer-support with an issued Talon use-case key'
+  "$BIN/talon" agents show customer-support --effective >"$WORK/effective-before.txt"
+  grep -F 'delete_' "$WORK/effective-before.txt" >/dev/null || { echo 'Mandatory company constraint not inherited' >&2; exit 1; }
+else
+  DEMO_TALON_KEY=synthetic-talon-agent-key
+  "$BIN/talon" secrets set customer-support-talon-key "$DEMO_TALON_KEY" >/dev/null
+fi
 "$BIN/talon" secrets set openai-api-key synthetic-provider-key >/dev/null
 "$BIN/talon" validate
 "$BIN/talon" serve --port "$TALON_PORT" --gateway --gateway-config talon.config.yaml >"$WORK/talon.log" 2>&1 &
@@ -114,10 +139,10 @@ n["parameters"]["jsCode"]=s
 w["active"]=False
 Path(dest).write_text(json.dumps(w))
 PY
-  cat >"$dir/config/credentials.json" <<'JSON'
+  cat >"$dir/config/credentials.json" <<JSON
 [
  {"id":"ShopifyReadOnlyHeader","name":"Shopify read-only (X-Shopify-Access-Token)","type":"httpHeaderAuth","data":{"name":"X-Shopify-Access-Token","value":"synthetic-read-only"}},
- {"id":"TalonSupportHeader","name":"Talon customer-support (Authorization)","type":"httpHeaderAuth","data":{"name":"Authorization","value":"Bearer synthetic-talon-agent-key"}}
+ {"id":"TalonSupportHeader","name":"Talon customer-support (Authorization)","type":"httpHeaderAuth","data":{"name":"Authorization","value":"Bearer ${DEMO_TALON_KEY}"}}
 ]
 JSON
 }
@@ -140,6 +165,7 @@ run_case() {
   local id
   id="$(python3 -c 'import json,sys; w=json.load(open(sys.argv[1])); print((w[0] if isinstance(w,list) else w)["id"])' "$dir/config/export.json")"
   ! grep -Eq 'synthetic-read-only|synthetic-talon-agent-key|synthetic-provider-key' "$dir/config/export.json"
+  ! grep -Fq "$DEMO_TALON_KEY" "$dir/config/export.json"
   run_n8n "$dir" execute --id="$id" --rawOutput >"$dir/result.log" 2>&1 || { cat "$dir/result.log"; exit 1; }
   # n8n can emit startup log lines before the JSON. Locate actual execution data
   # and assert the terminal node result (never grep the embedded workflow source).
@@ -203,5 +229,20 @@ assert len(expected)==2,expected
 assert expected.issubset({r["session_id"] for r in s}), records
 print("PASS: signed evidence for actual Shopify-support Talon requests:",len(s))
 PY
+if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then
+  before="$(grep -c '"kind": "provider_call"' "$WORK/fixture.jsonl")"
+  status="$(curl -sS -o "$WORK/pii-denial.json" -w '%{http_code}' \
+    -H "Authorization: Bearer $DEMO_TALON_KEY" -H "Content-Type: application/json" \
+    -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Email buyer@example.test and IBAN PL61109010140000071219812874"}]}' \
+    "http://127.0.0.1:$TALON_PORT/v1/proxy/openai/v1/chat/completions")"
+  [[ "$status" == 400 || "$status" == 403 ]] || { echo "Expected company PII denial, got HTTP $status" >&2; exit 1; }
+  after="$(grep -c '"kind": "provider_call"' "$WORK/fixture.jsonl")"
+  [[ "$before" == "$after" ]] || { echo 'Company PII deny reached provider' >&2; exit 1; }
+  "$BIN/talon" audit export --format signed-json --output "$WORK/output/evidence-after-denial.json" >/dev/null
+  "$BIN/talon" audit verify --file "$WORK/output/evidence-after-denial.json" >/dev/null
+  "$BIN/talon" agents show customer-support --effective >"$WORK/effective-after.txt"
+  grep -F 'delete_' "$WORK/effective-after.txt" >/dev/null
+  echo 'PASS: native use case inherited company PII denial; zero provider dispatch and valid signatures'
+fi
 echo 'PASS Stage A real n8n + actual Talon binary + synthetic Shopify and provider (NOT live Shopify or model)'
 if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then echo 'NOTE: source-built pinned core main is development only, not a released artifact'; fi
