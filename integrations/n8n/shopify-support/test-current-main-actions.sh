@@ -21,7 +21,7 @@ ACTION_DIR="$WORK/action"; mkdir -p "$ACTION_DIR/runtime" "$ACTION_DIR/config"
 python3 - "$TALON_CORE_DIR/examples/n8n-refund/refund-approval.workflow.json" "$ACTION_DIR/config/workflow.json" "$TALON_PORT" <<'PY'
 import json,sys
 w=json.load(open(sys.argv[1]))
-assert w["active"] is False
+assert w.get("active",False) is False
 n={node["name"] for node in w["nodes"]}
 assert {"Talon: establish operation","Talon: read operation","Talon: claim (Talon dispatches)","Wait for reviewer"}<=n
 assert all(x["type"].startswith("n8n-nodes-base.") for x in w["nodes"])
