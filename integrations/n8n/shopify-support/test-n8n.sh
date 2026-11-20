@@ -40,7 +40,11 @@ export TALON_DATA_DIR="$WORK/talon/data"
 mkdir -p "$TALON_DATA_DIR"
 SHOPIFY_PORT=19091
 TALON_PORT=19092
-python3 "$ROOT/fixture.py" --port "$SHOPIFY_PORT" --log "$WORK/fixture.jsonl" >"$WORK/fixture.log" 2>&1 &
+if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then
+  python3 "$ROOT/fixture.py" --port "$SHOPIFY_PORT" --log "$WORK/fixture.jsonl" --action-fixture >"$WORK/fixture.log" 2>&1 &
+else
+  python3 "$ROOT/fixture.py" --port "$SHOPIFY_PORT" --log "$WORK/fixture.jsonl" >"$WORK/fixture.log" 2>&1 &
+fi
 fixture_pid=$!
 for _ in $(seq 1 50); do curl -fsS "http://127.0.0.1:$SHOPIFY_PORT/health" >/dev/null 2>&1 && break; sleep .2; done
 curl -fsS "http://127.0.0.1:$SHOPIFY_PORT/health" >/dev/null
@@ -72,7 +76,16 @@ fi
 if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then
   company_agents='agents_dir: ./agents'
   company_constraints='    constraints:
-      forbidden_tools: ["delete_*"]'
+      forbidden_tools: ["delete_*"]
+      action_approvals:
+        argument_rules:
+          refund-too-large:
+            actions: [create_refund_request]
+            argument: amount
+            type: decimal
+            operator: gt
+            value: "500.00"
+            effect: deny'
   pii_action=block
 else
   company_agents=''
@@ -103,8 +116,20 @@ if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then
   DEMO_TALON_KEY="$(printf '%s\n' "$registration" | grep -oE 'talon_uc_[0-9a-f]{48}' | head -n1)"
   [[ -n "$DEMO_TALON_KEY" ]] || { echo 'Native registration failed' >&2; printf '%s\n' "$registration" | sed -E 's/talon_uc_[0-9a-f]{48}/[REDACTED]/g' >&2; exit 1; }
   echo 'PASS: native registered customer-support with an issued Talon use-case key'
+  # The official core-main action definition and use-case rule, under the SAME
+  # customer-support operational identity as the already connected model route.
+  : "${TALON_CORE_DIR:?set pinned Talon core checkout}"
+  [[ -f "$TALON_CORE_DIR/examples/n8n-refund/use-case-action.append.yaml" ]] || exit 1
+  sed "s#https://refunds.internal/v1/refunds#http://127.0.0.1:$SHOPIFY_PORT/refunds#" \
+    "$TALON_CORE_DIR/examples/n8n-refund/use-case-action.append.yaml" \
+    >> "$WORK/talon/agents/customer-support/agent.talon.yaml"
   "$BIN/talon" agents show customer-support --effective >"$WORK/effective-before.txt"
   grep -F 'delete_' "$WORK/effective-before.txt" >/dev/null || { echo 'Mandatory company constraint not inherited' >&2; exit 1; }
+  reviewer_info="$("$BIN/talon" approver add --name synthetic-support-lead --tenant acme --groups support-leads)"
+  DEMO_REVIEWER_KEY="$(printf '%s\n' "$reviewer_info" | grep -oE 'talon_appr_cred_[0-9a-f]+\.[A-Za-z0-9_-]+' | head -n1)"
+  [[ -n "$DEMO_REVIEWER_KEY" ]] || { echo 'No independently scoped reviewer key' >&2; exit 1; }
+  unset reviewer_info
+  echo 'PASS: independent native reviewer registered outside n8n and use-case key scope'
 else
   DEMO_TALON_KEY=synthetic-talon-agent-key
   "$BIN/talon" secrets set customer-support-talon-key "$DEMO_TALON_KEY" >/dev/null
@@ -133,7 +158,9 @@ if isinstance(w,list): w=w[0]
 n=next(n for n in w["nodes"] if n["name"]=="Operator settings and sample")
 s=n["parameters"]["jsCode"]
 s=s.replace("http://127.0.0.1:8080","http://127.0.0.1:19092")
-if scenario=="refund": s=s.replace("Order #1001 status","Order #1001 refund").replace("When will my order #1001 arrive?","Please review order #1001 refund EUR 249 for damaged product.")
+if scenario.startswith("refund"):
+    amount={"refund":"249","refund25":"25","refund750":"750"}[scenario]
+    s=s.replace("Order #1001 status","Order #1001 refund").replace("When will my order #1001 arrive?","Please review order #1001 refund EUR "+amount+" for damaged product.")
 if scenario=="wrong_sender": s=s.replace("buyer@example.test","other@example.test")
 n["parameters"]["jsCode"]=s
 w["active"]=False
@@ -199,7 +226,7 @@ if scenario=="wrong_sender":
     assert "Draft through Talon" not in res["runData"]
 else:
     assert out["status"]==expected and out["draft"].startswith("Fixture only:"),out
-    assert out["proposed_refund_eur"]==("249.00" if scenario=="refund" else None),out
+    assert out["proposed_refund_eur"]==({"refund":"249.00","refund25":"25.00","refund750":"750.00"}.get(scenario)),out
     assert out["merchant_eligibility"]=="not_established"
 Path(dest).write_text(json.dumps(out))
 PY
@@ -243,6 +270,15 @@ if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then
   "$BIN/talon" agents show customer-support --effective >"$WORK/effective-after.txt"
   grep -F 'delete_' "$WORK/effective-after.txt" >/dev/null
   echo 'PASS: native use case inherited company PII denial; zero provider dispatch and valid signatures'
+fi
+if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then
+  # Two more verified merchant-test-order proposals from the exact same n8n
+  # support workflow and Talon use-case key. These are NOT authorization.
+  run_case "$WORK/four" "$ROOT/shopify-support.workflow.json" refund25 draft_ready_for_operator_review
+  run_case "$WORK/five" "$ROOT/shopify-support.workflow.json" refund750 draft_ready_for_operator_review
+  # Same process, policy, keys and business fixture: continue into canonical
+  # native action operations without replacing the running Talon process.
+  source "$ROOT/test-current-main-actions.sh"
 fi
 echo 'PASS Stage A real n8n + actual Talon binary + synthetic Shopify and provider (NOT live Shopify or model)'
 if [[ -n "${TALON_EXTERNAL_BIN:-}" ]]; then echo 'NOTE: source-built pinned core main is development only, not a released artifact'; fi
