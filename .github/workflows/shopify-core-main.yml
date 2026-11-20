@@ -49,7 +49,8 @@ jobs:
       - name: Execute Full Demo Shopify Stage A against core main
         env:
           TALON_EXTERNAL_BIN: ${{ runner.temp }}/talon
-          N8N_IMAGE: docker.n8n.io/n8nio/n8n:2.30.4
+          N8N_IMAGE: docker.n8n.io/n8nio/n8n:2.48.5
+          TALON_CORE_DIR: ${{ github.workspace }}/talon
         run: bash full-demo/integrations/n8n/shopify-support/test-n8n.sh
       - name: Install core-reference n8n 2.48.5
         run: |
