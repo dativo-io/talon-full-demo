@@ -4,6 +4,22 @@
 
 This demo uses the **same application-first engineering method** as [People Analytics](../people-analytics-copilot/README.md): establish that a real application and its synthetic database behave as expected; introduce Talon at its supported AI/action boundary; use an independently restricted backend; and compare real business effects with Talon's signed decisions. It is a **terminal coding-agent workflow**, not a second workforce browser. The workflow-specific transport is different because this case requires exact-action approval and execution.
 
+## Skeptical engineering buyer — alternative controls and proof boundary
+
+**Buyer objection:** "Bifrost governs coding-agent/MCP tool access; Solo.io agentgateway supplies CEL, HTTP/MCP guardrails and ext-auth; TrueFoundry can approve routed MCP tools. Why would I add Talon to my incident response workflow rather than one of these gateways plus our existing OpenShell?"
+
+**Answer the precise job:** an existing Claude Code session in an actual OpenShell sandbox diagnoses a real staged PostgreSQL incident, proposes an exact authorized `reconcile_staging_db_credentials` operation, receives an independent on-call decision, then makes a separate Talon Action Gateway claim/dispatch. The execution adapter independently reports staging 503→200 and recovery, with 1,000 production test rows and protected volume unchanged. In the SAME run, the unauthorized `volume_delete` action results in zero executor calls, repeat/stale arguments do not redispatch, signed Talon lifecycle verifies, and a deliberately out-of-path shell/HTTP attempt is blocked by OpenShell, **not attributed to Talon**.
+
+| Proof | Must exist | Truth now |
+| --- | --- | --- |
+| Incident and business usefulness | Actual staging SQLSTATE `28P01`, failing service, backend repair and 503→200, production unchanged | Real application fixture |
+| Intercepted forbidden action | Exact company deny inside real agent path, downstream destructive count zero, signed receipt | **Host-key preflight** works; actual Claude/OpenShell same-hop C01–C12 **NOT RUN / NOT PASSED** |
+| Reviewer and operation claim | Reviewer distinct from in-sandbox agent, no execution on approval, at most one durable Talon dispatch | HOST-key approval proof works; full delegated path pending |
+| Agent containment / bypass | Controlled negative direct shell/egress probe + reachable host positive control, independent OpenShell denial | Fixture tests are not same-hop C01–C12 completion |
+| Evidence and system recovery | One Talon + session/operation provenance, actual signed verification, independent Postgres and infrastructure ledger, same-run manifest | Complete customer buyer/technical proof pending |
+
+**Competitive comparison** (Bifrost, LiteLLM, Portkey, Solo.io agentgateway, TrueFoundry): ask each alternative to execute the **identical** production-protected fixture, not merely show an MCP deny. Solo external auth and TrueFoundry approvals may be sufficient if the customer already has a durable dispatch service; Talon wins only by reducing that custom engineering/operating burden. No claims of full shell/filesystem/browser interception or immutable evidence. Keep the ratified [C01–C12 contract](../../docs/CLAUDE_POSTGRES_INCIDENT_CONTRACT.md) unchanged. See the [competitor scorecard](https://github.com/dativo-io/talon-full-demo/blob/docs/acme-release-aligned-showcase/docs/COMPETITOR_PROOF_SCORECARD.md).
+
 ## Customer integration recipe (target; integrated proof pending)
 
 For the integrated ACME customer path, consume the complete verified official v1.17.0 stable release (RC.1 is incomplete). Use the released native use-case registration, reviewer and operations commands where applicable. Establish shared company policy in talon.config.yaml, one agent.talon.yaml / operational identity / active key per use case; prove registered, loaded, connected and governed using actual runtime/evidence and independent effects, not invented Console state. Preserve delegated OpenShell identity, all six trusted actions and ratified C01–C12. At-most-once dispatch per operation within supported durable state is not exactly-once external business effects; UNKNOWN may or may not have effected a call. Historical standalone fixture pins are unchanged pending verified compatibility; no migration is claimed.
