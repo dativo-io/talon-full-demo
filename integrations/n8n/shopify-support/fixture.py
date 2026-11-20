@@ -1,13 +1,20 @@
-"""Visible synthetic order API and deterministic upstream provider; no financial endpoint."""
+"""Visible synthetic Shopify read API, deterministic upstream and optional fake refund ledger.
+
+Never connects to Shopify or payments. The local /refunds route is only enabled
+for the core-main canonical Action Gateway acceptance, never for released Stage A.
+"""
 import argparse
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import time
+import threading
+lock = threading.Lock()
 
 p = argparse.ArgumentParser()
 p.add_argument("--port", type=int, required=True)
 p.add_argument("--log", type=Path, required=True)
+p.add_argument("--action-fixture", action="store_true", help="enable synthetic loopback refund ledger, never actual payments")
 args = p.parse_args()
 
 class Handler(BaseHTTPRequestHandler):
@@ -21,15 +28,45 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
     def record(self, value):
-        with args.log.open("a") as f:
-            f.write(json.dumps(value) + "\n")
+        with lock:
+            with args.log.open("a") as f:
+                f.write(json.dumps(value) + "\n")
     def do_GET(self):
-        self.reply(200 if self.path == "/health" else 404, {"ok": self.path == "/health"})
+        if self.path == "/count" and args.action_fixture:
+            with lock:
+                rows=[json.loads(line) for line in args.log.read_text().splitlines()] if args.log.exists() else []
+            calls=[row for row in rows if row.get("kind")=="synthetic_refund_dispatch"]
+            self.reply(200, {"calls": len(calls), "operations": [{"ticket_id":c["ticket_id"], "amount":c["amount"], "idempotency":c["idempotency"]} for c in calls]})
+        else:
+            self.reply(200 if self.path == "/health" else 404, {"ok": self.path == "/health"})
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
         except (ValueError, TypeError):
             self.reply(400, {"error": "invalid JSON"})
+            return
+        if self.path == "/refunds" and args.action_fixture:
+            # Only synthetic test order; the business adapter independently validates
+            # what Talon is authorized to dispatch. It is not a Shopify write path.
+            ticket=body.get("ticket_id")
+            amount=body.get("amount")
+            currency=body.get("currency")
+            idem=self.headers.get("Idempotency-Key")
+            if ticket != "SUP-1001" or currency != "EUR" or not isinstance(amount,str) or not idem or len(idem)>160:
+                self.record({"kind":"rejected_refund_dispatch"})
+                self.reply(422, {"error":"invalid_business_arguments"})
+                return
+            import re
+            if not re.fullmatch(r"(?:0|[1-9][0-9]{0,6})(?:\.[0-9]{1,2})?", amount):
+                self.reply(422, {"error":"invalid_decimal"})
+                return
+            whole,_,frac=amount.partition(".")
+            cents=int(whole)*100+int(frac.ljust(2,"0"))
+            if not (0 < cents <= 100000):
+                self.reply(422, {"error":"ineligible_amount"})
+                return
+            self.record({"kind":"synthetic_refund_dispatch", "ticket_id":ticket, "amount":amount, "idempotency":idem})
+            self.reply(201, {"refund_id":"synthetic-reviewed-refund", "accepted":True})
             return
         if self.path == "/admin/api/2026-10/graphql.json":
             if self.headers.get("X-Shopify-Access-Token") != "synthetic-read-only":
