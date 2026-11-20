@@ -1,78 +1,135 @@
-# Competitive reality check — ACME / First Production Pilot
+# Competitive buyer-proof scorecard — all open ACME demo cases
 
-**Reviewed 2026-11-20.** Internal CTO/CPO buyer objection matrix, **not a published benchmark or competitive superiority proof**. The five are representative alternatives for the same budget, not an objective market-share ranking. Their product boundaries differ, and teams often combine a gateway with tracing and an agent framework. Source links are vendor-owned; verify plan and deployment feature availability before external comparison.
+*Reviewed 2026-11-20 | Internal adversarial procurement comparison; **not a published benchmark**, not a vendor hands-on test, and not evidence of market-share ranking. Buyers may combine two competing products. Implementation status refers only to independently observed Talon/Full Demo CI where specified. Supersedes the earlier Portkey/LiteLLM/Langfuse/LangSmith/Helicone selection. Approved competitors: **Bifrost, LiteLLM, Portkey AI, Solo.io agentgateway and TrueFoundry**.*
 
-## Five alternatives a skeptical CTO may already use
+Strategy and sequencing: [Talon buyer-win strategy](TALON_BUYER_WIN_STRATEGY.md). Demo definitions: [ACME walkthrough](SHOWCASE_LIVE_WALKTHROUGH.md). The buyer promise remains **one company policy and operating layer across distinct AI use cases**, not "our LLM gateway is universally best."
 
-| Alternative | Why a buyer might prefer it | What Talon must prove (not merely claim) | Fair limitation / comparison |
+## Evidence rules (apply to all competitors)
+
+- **Vendor-documented** = official documentation or marketing confirms a capability. This does **not** mean we independently installed/tested it, and an enterprise-only feature is not assumed available in OSS. Lack of a feature in public documentation means **not verified**, not absent.
+- **Talon demonstrated** = actual Full Demo/GitHub Actions runtime test with source commit/release provenance, explicit synthetic vs genuine external systems and independent downstream count. **Talon target** = no successful integrated acceptance yet. CI green on a static assertion is not proof of a runtime scene.
+- A comparable experiment must use the **same** target existing app and exact threat model, policy, traffic, model/provider, business ledger, failure/retry conditions, key provenance and outcome counters. Otherwise report different configurations, not a winner.
+- No invented price/latency/capability scores. Use the **buyer decision gates** below. No product is declared incapable of approximating Talon's solution through an application-specific service or adjacent component.
+
+## Five credible alternative stacks
+
+| Vendor | What its buyer already gets (documented) | Why Talon may **not** win | Critical question to ask the vendor |
 | --- | --- | --- | --- |
-| **Portkey / PRISMA AIRS Gateway** | Production AI/Agent/MCP gateway, routing, fallbacks, guardrails, observability, key and budget management; already positions itself as an agent control plane ([agent gateway](https://portkey.ai/blog/agent-gateway/), [pricing](https://portkey.ai/pricing), [MCP overview](https://portkey.ai/blog/what-is-an-agent-gateway/)) | Company-mandated, *typed* action restriction + independent exact reviewer authority + durable dispatch + signed lifecycle across an existing n8n workflow; demonstrate real application effects and no bypass in supported path | **Not unique** to Talon: company policy, gateways, tracing, MCP governance, budgets and agent identity. Do not assert Portkey lacks all action governance; request comparable production contract/demo. |
-| **LiteLLM Proxy** | Many model integrations, virtual keys, quotas, spend reports, routing/fallbacks, MCP and optional guardrails ([architecture](https://docs.litellm.ai/docs/proxy/architecture), [virtual keys](https://docs.litellm.ai/docs/proxy/virtual_keys), [security mapping](https://docs.litellm.ai/docs/proxy/security_owasp_llm_top10)) | Same use-case policy over *two* action and model boundaries; company deny remains after weaker agent override; actual no-dispatch and signed operation lifecycle, not only model 403 | LiteLLM is a strong gateway; its docs say no server-side approval for every proxied tool call in this context, but agent frameworks can add approval separately. Do not claim no tool filtering, MCP support, or monitoring. |
-| **Langfuse** | Self-hostable OpenTelemetry tracing, sessions, cost analytics, evals, prompts, and a **new AI Gateway** with key/budget features ([platform](https://langfuse.com/), [gateway](https://langfuse.com/docs/gateway/overview), [budgets](https://langfuse.com/docs/gateway/features/budgets), [gateway visibility](https://langfuse.com/docs/gateway/concepts)) | Preventive policy enforcement and authoritative dispatch status *before/after* a business action, joined to signed evidence and independent refund count; distinguish telemetry from prevention | Langfuse's gateway is real and not just tracing. Langfuse provides evals/prompt lifecycle and broader tracing Talon does **not** replace. Its own gateway docs distinguish model routing from app-side tool execution; do not compare telemetry breadth as a Talon win. |
-| **LangSmith / LangGraph** | Detailed production traces, evaluation/experiment pipeline, agent deployment and human review inside LangGraph workflows ([platform](https://www.langchain.com/langsmith-platform), [observability](https://www.langchain.com/langsmith/observability), [human review](https://docs.langchain.com/oss/javascript/deepagents/overview)) | Existing *heterogeneous applications* connect incrementally without rewriting into a single agent framework; shared company policy/identity and native independent reviewer for one exact external operation | Human approval is not unique; LangGraph can provide it at application/orchestration layer. LangSmith's agent development and eval depth may be superior for LangGraph-centric builders. Test integration effort, not a straw man. |
-| **Helicone** | Gateway, fast provider routing/failover, caching, request/cost observability and self-hosting ([product](https://www.helicone.ai/)) | Same externally verifiable **policy-to-effect** chain from real native action authorization; answer what did *not* dispatch and why, not only cost graphs | Talon does not claim better latency/caching/model coverage, and Helicone is a credible alternative for LLM-centric workloads. Confirm any comparable action policy before asserting a gap. |
+| **Bifrost (Maxim AI)** | Model/MCP gateway, tool discovery/execution, deny-by-default per-key tool access, hierarchical budgets, identity/access profiles, governance and auditing. Its docs/marketing describe human gating and signed audit; verify OSS vs enterprise packaging. [governance](https://www.getmaxim.ai/resources/governance) · [MCP gateway](https://www.getmaxim.ai/mcp-gateway) · [editions](https://www.getmaxim.ai/pricing) | Existing OSS gateway and profiles may already centralize everything except business-state dispatch. Its audit capabilities undercut "only Talon has signed evidence." | Show exact `order_id/amount/currency` approval, state after approval (before execution), one durable claim and replay/UNKNOWN/independent finance effect using no parallel authorization engine. What is edition-gated? |
+| **LiteLLM** | Large provider breadth, virtual keys/team budgets, cost attribution, fallbacks and key/team MCP permissions. Current MCP docs include `require_approval` tool-handling modes; do not claim that LiteLLM cannot manage MCP tools or that all approvals are absent. [virtual keys](https://docs.litellm.ai/docs/proxy/virtual_keys) · [MCP](https://docs.litellm.ai/docs/mcp) · [fallback](https://docs.litellm.ai/docs/proxy/reliability) | Existing LiteLLM + internal approval/ledger service may do the job with near-zero switching cost. | Which server-side durable operation store, independent reviewer, exact args, forward-only-on-claim and UNKNOWN reconciliation does the proposed LiteLLM *stack* provide? How much code runs outside LiteLLM? |
+| **Portkey AI** | Agent Gateway with registry and org-wide control, routing, tracing, guardrails, MCP registry/tool policy, budgets and team integration. [Agent Gateway](https://portkey.ai/blog/agent-gateway/) · [MCP gateway](https://portkey.ai/features/mcp) · [tool provisioning](https://portkey.ai/blog/tool-provisioning-in-mcp-servers-controlling-ai-agent-access-in-production/) | Its company adoption story substantially overlaps Talon's; cannot pitch fleet registry, tool deny, failover or policy-in-one-place as unique. | Demonstrate signed `policy→operation→approval→claim→effect` including retry and restart without a separate workflow-owned authority, on **two existing applications**. Record actual integration effort. |
+| **Solo.io agentgateway** | HTTP/LLM/MCP policy, external auth, CEL expressions and enterprise MCP guardrail processors that can inspect/change tool arguments. **Caveat:** public Solo policy docs say `mcp.tool.arguments` is available *post-request* and is **not** available in their MCP authorization rules; request-time argument guardrails are a separate mechanism. Edition matters. [MCP auth/CEL variables](https://docs.solo.io/agentgateway/standalone/latest/documentation/configuration/security/authorization/mcp-authz/) · [guardrails](https://docs.solo.io/agentgateway/standalone/latest/documentation/mcp/guardrails/about/) · [external auth](https://docs.solo.io/agentgateway/standalone/latest/documentation/configuration/security/external-authz/) | It offers a flexible infrastructure fabric for customers comfortable operating policy services; Talon cannot win a generic CEL or HTTP gateway comparison on breadth. | What additional state/approval/dispatch components produce one exact operation identity, `UNKNOWN`, and an independent effect count? Are required controls in Solo Enterprise or OSS? |
+| **TrueFoundry** | AI/model/MCP gateway, agent identity/governance, observability and a documented human-in-the-loop MCP tool gate. A matched call can pause; a compatible caller processes approval metadata. [gateway](https://www.truefoundry.com/ai-gateway) · [human gate](https://tfy.app/blog/mcp-tool-approval-human-gate-call-path) · [MCP tool approval](https://www.truefoundry.com/blog/mcp-tool-approvals-explained) | Native HITL makes "we have approvals" an invalid differentiator; enterprise buyer may prefer its integrated stack. | After reviewer approval but before explicit dispatch, is business effect still zero? Can exact operation binding, durable at-most-once dispatch, `UNKNOWN`, reconciliation and signed independent outcomes be shown? |
 
-**There is no defensible claim that Talon dominates these products across all features.** A buyer may already get 80% of its needs from an existing proxy + tracing + application-level policy. Talon must prove that the remaining **company-wide action boundary and operational consistency** are important enough to justify adoption and switching costs. A connected stack with well-managed approvals may be a rational alternative.
+**No blanket feature-superiority claim:** Bifrost/Portkey/TrueFoundry already market broad control-plane functionality. The test is the **total operational footprint** for governed business actions plus repeatable second-application onboarding.
 
-### Current vendor-doc verification (2026-11-20)
+## All-case matrix — customer alternatives vs Talon's current claim
 
-The competitive differentiation must pass a higher bar than `gateway + MCP + tracing`:
+The cells describe plausible competitor *paths*, not hands-on PASS/FAIL verdicts.
 
-- **Portkey:** its [Agent Gateway](https://portkey.ai/blog/agent-gateway/) and [MCP Gateway](https://portkey.ai/features/mcp) already provide centralized access control, tool provisioning, visibility and policy enforcement. **Do not pitch tool deny or gateway consolidation as uniquely Talon.** Ask for a comparable exact-argument **HTTP business action**, independent reviewer, durable claim/unknown, signing and downstream effect contract.
-- **LiteLLM:** [virtual keys](https://docs.litellm.ai/docs/proxy/virtual_keys), [MCP permissions](https://docs.litellm.ai/docs/mcp_control) and [budget-aware fallbacks](https://docs.litellm.ai/docs/proxy/reliability) already address substantial control-plane use cases. Its [OWASP 2026 map](https://docs.litellm.ai/docs/proxy/security_owasp_llm_top10) explicitly says that per-tool human approval is client-mediated rather than a server-side gate. The fair Talon contrast is **native exact business-operation authorization**, not absence of MCP/tool policies in LiteLLM.
-- **Langfuse:** the [AI Gateway launched in public beta on November 9, 2026](https://langfuse.com/blog/introducing-gateway). Its [gateway docs](https://langfuse.com/docs/gateway/overview) show a live routing/operating product, not merely a passive tracing dashboard. Do not compare Talon against an obsolete tracing-only product model.
-- **LangSmith:** [LangSmith Deployment](https://www.langchain.com/langsmith/deployment) has human-in-the-loop decisions and durable agent runtime. Talon's demo should prove governance of **existing heterogeneous apps** without moving them to one orchestration framework; do not claim Talon invented human approval.
-- **Helicone:** [the production gateway](https://www.helicone.ai/) combines observability with model routing and traffic operations. Talon is not claiming superior model coverage, caching, throughput or request analytics.
+| Demo / buying job | Bifrost | LiteLLM | Portkey | Solo agentgateway | TrueFoundry | Talon acceptance state |
+| --- | --- | --- | --- | --- | --- | --- |
+| **People Analytics**: bound HR MCP data access | MCP per-key tools/filters | Per-key/team MCP controls | Agent/tool policy | MCP auth + enterprise guardrail processors | MCP RBAC + identity | **Separate case runtime passed:** bounded aggregates, denied export, independent SQL rejection, signed evidence. Shared company override across HR+support NOT RUN |
+| **Customer Support reliability**: privacy and failover | Model routing/fallback/guardrails | Strong fallback/key budgets | Routing, guardrails, traces | LLM policy/routing | Model gateway/guardrails | Shopify draft uses **app-side minimization**; this is not proof of Talon redaction. Multi-candidate policy-valid LIVE fallback remains NOT RUN in joined path |
+| **Shopify refund**: bounded operation | Model-proposed/tool execution; approval options | MCP/keys + customer-owned action state | MCP tool policy / customer approval service | Argument guardrail / ext-auth + action state | Native MCP HITL | **Source-main synthetic joined test passed:** €25 allow, €249 review, €750 deny, replay/conflict, signed lifecycle, independently counted fake finance; NOT a Shopify payment |
+| **OrderDesk/Engineering**: safe repair | Coding-agent/MCP controls | Key/tool permissions | Agent/MCP registry/policy | Strong network/MCP policy hooks | MCP authorization and approval | PostgreSQL fixture + HOST-key Talon preflight passed; real Claude/OpenShell same-hop C01–C12 NOT RUN/NOT PASSED |
+| **Document Processing**: budget stop | Hierarchical budgets | Team/key budgets | Usage/budgets | Traffic/rate limits; verify cost admission separately | Gateway budgets | Separate synthetic provider admission + signed evidence contract; official candidate/latest artifact compatibility under test; LIVE document work + cap NOT RUN |
+| **Unified ACME**: adopt a second/third AI app | Shared profiles and keys | Shared proxy/key/team setup | Agent registry/org policy | Shared gateway policy fabric | Agent registry/identity | One customer-support runtime + separate HR fixture proven; **same shared persistent 2-app/4-app governance not accepted** |
 
-The buyer may assemble a strong alternative from two products. Ask what extra policy, reviewer, adapter, ledger, audit and setup work that alternative actually requires. Do not imply that a signed HMAC record proves immutability or regulatory compliance.
+### Scorecard interpretation
 
-## The skeptics' acceptance test — concrete rebuttal, no slides-only victory
+**We do not award numeric competitor feature scores without hands-on equivalence tests.** A vendor gets `Documented` only for an official source, `Validated` only after actually running the same contract, `Unknown` if not assessed. Talon gets `PASS` for a specific test/run only, `PARTIAL` when the relevant fixture runs but the claimed buyer path is missing, and `NOT RUN` when no matching evidence exists. Green unrelated CI never upgrades a row.
 
-| Skeptical buyer question | Native demo and ground-truth proof | FAIL if |
-| --- | --- | --- |
-| "Can I try this without a provider key or source build?" | Official **version-pinned published** quickstart, checksum/image digest, real Talon deny and signature, clearly labels disposable keyless proof | Fails to run exact published artifact, or claims mock inference is LIVE |
-| "Can two existing apps share policy, not duplicate YAML?" | Native company `talon.config.yaml`; `talon agents add` each use case; show registered → loaded → actual connected request → governed **in both** with same applicable mandatory rule/source. First still operating. | Second app merely appears registered, or rule is copied into both agents |
-| "What prevents my support bot from refunding €750?" | Trusted action definition, company `amount>500` deny; n8n invokes **canonical Action Gateway**, fake finance counter stays zero; actual signed denial | Only LLM prompt said don't refund; n8n direct call or bespoke Python approval server |
-| "What about €249 approval; can the bot approve itself?" | Native reviewer credential separate from agent/admin; exact bound operation, no dispatch while pending or immediately on approval; one authorized Talon-forwarded claim and one independently observed effect | Unauthorized reviewer or approval alone dispatches; payment claim without independent record |
-| "Can a retry double-charge a customer?" | Same operation replay, conflicting args, competing claims, downstream idempotency key and UNKNOWN; independent counter/ledger and signed lifecycle. Explicit at-most-once **dispatch**, not exactly-once external effect | Claims universal exactly-once, blindly retries UNKNOWN or equates HTTP 200 with Shopify refund |
-| "Are costs preventive or merely telemetry?" | n8n Document Processing genuine partial useful output then **priced admission denial**; independently zero provider calls for blocked request, signed budget evidence; label UTC windows, actual cost vs estimated | Deny based only on completed spend/chart or claim invoice hard cap |
-| "If OpenAI is down, what happens?" | Customer Support actual configured primary fail → disallowed candidate skipped → approved real fallback and session/evidence; distinguish mock/GUIDED vs LIVE provider | Hardcoded fallback message, direct bypass or unexplained provider cost |
-| "Can you see the whole assistant including shell/browser?" | OrderDesk *only* canonical Action Gateway/MCP and independent OpenShell containment; explicitly show local shell/direct API bypass outside Talon's scope | Claims Talon governs arbitrary shell/filesystem/browser activity |
-| "Are your dashboard numbers trustworthy?" | **Seven** read-only Console areas: Overview, AI Use Cases, **Approvals**, Sessions, Costs, Configuration, System; CLI/API/evidence parity, audit verify, and independent counts. Actual loaded policy proof vs file, source-of-figure, partial/unavailable visible | Pre-populated result, invented health/budget number or UI approval write |
-| "What happens after restart/backup/unknown?" | Supported persistent deployment, native backup verify + restore (not reset), compare keys/policy/approvals/lifecycle/evidence and no replay, fail-closed degradation | Freshly reset fixtures presented as recovery |
-| "Are there secrets, PII and unauthorized bypasses?" | Provider credential only in Talon vault, agent key only in app, reviewer external; redaction/deny before provider, independent request capture; declared read-only Shopify lookup **outside** Talon | Secrets in n8n export/sandbox/screenshot, or model receives raw sensitive data |
-| "How hard is real adoption?" | Timed prepared installation + first case + second case and issue log, exact native steps, persistent deployment; independently repeatable commands | Prebaked green fleet or counts shell/image download in an undisclosed prep period |
+## Case A — People Analytics (PR #46): prove company inheritance, not generic tool deny
 
-### One defensible 60-second buyer story
+**Buyer objection:** "My data platform already enforces SQL grants. Portkey, Bifrost, Solo and TrueFoundry can restrict agent tools. Why add Talon?"
 
-1. **Before Talon:** ACME runs real People Analytics and Shopify-style Customer Support, each with its own app-specific business logic. Show the applications, and a real downstream counter.
-2. **Common policy:** deploy one published Talon; register/support two use cases; prove **loaded, connected, governed** rather than just YAML.
-3. **Consequence:** the support AI drafts a useful answer; eligible €25 refund allowed; €249 needs independent reviewer; €750 denied. These are **Talon policy and exact action**, not prompt advice; show actual finance count.
-4. **Evidence and operations:** show native Approvals (read-only), Sessions, effective policy, a signed operation with same-run ID and actual downstream effect. A second application inherits the same applicable company restriction.
-5. **The economic case:** less application-specific governance/approval plumbing each time ACME connects the next AI use case. Show integration deltas and measured time; do **not** claim a quantified ROI until measured.
+**Demo must show:** (1) existing DuckDB app producing a useful aggregate; (2) distinct real SQL/backend policy (bad SQL rejected by HR independently); (3) routed MCP allow and deny before dispatch, zero upstream export call; (4) actual signed Talon session/evidence and SQL/dispatch counter; (5) native fleet identity, **loaded effective company rule** and application-specific override; (6) **same** applicable mandatory company rule holding for *another existing* app under a separate key; show HR still works. Do not attribute fixed local charts or direct SQL to Talon.
 
-For Full ACME, spend additional minutes on provider failover/PII, preventive session budget, and the OrderDesk incident. Do **not** run all capabilities through every application or build another dashboard. Full demo stays 20–25 minutes and the short First Production Pilot 10–15; be candid if native recovery is a longer technical appendix.
+**Fail condition:** a static permission YAML, configured-but-never-connected HR identity, app-owned SQL denial mislabeled Talon, or arbitrary cross-app rules copied manually. **Current status:** first four on synthetic/released historical paths observed; cross-app inheritance and published v1.17.0 Console/browser are unverified.
 
-**Version-compatibility gate:** Talon's native refund reference has been runtime-tested on **n8n 2.48.5**, while Full Demo's older n8n workflows pin 2.30.4. Do not call its action reference integrated without a verified full consumer run on the selected version. All current-main integration checks are **source-built** development evidence, not a verified v1.17.0 release artifact.
+**Competitive test:** ask Bifrost, Portkey and TrueFoundry to produce identical allowed/denied requests, one shared rule, two distinct registered app identities and exact time to second integration. Ask Solo for specific edition/guardrail policy used. Talon wins only if *integration and investigation* are demonstrably simpler.
 
-## Product limitations and comparison hygiene
+## Case B — Customer Support reliability/privacy: do not substitute app minimization for redaction
 
-- **Console** is read-only and has seven primary areas on core `main` after #565 (including **Approvals**). Reviewer CLI/API authorizes separately; approval does not dispatch.
-- **Action Gateway** dispatch is at most once per operation within supported durable state; `UNKNOWN` can mean external effect occurred. Business adapter owns eligibility, merchant authentication, and native idempotency.
-- **Signed HMAC evidence** detects tampering with a shared signing key; not immutable storage/nonrepudiation/a regulatory attestation.
-- **Cost policy** is pre-request estimate-based reservation/admission with limitations; not an invoice ceiling or coordinated global ledger.
-- **Boundaries**: only traffic/tool calls/actions actually routed through supported Talon boundaries. Direct database queries, file edits, shell/browser and arbitrary HTTP calls remain outside that boundary.
-- **Scaling**: avoid HA, multi-region, enterprise policy governance, quantitative performance, eval quality superiority or full compliance claims without a supported and independently tested product contract.
-- **Versions:** core `main` has merged PRs #562–567/#572 and may contain unshipped behavior; #568/#569 still under review at this revision. `v1.17.0-rc.1` is not a complete candidate; latest verified official stable still v1.16.1. No customer-facing `v1.17.0` proof until official publication/anonymous install and exact run.
+**Buyer objection:** "LiteLLM/Portkey/Bifrost already route, retry and redact. Why switch?"
 
-## One evidence checklist for every scene
+**Demo must show:** (1) useful Shopify-style order enquiry and correct draft, not compliance theatre; (2) actual routed model request after safe trusted order lookup; (3) deliberate transient primary failure, unsupported/disallowed fallback skipped, approved configured fallback attempted (real provider if LIVE); (4) independent provider call counts, response/error truth, actual Talon cost and signed session attempts; (5) *separate* direct PII test with a structured synthetic email/IBAN crossing Talon, actual gateway block/redact and upstream absence/redacted bytes. No inference of Talon redaction from a pre-minimized prompt.
 
-A case is `PASS` only when its same-run manifest holds: Talon artifact/source SHA and mode (GUIDED/mock-provider vs LIVE provider), use-case key identity (never the key), loaded/effective company rule source, operation/session/request IDs, actual action/model call, Talon verdict and dispatch truth, independently counted downstream result, evidence/signature verification and failure/replay behavior. One missing or unproven field means `NOT RUN` or `FAIL`, never an inferred success.
+**Fail condition:** a canned reply, fake fallback log, "no PII" because app stripped fields, wrong-cost estimated as invoiced, bypass direct provider not disclosed. **Current status:** source-main PII **block** and count passed in synthetic Shopify integration, but full LIVE policy-valid fallback and independent PII-redaction wire proof remain NOT RUN.
 
-### External evidence reviewed (2026-11-20)
+**Competitive test:** same primary outage, disallowed fallback candidate and key/tenant policy on LiteLLM, Portkey and Bifrost. Talon wins only if explanation, per-use-case controls and integration add measurable benefit; routing alone is parity.
 
-- [Portkey Agent Gateway](https://portkey.ai/blog/agent-gateway/) and [MCP / agent gateway](https://portkey.ai/blog/what-is-an-agent-gateway/)
-- [LiteLLM architecture](https://docs.litellm.ai/docs/proxy/architecture), [tool-call security boundaries](https://docs.litellm.ai/docs/proxy/security_owasp_llm_top10)
-- [Langfuse AI Gateway](https://langfuse.com/docs/gateway/overview), [spend budgets](https://langfuse.com/docs/gateway/features/budgets), [gateway limits](https://langfuse.com/docs/gateway/concepts)
-- [LangSmith platform](https://www.langchain.com/langsmith-platform), [LangGraph human interrupt](https://docs.langchain.com/oss/javascript/deepagents/overview)
-- [Helicone](https://www.helicone.ai/)
+## Case C — Shopify refunds (PR #52): make the business operation, not approval alone, the proof
+
+**Buyer objection:** "TrueFoundry can pause tool calls. Bifrost supports tool execution, Solo can inspect arguments. What is Talon's additional job?"
+
+**Demo must show:** trust-bound business inputs (ticket, `order_id`, independent *merchant* refund eligibility, exact decimal `amount`, currency, destination/transaction), not model wishes. A company mandatory rule denies >€500, review >€50 through €500, allow ≤€50 **only for independently eligible** test orders. `€25` one synthetic call; `€249` zero before reviewer, **zero immediately after reviewer approval**, one only after authorized claim; `€750` zero; wrong/missing currency/type, €50/50.01/500/500.01; wrong reviewer, tampered arguments, replay/conflict and concurrent claims; restart/restore and real `UNKNOWN` reconciliation. Every action joined to same use-case identity/session/operation with verified signed lifecycle and independent ledger, without extra approval engine.
+
+**Caveats:** Talon dispatches *at most once per operation inside the supported durable boundary*, not exactly-once external business effects. `UNKNOWN` may already have effected a call; blind retries are forbidden. Approval authorizes an exact operation **without dispatch**. Shopify's actual payment result must be verified independently; a synthetic ledger is not real Shopify. The current `shopify-support.workflow.json` is read/draft-only, and the passed joined test imports the official action workflow **as a second graph**; the test harness bridges real saved draft outputs. Do not call it a single ready-to-publish n8n template.
+
+**Current status:** [joined synthetic core-main run 44826457464](https://github.com/dativo-io/talon-full-demo/actions/runs/44826457464) previously passed; latest PR CI and published RC2 end-to-end acceptance must be checked separately. No real payments. Compare alternative end-to-end operation states rather than simply asking "do you have an approval feature?"
+
+## Case D — OrderDesk/Engineering (PR #45 plus #42–44): show the actual intercept boundary
+
+**Buyer objection:** "Solo has network/CEL authorization, Bifrost supports coding agents. Can Talon really protect production from Claude Code?"
+
+**Demo must show:** real OpenShell sandbox and real Claude Code/process identity, same-session Talon model request + exact Action Gateway call from inside supported boundary; deny a synthetic `volume_delete` before any dispatched executor call; reviewer distinct from agent; allow only sealed staging repair with independent service 503→200, real PostgreSQL staging correction and **production unchanged** (1000 test rows / protected volume). Independently prove OpenShell containment of an **out-of-path** direct request and a reachable positive control; attribute containment to OpenShell, not Talon. Signed Talon receipt + independent Postgres/infra counters + same run.
+
+**Fail condition:** host-key preflight or shell-policy screenshot called agent-intercept execution; direct executor test called Talon approval; fabricated recovery; exception to production invariants. **Current status:** Postgres/fixture and actual Talon HOST-key action preflight pass, but C01–C12 same-hop Claude/OpenShell proof remains **not accepted**.
+
+**Competitive test:** require Solo (specify OSS vs Enterprise), Bifrost and TrueFoundry to reproduce the full identity, tool/action and independent backend contract. Talon should not invent containment claims.
+
+## Case E — Document Processing: prove pre-admission utility, not merely a cost dashboard
+
+**Buyer objection:** "LiteLLM/Bifrost already enforce budgets. What do you add?"
+
+**Demo must show:** a real n8n document workflow with a known priced model gives a useful partial output **before** Talon's next-request budget admission denies; capture requested vs allowed model, actual estimate/settlement, currency/UTC window, session evidence and **zero upstream dispatch for denial**; verify first work persists. Separate the contract test's deterministic Anthropic-wire fixture from LIVE provider. Cost warning webhook and hard cap should be shown only if implemented/tested in the exact released version. Admission estimate isn't an invoice guarantee.
+
+**Fail condition:** an artificial refusal unsupported by Talon, denied work falsely described as completed, model pricing unknown, missing provider count, soft cap called hard invoice cap. **Current status:** deterministic cost/admission contract is present; integrated full n8n LIVE document flow/published v1.17.0 remains pending. Lead with completed document business value; spend policy is secondary.
+
+**Competitive test:** same budget, model pricing, concurrency and reservation contract on LiteLLM and Bifrost, independently observe upstream calls. Talon has to win in per-use-case operational clarity rather than generic budget availability.
+
+## Case F — First Production Pilot + ACME (PR #51 / #47–50): test the actual economic promise
+
+**Buyer objection:** "Our Bifrost access profiles or Portkey agent registry already centralize policy. Do you reduce implementation work or add another gateway?"
+
+**Demo must show:** one official digest-pinned *persistent* Talon deployment, company YAML baseline, native separate operational identities/active keys for Customer Support and People Analytics, real registered→loaded→connected→governed transitions for both **without duplicating applicable mandatory company policy**; original application still operating. Then extend to OrderDesk and Document Processing with separate primary value each. Seven read-only Console areas incl Approvals; native reviewer outside Console; single-source effective policies, costs, session and evidence parity. Measure actual native commands, durations, bypass and restart/restore. Use one same-run manifest with artifact/digest, use-case/session/operation IDs, policy, verdict, downstream counters, evidence verification and explicit missing fields.
+
+**Fail condition:** two independent Talon processes masquerading as a fleet; reused demo credentials; registered-only cards; mismatched signed evidence and backend counters; source-built checkout called official RC2; failed RC2 availability job called acceptance. **Current status:** #51 is still an implementation specification with passing static proof check; the full shared ACME and shorter second-app pilot are not end-to-end accepted.
+
+**Competitive test:** give each competing stack a prepared host and the same two existing apps; stopwatch actual support needed and count additional policy engines, reviewer services, state stores, dashboards, vault keys and bespoke adapters. Buyer win only if fewer independently operated governance pieces at comparable correctness.
+
+## Head-to-head buyer trial rubric (score only after comparable external tests)
+
+| Criterion | Weight | Operational evidence |
+| --- | ---: | --- |
+| Consequential action integrity and failure/replay/UNKNOWN safety | **30%** | Independent ledger, reviewer separation, exact-bound operation, replay & restart |
+| Two-app adoption and policy reuse | **25%** | Native first/second use case, no duplicate company rule, measured setup and ongoing work |
+| Diagnosis, evidence and governance clarity | **15%** | Actual session root cause, CLI/Console parity, falsifiable signed records |
+| Reliability and preventive spending | **10%** | True provider call counts during fallback/denial, actual cost attribution |
+| Security/deployment fit | **10%** | Local secret isolation, operator boundaries, release checksums, restore |
+| Operational cost and product fit | **10%** | Number of moving parts, comparable fully burdened support and deployment cost |
+| **Total** | **100%** | Do not score marketing claims as zero or automatically award Talon maximum |
+
+Record every score as **NOT TESTED** until a common fixture has actually been run. The criteria and weights are **proposed** for the target midmarket buyer; confirm ranking with at least five interviews.
+
+## Commercial objection handling — where Talon loses fairly
+
+- "I only have one production bot and need model routing" → **LiteLLM/Bifrost/Portkey** may be a better purchase; do not oversell Talon.
+- "I already use a policy gateway and a reliable homegrown action ledger" → quantify migration cost and actual remaining operational pain; if little, **do not replace it**.
+- "We are heavily invested in Kubernetes/Envoy and need advanced ext-auth" → **Solo** likely fits better until Talon proves simpler end-to-end semantics.
+- "Our workflows already use an enterprise MCP approval platform" → **TrueFoundry** must be tested on same exact action contract; do not pretend approval is unique.
+- "We need HA across regions/SSO and compliance certification now" → defer if out of Talon's supported delivery boundary; evidence and self-hosting don't equal compliance.
+
+## Source links — vendor-owned, verify editions at decision time
+
+**Bifrost:** [MCP](https://www.getmaxim.ai/mcp-gateway) · [governance](https://www.getmaxim.ai/resources/governance) · [pricing](https://www.getmaxim.ai/pricing)
+
+**LiteLLM:** [MCP permission management](https://docs.litellm.ai/docs/mcp_control) · [virtual keys](https://docs.litellm.ai/docs/proxy/virtual_keys) · [reliability](https://docs.litellm.ai/docs/proxy/reliability)
+
+**Portkey:** [Agent Gateway](https://portkey.ai/blog/agent-gateway/) · [MCP governance](https://portkey.ai/features/mcp) · [tool provisioning](https://portkey.ai/blog/tool-provisioning-in-mcp-servers-controlling-ai-agent-access-in-production/)
+
+**Solo:** [MCP auth variable availability](https://docs.solo.io/agentgateway/standalone/latest/documentation/configuration/security/authorization/mcp-authz/) · [argument guardrails](https://docs.solo.io/agentgateway/standalone/latest/documentation/mcp/guardrails/about/) · [external policy](https://docs.solo.io/agentgateway/standalone/latest/documentation/configuration/security/external-authz/) (some docs describe **Solo Enterprise**, not OSS)
+
+**TrueFoundry:** [MCP human gate](https://tfy.app/blog/mcp-tool-approval-human-gate-call-path) · [MCP approvals](https://www.truefoundry.com/blog/mcp-tool-approvals-explained) · [gateway](https://www.truefoundry.com/ai-gateway)
