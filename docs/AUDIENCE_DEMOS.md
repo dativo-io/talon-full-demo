@@ -8,6 +8,23 @@ real application execution -> Talon evidence -> buyer projection / technical pro
 
 The buyer and technical views never use separate fixtures or presenter-authored success data. Each presenter recreates a signed session export, verifies it, and derives its output from the same evidence. The customer-support resolution additionally verifies a separate signed operator-decision receipt before presenting a completed result.
 
+## Buyer-path truth — Talon core main (2026-11-20)
+
+Use [the competitive proof scorecard](COMPETITOR_PROOF_SCORECARD.md) and [the customer-first ACME walkthrough](SHOWCASE_LIVE_WALKTHROUGH.md) before leading a flagship sales demonstration. These existing commands below are **standalone gallery scenes**, not the unified production pilot.
+
+| Business case | What is actually executed and verified today | What is NOT YET proved |
+| --- | --- | --- |
+| **People Analytics** | Real Workforce/MCP/HR counters and signed allow/deny/upstream-rejection in the isolated fixture | Current-main **seven-area** Console pairing via published v1.17.0 and a second shared runtime identity |
+| **Shopify-style Customer Support** | [PR #52](https://github.com/dativo-io/talon-full-demo/pull/52) Stage A: real n8n 2.30.4 + published Talon v1.16.1 + synthetic Shopify and model, useful review-only response; native registration and inherited PII denial with source-built pinned Talon main in development-only CI | Real Shopify credentials/store, actual paid model, direct n8n support refund, merchant eligibility and v1.17.0 released canonical action |
+| **Canonical action proof (same business category, NOT joined)** | Talon core [#566 reference real n8n test](https://github.com/dativo-io/talon/actions/runs/44786799917) and [Full Demo source-main compatibility](https://github.com/dativo-io/talon-full-demo/actions/runs/44824977056): actual separate refund workflow + reviewer + counting fixture on n8n **2.48.5** | It runs as a distinct `refund-bot` identity and is not yet integrated into Shopify Customer Support's single `customer-support` identity/operation. Full Demo historic n8n pin is 2.30.4. |
+| **Customer Support reliability** | Existing standalone real-OpenAI fallback/redaction/provider evidence when actual keys are configured | Shared progressive ACME runtime and exact source-main/released cost projection |
+| **OrderDesk incident** | Real PostgreSQL fixture and published v1.16.1 host-key Action Gateway preflight | Real same-hop Claude Code/OpenShell C01–C12, independent sandbox and full seven-area Console |
+| **Document Processing** | Existing n8n import/pipeline and budget-denial proof with standalone fixtures; LIVE conditional on provider | Same shared runtime, genuinely priced Anthropic session and seven-area Console correlation |
+
+**Current Talon main** has merged #562–#567/#572; #568/#569 remain open, official stable is v1.16.1. The Console now has **seven read-only primary areas**: Overview, AI Use Cases, Approvals, Sessions, Costs, Configuration, System. The reviewer authorizes only via native CLI/API. Approval is not dispatch, and at-most-once Talon dispatch is not exactly-once external effects. Unsupported shell/browser/direct API paths bypass Talon. GUIDED means deterministic fixtures; LIVE provider claims require actual provider requests and evidence.
+
+A skeptical buyer can credibly choose Portkey, LiteLLM, Langfuse, LangSmith or Helicone for features Talon also offers. Do not sell general tracing, model routing or guardrails as exclusive. The differentiated proof needed for a real pilot is **common company policy across two existing applications plus exact-action authorization, independent effect counts and signed lifecycle evidence**. See [#47](https://github.com/dativo-io/talon-full-demo/issues/47) and [#50](https://github.com/dativo-io/talon-full-demo/issues/50). No same-run pilot or Full ACME completion is claimed.
+
 ## Command matrix
 
 | Application case | Buyer view | Technical view | Re-present completed run |
