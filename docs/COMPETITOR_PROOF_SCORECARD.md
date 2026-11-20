@@ -14,6 +14,18 @@
 
 **There is no defensible claim that Talon dominates these products across all features.** A buyer may already get 80% of its needs from an existing proxy + tracing + application-level policy. Talon must prove that the remaining **company-wide action boundary and operational consistency** are important enough to justify adoption and switching costs. A connected stack with well-managed approvals may be a rational alternative.
 
+### Current vendor-doc verification (2026-11-20)
+
+The competitive differentiation must pass a higher bar than `gateway + MCP + tracing`:
+
+- **Portkey:** its [Agent Gateway](https://portkey.ai/blog/agent-gateway/) and [MCP Gateway](https://portkey.ai/features/mcp) already provide centralized access control, tool provisioning, visibility and policy enforcement. **Do not pitch tool deny or gateway consolidation as uniquely Talon.** Ask for a comparable exact-argument **HTTP business action**, independent reviewer, durable claim/unknown, signing and downstream effect contract.
+- **LiteLLM:** [virtual keys](https://docs.litellm.ai/docs/proxy/virtual_keys), [MCP permissions](https://docs.litellm.ai/docs/mcp_control) and [budget-aware fallbacks](https://docs.litellm.ai/docs/proxy/reliability) already address substantial control-plane use cases. Its [OWASP 2026 map](https://docs.litellm.ai/docs/proxy/security_owasp_llm_top10) explicitly says that per-tool human approval is client-mediated rather than a server-side gate. The fair Talon contrast is **native exact business-operation authorization**, not absence of MCP/tool policies in LiteLLM.
+- **Langfuse:** the [AI Gateway launched in public beta on November 9, 2026](https://langfuse.com/blog/introducing-gateway). Its [gateway docs](https://langfuse.com/docs/gateway/overview) show a live routing/operating product, not merely a passive tracing dashboard. Do not compare Talon against an obsolete tracing-only product model.
+- **LangSmith:** [LangSmith Deployment](https://www.langchain.com/langsmith/deployment) has human-in-the-loop decisions and durable agent runtime. Talon's demo should prove governance of **existing heterogeneous apps** without moving them to one orchestration framework; do not claim Talon invented human approval.
+- **Helicone:** [the production gateway](https://www.helicone.ai/) combines observability with model routing and traffic operations. Talon is not claiming superior model coverage, caching, throughput or request analytics.
+
+The buyer may assemble a strong alternative from two products. Ask what extra policy, reviewer, adapter, ledger, audit and setup work that alternative actually requires. Do not imply that a signed HMAC record proves immutability or regulatory compliance.
+
 ## The skeptics' acceptance test — concrete rebuttal, no slides-only victory
 
 | Skeptical buyer question | Native demo and ground-truth proof | FAIL if |
