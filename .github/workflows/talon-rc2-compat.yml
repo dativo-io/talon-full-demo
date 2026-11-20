@@ -114,6 +114,7 @@ jobs:
       - name: Test Document Processing budget/evidence contract on RC2
         env:
           TALON_BIN: ${{ runner.temp }}/bin/talon
+          TALON_TOKEN_CONTRACT_MODE: published-rc2
         run: |
           cd full-demo
           make tokeneconomizer-contract
