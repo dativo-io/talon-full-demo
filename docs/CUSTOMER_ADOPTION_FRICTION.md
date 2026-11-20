@@ -28,6 +28,22 @@ At each rehearsal replace or append rows with actual evidence; keep failed and N
 
 The successful joined source-main fixture is useful technical proof but not evidence that an external engineer can independently adopt Talon in under 15 minutes, nor a substitute for complete pilot/ACME acceptance.
 
+## Buyer-win adoption and competitor benchmark gaps (2026-11-20)
+
+The reviewed alternatives are **Bifrost, LiteLLM, Portkey, Solo.io agentgateway and TrueFoundry**; see the [competitive scorecard](COMPETITOR_PROOF_SCORECARD.md) and [buyer-win strategy](TALON_BUYER_WIN_STRATEGY.md). No head-to-head implementation trial has been performed against any competitor. Do **not** interpret the current candidate-only or deterministic CI as proof of lower adoption cost.
+
+| Customer question / experiment | Current observation | Measured counterfactual needed | Gate / owner |
+| --- | --- | --- | --- |
+| "Could we do the same with existing gateway?" | LiteLLM/Bifrost/Portkey offer routing/budgets/MCP; Portkey/TrueFoundry have agent-management stories; Solo enterprise can apply guardrails and ext-auth | Two existing apps integrated on Talon and rival stack, same baseline and same action outcome, operator hours and duplicated services counted | Product discovery, #47/#50 |
+| "Do native reviewers really remove engineering code?" | Joined source-main n8n test uses **two imported real n8n graphs** and a trusted synthetic handoff runner; not one customer-installable package | User independently imports/installs official reference, creates separate approver creds, completes same refund without bespoke approval store | #34/#49/#52 |
+| "Can I prove what happened after a crash?" | Signed action lifecycle and replay/changed args passed for synthetic operation; real persistent restore + `UNKNOWN` **in Shopify case** not accepted | Kill/restore Talon during specific synthetic operation; reconcile downstream ledger; verify no blind redispatch and preserved approvals/IDs/evidence | #48/#49 and core native ops |
+| "Are these real data/PII and spend controls?" | Shopify passes app-side minimization and separate Talon PII **block**; this is not wire-level redaction. Document cost test is synthetic. | PII redaction proved by captured upstream request; actual provider fallback attempts, cost basis and first useful n8n document outcome | #49/#50 |
+| "Does onboarding actually get faster?" | Targets <3 min install, <5 first, <2 second, <1 denial diagnosis are **not measured** | Timed external unassisted session; record prefetch, keys, deployment environment, troubleshooting, baseline competitor | #48/#50 |
+| "Is this the requested release?" | Official RC2 artifact was **not published** when release tag/registry checked; detection-only workflow can be green while consumer job skips. The latest stable v1.16.1 does not include complete new action contract. | Published exact tag/digest, consumer job actually ran, business receipts and verifier trace reference that digest | #47/#48/#52; core release |
+| "Is each PR actually green?" | On Nov 20, #52 latest checks had a shell-harness duplicated tail syntax error despite completed earlier actual action tests. Fix committed separately; do not assume the latest CI is green without checking it. | New-head Actions check pass for released-artifact lane and candidate lane, plus exact artifact evidence | #52 |
+
+A skeptical buyer's request to compare *actual implementation cost* with an existing rival is valid. Record **"Not measured"**, not `Talon faster`, until the same app, operator constraints and failure scenario have been executed against both stacks.
+
 ## Native v1.17.0 consumer acceptance — pending
 
 The complete stable release (core #562–569 and #572) is required for integrated pilot/ACME. RC.1 is not complete. Core #563's no-clone quickstart is a separate disposable proof (no actual provider or console); follow the supported persistent profile for adoption. Do not mark the quickstart as an enduring shared installation. No new runtime tests were performed in this product-alignment update.
