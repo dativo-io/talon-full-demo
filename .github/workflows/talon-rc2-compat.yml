@@ -55,6 +55,13 @@ jobs:
           ref: v1.17.0-rc.2
           path: talon
           persist-credentials: false
+      - name: Check out independent People Analytics PR 46 (not main fixture)
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon-full-demo
+          ref: docs/people-analytics-talon-ui-walkthrough
+          path: hr-demo
+          persist-credentials: false
       - name: Check out independent OrderDesk PR 45 fixture
         uses: actions/checkout@v4
         with:
@@ -101,9 +108,9 @@ jobs:
           TALON_CORE_DIR: ${{ github.workspace }}/talon
         run: bash full-demo/integrations/n8n/shopify-support/test-n8n.sh
       - name: Install People Analytics dependencies
-        run: python3 -m pip install -r full-demo/cases/people-analytics-copilot/requirements.txt
+        run: python3 -m pip install -r hr-demo/cases/people-analytics-copilot/requirements.txt
       - name: Test real RC2 MCP/tool/LLM-policy/HR evidence
-        run: bash full-demo/scripts/test-people-analytics-talon.sh
+        run: bash hr-demo/scripts/test-people-analytics-talon.sh
       - name: Test Document Processing budget/evidence contract on RC2
         env:
           TALON_BIN: ${{ runner.temp }}/bin/talon
