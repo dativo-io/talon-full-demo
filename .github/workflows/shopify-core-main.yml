@@ -61,6 +61,7 @@ jobs:
       - name: Run independent Document Processing admission and evidence contract on same core main
         env:
           TALON_BIN: ${{ runner.temp }}/talon
+          TALON_TOKEN_CONTRACT_MODE: core-main
         run: |
           cd full-demo
           make tokeneconomizer-contract
