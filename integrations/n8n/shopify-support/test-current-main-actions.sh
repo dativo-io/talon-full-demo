@@ -77,7 +77,27 @@ count_actions() {
   curl -fsS "http://127.0.0.1:$SHOPIFY_PORT/count" | python3 -c 'import json,sys;print(json.load(sys.stdin)["calls"])'
 }
 action_payload() {
-  printf '{"ticket_id":"SUP-1001","amount":"%s","currency":"EUR","request_id":"shopify-%s"}' "$1" "$2"
+  # The trusted synthetic workflow caller derives the exact proposal from
+  # actual Stage A n8n terminal output, not a second fabricated refund amount.
+  # This request is NOT automatic merchant authorization: the independent
+  # business adapter validates its own refund limits before accepting dispatch.
+  local file
+  case "$2" in
+    25) file="$WORK/four/final.json" ;;
+    249) file="$WORK/two/final.json" ;;
+    750) file="$WORK/five/final.json" ;;
+    *) echo 'Unsupported Stage A handoff' >&2; return 1 ;;
+  esac
+  python3 - "$file" "$1" "$2" <<'PY'
+import json,sys
+v=json.load(open(sys.argv[1]))
+assert v["status"]=="draft_ready_for_operator_review",v
+assert v["proposed_refund_eur"]==sys.argv[2],v
+assert v["merchant_eligibility"]=="not_established",v
+assert v["refund_execution"]=="unavailable" and v["message_sent"] is False,v
+print(json.dumps({"ticket_id":v["ticket_id"],"amount":v["proposed_refund_eur"],
+                  "currency":"EUR","request_id":"shopify-"+sys.argv[3]}))
+PY
 }
 submit_action() {
   curl -sS -o "$2" -w '%{http_code}' --max-time 120 -X POST "$ACTION_WEBHOOK" \
@@ -108,7 +128,10 @@ echo 'PASS EUR25 ALLOW: one Talon-forwarded independently counted synthetic effe
 
 status="$(submit_action "$(action_payload 25.00 25)" "$ACTION_DIR/replay.json")"
 [[ "$status" == 200 && "$(result_field "$ACTION_DIR/replay.json")" == refunded && "$(count_actions)" == 1 ]] || exit 1
-status="$(submit_action "$(action_payload 26.00 25)" "$ACTION_DIR/conflict.json")"
+# Deliberate tampering under the *same* original operation identifier.
+altered="$(action_payload 25.00 25)"
+altered="$(printf '%s' "$altered" | sed 's/"amount": "25.00"/"amount": "26.00"/')"
+status="$(submit_action "$altered" "$ACTION_DIR/conflict.json")"
 [[ "$status" == 409 && "$(count_actions)" == 1 ]] || exit 1
 echo 'PASS stable retry returns recorded outcome, conflicting arguments cannot re-dispatch'
 
