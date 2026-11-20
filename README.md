@@ -3,6 +3,7 @@
 A standalone, early-adopter-oriented demonstration of recognizable applications governed through [Dativo Talon](https://github.com/dativo-io/talon):
 
 - **n8n customer-support resolution** — a duplicate-charge workflow drafts a reply through a policy-valid provider path, protects customer PII, blocks the refund action, and then literally waits for a demo operator to approve or reject the synthetic finance handoff.
+  **Historical trust boundary:** this older flow uses a separate demo-specific approval server. It is NOT a canonical Talon Action Gateway approval, and its successful handoff is not a refund execution. The new [Shopify-style Customer Support read/draft reference](https://github.com/dativo-io/talon-full-demo/pull/52) has a tested synthetic Stage A; canonical action Stage B requires its own integrated acceptance.
 - **n8n vendor-contract review** — a confidential synthetic contract package is blocked from one destination, redacted, and reviewed through the approved provider with both decisions in one signed session.
 - **Customer support / Zendesk** — a support workflow requests a governed reply draft through direct and adapter paths.
 - **GitHub Copilot CLI** — a real Copilot client sends model traffic through Talon and reaches a synthetic release boundary through Talon's MCP proxy.
@@ -21,7 +22,11 @@ The Full Demo first independently validates Talon from a customer's perspective,
 
 Use native Talon installation, persistent deployment, registration, configuration, reviewer and recovery commands. One AI use case = one agent.talon.yaml / identity / active key; talon.config.yaml sets company policy once. Prove each use case is registered, loaded, connected and governed, and demonstrate a second application's inherited applicable control without duplicating infrastructure. n8n orchestrates Customer Support's generic argument-aware refund example and Document Processing; no extra application or policy engine. The existing standalone paths below are not the integrated v1.17.0 acceptance path.
 
-The planned **10–15 minute First Production Pilot** and **20–25 minute Full ACME** use the same runtime and scenarios. See [walkthrough specification](docs/SHOWCASE_LIVE_WALKTHROUGH.md), [adoption friction report](docs/CUSTOMER_ADOPTION_FRICTION.md) and [ACME epic #47](https://github.com/dativo-io/talon-full-demo/issues/47). These are implementation plans, not available unified commands or measured timings.
+The planned **10–15 minute First Production Pilot** and **20–25 minute Full ACME** use the same runtime and scenarios. See [walkthrough specification](docs/SHOWCASE_LIVE_WALKTHROUGH.md), [skeptical buyer / five-competitor proof scorecard](docs/COMPETITOR_PROOF_SCORECARD.md), [adoption friction report](docs/CUSTOMER_ADOPTION_FRICTION.md) and [ACME epic #47](https://github.com/dativo-io/talon-full-demo/issues/47). These are implementation plans, not available unified commands or measured timings.
+
+**Core-main as of 2026-11-20:** #562–#567 and #572 are merged, including the canonical Action Gateway n8n example, native registration, reviewer and the **seven-area read-only Console (Approvals included)**. #568/#569 remain under review; the latest official stable is still v1.16.1. [Core's real-n8n action acceptance](https://github.com/dativo-io/talon/actions/runs/44786799917) passes at **n8n 2.48.5**. Full Demo's historical n8n demonstrations use **2.30.4**; this version mismatch is a release-compatibility gate. The [PR #52 source-main compatibility lane](https://github.com/dativo-io/talon-full-demo/pull/52) is development-only and cannot replace a verified published v1.17.0 consumer run.
+
+**Competitive argument:** Talon is not the only way to get LLM cost accounting, routing, tracing or guardrails. The buyer must see company policy inheritance across two actual existing applications, then independent exact action authorization and signed dispatch/business-outcome proof. See the scorecard before making a differentiation claim.
 
 ## Proposed Claude Code × OpenShell incident demo — contract-first
 
