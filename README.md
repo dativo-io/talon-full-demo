@@ -3,7 +3,7 @@
 A standalone, early-adopter-oriented demonstration of recognizable applications governed through [Dativo Talon](https://github.com/dativo-io/talon):
 
 - **n8n customer-support resolution** — a duplicate-charge workflow drafts a reply through a policy-valid provider path, protects customer PII, blocks the refund action, and then literally waits for a demo operator to approve or reject the synthetic finance handoff.
-  **Historical trust boundary:** this older flow uses a separate demo-specific approval server. It is NOT a canonical Talon Action Gateway approval, and its successful handoff is not a refund execution. The new [Shopify-style Customer Support read/draft reference](https://github.com/dativo-io/talon-full-demo/pull/52) has a tested synthetic Stage A; canonical action Stage B requires its own integrated acceptance.
+  **Historical legacy trust boundary:** this older flow uses a separate demo-specific approval server. It is NOT a canonical Talon Action Gateway approval, and its successful handoff is not a refund execution. The new [Shopify-style Customer Support read/draft reference](https://github.com/dativo-io/talon-full-demo/pull/52) has a tested synthetic Stage A; canonical action Stage B requires its own integrated acceptance.
 - **n8n vendor-contract review** — a confidential synthetic contract package is blocked from one destination, redacted, and reviewed through the approved provider with both decisions in one signed session.
 - **Customer support / Zendesk** — a support workflow requests a governed reply draft through direct and adapter paths.
 - **GitHub Copilot CLI** — a real Copilot client sends model traffic through Talon and reaches a synthetic release boundary through Talon's MCP proxy.
