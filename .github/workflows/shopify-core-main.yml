@@ -40,6 +40,13 @@ jobs:
           ref: ${{ env.TALON_CORE_SHA }}
           path: talon
           persist-credentials: false
+      - name: Check out the real OrderDesk consumer PR 45 fixture
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon-full-demo
+          ref: feat/claude-postgres-incident-fixture
+          path: orderdesk
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: talon/go.mod
@@ -67,6 +74,13 @@ jobs:
         env:
           PATH: ${{ runner.temp }}:/usr/local/bin:/usr/bin:/bin
         run: bash full-demo/scripts/test-people-analytics-talon.sh
+      - name: Real OrderDesk synthetic PostgreSQL and Talon Action Gateway host preflight
+        env:
+          TALON_CLI: ${{ runner.temp }}/talon
+        run: |
+          bash orderdesk/cases/claude-postgres-incident/validate-fixture.sh
+          bash orderdesk/cases/claude-postgres-incident/validate-talon-actions.sh
+          echo 'OrderDesk HOST-KEY preflight passed. OpenShell C01–C12 is NOT RUN.' >> "$GITHUB_STEP_SUMMARY"
       - name: Independent Document Processing admission contract on same candidate
         env:
           TALON_BIN: ${{ runner.temp }}/talon
