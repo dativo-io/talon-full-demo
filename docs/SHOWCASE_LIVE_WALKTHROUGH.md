@@ -1,6 +1,6 @@
 # ACME — live customer adoption walkthrough
 
-**Status: implementation specification, NOT a runnable unified showcase.** Talon core `main` at `5912dc1215ccfc27a90ede9366b41450450359ea` (2026-11-20) has merged #562–#567 and #572, including the read-only Approvals view, native registration, reviewer and canonical n8n reference; #568/#569 are still under review. [Core n8n LIVE CI](https://github.com/dativo-io/talon/actions/runs/44786799917) passed with **n8n 2.48.5**; Full Demo still pins **2.30.4**, so do not assume compatibility. The final consumer baseline is the complete verified official **v1.17.0 stable** release, including Console, quickstart, generic argument authorization, reviewer, n8n reference, registration, production operations, pilot runbook and security upgrade (core PRs #562–569 and #572). RC.1 does not contain the complete release. Core [#561](https://github.com/dativo-io/talon/issues/561) and [#533](https://github.com/dativo-io/talon/issues/533) own release acceptance; Full Demo is an independent consumer, not a publication dependency. This guide describes the approved target and the gates for turning it into executable instructions. See [#47](https://github.com/dativo-io/talon-full-demo/issues/47), [#48](https://github.com/dativo-io/talon-full-demo/issues/48), [#49](https://github.com/dativo-io/talon-full-demo/issues/49), [#50](https://github.com/dativo-io/talon-full-demo/issues/50). Do not run illustrative commands or advertise unverified scenes as completed.
+**Status: implementation specification, NOT a runnable unified showcase.** Talon core `main` at `5912dc1215ccfc27a90ede9366b41450450359ea` (2026-11-20) has merged #562–#568 and #572, including the read-only Approvals view, native registration, reviewer and canonical n8n reference; #568 has merged and #569 is still under review. [Core n8n LIVE CI](https://github.com/dativo-io/talon/actions/runs/44786799917) passed with **n8n 2.48.5**; Full Demo still pins **2.30.4**, so do not assume compatibility. The final consumer baseline is the complete verified official **v1.17.0 stable** release, including Console, quickstart, generic argument authorization, reviewer, n8n reference, registration, production operations, pilot runbook and security upgrade (core PRs #562–569 and #572). RC.1 does not contain the complete release. Core [#561](https://github.com/dativo-io/talon/issues/561) and [#533](https://github.com/dativo-io/talon/issues/533) own release acceptance; Full Demo is an independent consumer, not a publication dependency. This guide describes the approved target and the gates for turning it into executable instructions. See [#47](https://github.com/dativo-io/talon-full-demo/issues/47), [#48](https://github.com/dativo-io/talon-full-demo/issues/48), [#49](https://github.com/dativo-io/talon-full-demo/issues/49), [#50](https://github.com/dativo-io/talon-full-demo/issues/50). Do not run illustrative commands or advertise unverified scenes as completed.
 
 ## The product story
 
@@ -17,9 +17,24 @@ People Analytics is the launch demo (PR #46); ACME is the post-release product f
 
 ## Skeptical buyer gate — evidence, not feature bingo
 
-Read the [five-competitor reality check and adversarial objections](COMPETITOR_PROOF_SCORECARD.md) before presenting. Competitors already offer sophisticated gateways, budget controls, guardrails, tracing, failover and human review in various stacks. Talon needs to prove **one company policy plus independently authorized consequential actions across genuinely different existing applications**, not claim a unique monopoly on each feature.
+Read the [approved five-competitor reality check](COMPETITOR_PROOF_SCORECARD.md) and [buyer-win strategy](TALON_BUYER_WIN_STRATEGY.md) before presenting. The competitors are **Bifrost, LiteLLM, Portkey, Solo.io agentgateway and TrueFoundry**; the old Langfuse/LangSmith/Helicone shortlist is superseded. Competitors already offer sophisticated gateways, budget controls, guardrails, tracing, failover and human review in various stacks. Talon needs to prove **one company policy plus independently authorized consequential actions across genuinely different existing applications**, not claim a unique monopoly on each feature.
 
 Use the proof sequence: actual useful business output → request crossing a supported Talon boundary → authoritative loaded/effective company rule → actual Talon intervention → independent downstream counter/outcome → same-session signed evidence → Console/CLI parity. A model-generated statement, configured YAML or green pre-seeded dashboard is insufficient. Demonstrate one deliberate direct bypass as **uncontrolled and unobserved** rather than asserting universal agent control. Label source-built current-main vs released, fixture vs LIVE, priced vs unknown and NOT RUN gates conspicuously.
+
+## Buyer-proof progression by existing application
+
+The **two-app pilot** is the purchasing hinge, not another security feature demo. Use one native company policy, two distinct keys and one runtime; never confuse two independently successful CI fixtures with an integrated fleet. Ask the following objections aloud and show the counterexample **and the buyer's useful business outcome**. Do not replace runtime proof with presentation screens.
+
+| Scene | Skeptical buyer objection | Minimum action + source of independent truth | Claim/status boundary |
+| --- | --- | --- | --- |
+| People Analytics (#46) | "Portkey, Solo, Bifrost and TrueFoundry can deny MCP tools already." | Actual workforce aggregate and forbidden employee export, native policy before SQL, SQL service guard independently rejects unsafe query; then demonstrate same applicable company rule on support | Existing standalone HR proof; **second-app shared rule NOT RUN** |
+| Customer Support reliability (#49) | "LiteLLM, Portkey and Bifrost already have fallback and PII controls." | Real order enquiry; transient provider failure; forbidden candidate skipped; policy-valid fallback called; separate raw PII input tests Talon redaction/block and upstream bytes/count | Synthetic PII deny and app minimization passed; combined **LIVE provider failover NOT RUN** |
+| Shopify refund (#34/#52) | "TrueFoundry already pauses MCP calls and Solo can inspect tool arguments." | Actual n8n draft output, merchant eligibility, company €25 allow / €249 independent reviewer / €750 deny; 0 effect on approval and deny, 1 on claim; exact replay/UNKNOWN, signed lifecycle, independent synthetic ledger | **Source-built main + synthetic** action proof; standalone export is read/draft, second imported official workflow governs action; no Shopify payment |
+| OrderDesk (#42–45) | "The coding agent can still call a shell or API around your gateway." | Real Claude/OpenShell sandbox, Talon action boundary, separate containment proof, staging 503→200 and production row/volume invariants, same-run reviewer/action signatures | **HOST-key preflight only**; C01–C12 end-to-end sandbox still NOT RUN |
+| Document Processing (#49) | "Bifrost and LiteLLM enforce budgets." | Genuine useful partial document output, next priced request denied at Talon admission, no provider call after deny, signed cost session; correct UTC/estimate boundaries | Deterministic provider contract; **full document LIVE n8n path NOT RUN** |
+| Shared ACME (#47–50) | "Why not a Bifrost access profile or Portkey org registry?" | One digest-pinned Talon; Customer Support then HR native registration, loaded/effective company rule and independently governed traffic for both; 7-area read-only Console and time-to-second-app | **Unified two-app/four-app acceptance NOT RUN** |
+
+**Sales priority:** Show useful Customer Support work and the safe synthetic consequential action, then onboard a fundamentally different application without creating another policy engine. The narrower 10–15 minute pilot must complete all four registered/loaded/connected/governed checks for the second use case. Keep the deeper OrderDesk and document scenes optional until their real contracts pass. Bifrost's documented signed audit and TrueFoundry's tool approvals remove any excuse to say these features are unique.
 
 ## Canonical company setup and onboarding proof
 
@@ -80,6 +95,17 @@ Maintain a friction report during implementation, not an invented outcome:
 | Clean artifact install/pair, register, policy, action, evidence, restart, second use case | As documented for selected release | Record actual result | Record only used workaround | Blocker / high / medium / low | OSS #533/#561 for product defects; Full Demo for demo defects; presenter polish separately |
 
 
+## Presenter verification levels
+
+- **SPEC:** requirement/illustrative command only.
+- **GUIDED:** deterministic mock fixture; *real Talon* may enforce a rule, but never describe synthetic model or synthetic business state as a paid/external system.
+- **SOURCE-MAIN SYNTHETIC:** real Talon compiled from pinned main + real n8n and independently counted synthetic provider/Shopify/finance; this is not a released artifact, and upstream reference's `UNKNOWN` suite may be a separate fixture.
+- **PUBLISHED-ARTIFACT SYNTHETIC:** publicly downloadable SHA256-verified Talon tag actually executes every required scene on independent fixtures. **A green "RC2 available?" detection job whose consumer test skips is NOT an RC2 runtime pass.**
+- **LIVE PROVIDER / TEST STORE:** actual provider or explicitly authorized Shopify development-store transaction, plus independent results; never call test-store refund a real payment/customer production effect.
+- **ACME ACCEPTED:** persistent digest-pinned official artifact; real two-app shared-company control, lifecycle evidence, native recovery and seven-area Console parity. No full acceptance from isolated PR workflows.
+
+Every presenter beat needs a same-run manifest with **what changed in the business application**, actual Talon boundary/decision, effective company policy source, independent count/state, signed evidence, artifact and test mode. If no evidence, mark **NOT RUN** rather than filling cards with hardcoded plausible facts.
+
 ## Modes and preflight
 
 - **Interactive LIVE (primary sales path, target 20–25 min):** human-visible installation, credential provisioning, native config, policy changes and staged onboarding. Real OpenAI and Anthropic calls; model-selected actions and deterministic probes explicitly distinguished.
@@ -110,7 +136,7 @@ Each Do step below states the operation and owning acceptance task. Replace it w
 
 ### 3. People Analytics (05–09)
 
-- **Context / Say:** "HR wants meaningful answers without unrestricted employee-level exports."
+- **Context / Say:** "HR wants meaningful answers without unrestricted employee-level exports." A skeptical buyer says Portkey/Solo/Bifrost can already deny MCP. Respond by showing *application SQL protection plus company-wide Talon control*, and set up the second-app inheritance proof; this is not proprietary tool filtering.
 - **Do:** follow the existing manual Workforce integration (#46); show allowed aggregate, real OpenAI analytics, explicit forbidden export probe and separate rejected SQL through allowed tool. Modify policy on synthetic data, validate/activate, repeat same action without app code change, restore secure policy.
 - **Show:** Workforce result; AI Use Cases Summary, Effective Policy, Configuration, Sessions and Evidence.
 - **Expect / Prove:** allowed dispatch, denial never dispatched, HR validation rejection downstream; independent HR counters and actual session IDs, CLI/API/UI parity, signed HMAC verification, loaded vs current config. Fixed charts bypass Talon.
@@ -119,7 +145,7 @@ Each Do step below states the operation and owning acceptance task. Replace it w
 
 ### 4. Customer Support (09–12)
 
-- **Context / Say:** "A provider outage shouldn't force a service outage or bypass company rules."
+- **Context / Say:** "A provider outage shouldn't force a service outage or bypass company rules." LiteLLM/Bifrost/Portkey already do routing; show **a disallowed fallback candidate being skipped** and actual decision evidence. The Shopify Stage A minimized prompt is not itself Talon PII redaction.
 - **Do:** onboard support using the same company baseline and native registration (#48/#49), prove the four onboarding stages, run a shared applicable company restriction probe and verify HR remains working; then run the synthetic email/IBAN request with controlled local primary failure, prohibited fallback candidate and approved real OpenAI fallback.
 - **Show:** actual Shopify-style order enquiry, sanitized order facts, useful review-only draft and structured handoff (Stage A), then genuine provider path/decision, cost and session outcome from independently verified LIVE reliability scene. The current Shopify Stage A test uses synthetic orders and a deterministic provider; do not confuse it with real Shopify or paid inference. **Expect / Prove:** actual fallback and redaction as recorded; independent request/fixture observations; signed session and genuine provider spend.
 - **Troubleshoot:** verify model pricing, provider configuration, policy and live credentials; do not claim fallback if provider failed.
@@ -128,7 +154,7 @@ Each Do step below states the operation and owning acceptance task. Replace it w
 
 ### 5. OrderDesk (12–17; gated)
 
-- **Context / Say:** "We want an engineer's agent to restore service, not obtain unconstrained operational authority."
+- **Context / Say:** "We want an engineer's agent to restore service, not obtain unconstrained operational authority." Solo/TrueFoundry can govern tool calls; earn trust by distinguishing Talon's intercepted operations from OpenShell's independently verified sandbox/egress containment.
 - **Do:** after all [C01–C12](CLAUDE_POSTGRES_INCIDENT_CONTRACT.md) pass (#42–44, PR #45), start real Claude Code in OpenShell; diagnose staging SQLSTATE 28P01. Execute explicit same-hop adversarial volume-delete probe, legitimate sealed staging repair proposal, external reviewer approval and subsequent attempt.
 - **Show:** actual 503 then 200 business endpoint; use-case/session/action lifecycle/evidence in the real released console where recorded; canonical CLI/API for missing fields. **Expect / Prove:** company denial and zero fake delete calls; preapproval zero execution, approval alone zero dispatch, one authorized repair and independent unchanged production data/volume; replay/conflict/stale/unknown behavior covered in technical extension. OpenShell containment is independently proved, not attributed to Talon.
 - **Troubleshoot:** refuse buyer-ready if any ratified gate is FAIL/UNKNOWN; no host-key or direct-executor stand-in. Reviewer and provider authority outside sandbox. No real destructive API.
@@ -136,7 +162,7 @@ Each Do step below states the operation and owning acceptance task. Replace it w
 
 ### 6. Document Processing (17–21)
 
-- **Context / Say:** "Teams should be able to use different providers without losing control of spend."
+- **Context / Say:** "Teams should be able to use different providers without losing control of spend." Bifrost and LiteLLM already sell budgets: lead with useful **partial document output** and the independently blocked *next request* before provider access. The admission estimate is not a billing guarantee.
 - **Do:** onboard existing n8n Anthropic document workflow (#48/#49). Use known priced model, deliberately small positive cap, genuine first useful output and actual subsequent admission denial. Preserve completed work.
 - **Show:** real workflow results and Costs page. **Expect / Prove:** actual partial output, signed budget deny and no provider dispatch for denied request, actual charges and currency where measured. Compare session-specific CLI cost and console UTC windows without conflating them.
 - **Troubleshoot:** check cap, pricing and actual observed estimate/settlement; unavailable pricing or budget state is not exhaustion. Admission is estimate-based, not an invoice ceiling. Do not fabricate cost or force a success result.
@@ -144,7 +170,7 @@ Each Do step below states the operation and owning acceptance task. Replace it w
 
 ### 7. Operate ACME (21–25)
 
-- **Context / Say:** "We didn't replace ACME's applications. We introduced one operating layer to adopt more AI use cases without independently rebuilding AI infrastructure for every team."
+- **Context / Say:** "We didn't replace ACME's applications. We introduced one operating layer to adopt more AI use cases without independently rebuilding AI infrastructure for every team." Portkey has a registry, Bifrost access profiles and TrueFoundry identity. **Measure second-app operational duplication actually removed**, not merely number of cards visible.
 - **Do / Show:** Overview readiness and fleet attention; AI Use Cases summary/effective policy; **Approvals (read-only)**, Sessions and evidence detail with actual ID search; Costs; Configuration and System. Current core main has **seven** primary areas, with reviewer decisions only via native CLI/API. Verify a real signature. Ask the prospect which existing use case they could pilot first.
 - **Expect / Prove:** all four use cases registered, loaded, connected and governed in one installation; common applicable company constraint and explicit safe use-case overrides, actual traffic and costs, canonical CLI/API/UI projections and independent effects. Show shared policy once, not four duplicated policies. One proof manifest tied to exact same run; no mixed or stale artifacts. HMAC is tamper-evident, not immutable. Tenant filtering isn't an auth boundary; only intercepted actions governed.
 - **Troubleshoot:** distinguish not configured, degraded, offline, unavailable and unknown. Show any missing measurement honestly. Configuration/approval writes remain outside read-only console.
