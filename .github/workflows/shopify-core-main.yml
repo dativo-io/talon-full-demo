@@ -1,4 +1,4 @@
-name: Shopify support against Talon current main (development only)
+name: Shopify support against unreleased Talon candidates (development only)
 
 # Compatibility gate: source-built Talon current main is NOT an official release.
 # This validates the real business-reference contract before v1.17.0 publication.
@@ -14,17 +14,26 @@ permissions:
 
 jobs:
   core-main-reference:
+    name: Unreleased Talon ${{ matrix.candidate }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - candidate: main-after-568
+            sha: 6a01d985746e203808f11943778b4fbd5c7857e9
+          - candidate: pilot-PR569
+            sha: 4c20d4e224a457964675099abc5c8c7d42643535
     env:
-      TALON_CORE_SHA: 6a01d985746e203808f11943778b4fbd5c7857e9
+      TALON_CORE_SHA: ${{ matrix.sha }}
     steps:
       - name: Check out Full Demo PR
         uses: actions/checkout@v4
         with:
           path: full-demo
           persist-credentials: false
-      - name: Check out exact reviewed Talon main commit
+      - name: Check out exact reviewed Talon candidate commit
         uses: actions/checkout@v4
         with:
           repository: dativo-io/talon
@@ -39,14 +48,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Build pinned core main, without claiming released artifact
+      - name: Build pinned candidate source, without claiming released artifact
         run: |
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev
           (cd talon && go build -o "$RUNNER_TEMP/talon" ./cmd/talon/)
           "$RUNNER_TEMP/talon" version
           sha256sum "$RUNNER_TEMP/talon"
-      - name: Execute Full Demo Shopify Stage A against core main
+      - name: Execute Full Demo Shopify Stage A and canonical actions against candidate
         env:
           TALON_EXTERNAL_BIN: ${{ runner.temp }}/talon
           N8N_IMAGE: docker.n8n.io/n8nio/n8n:2.48.5
@@ -54,11 +63,11 @@ jobs:
         run: bash full-demo/integrations/n8n/shopify-support/test-n8n.sh
       - name: Install independent People Analytics fixture dependencies
         run: python3 -m pip install -r full-demo/cases/people-analytics-copilot/requirements.txt
-      - name: Real Talon core-main People Analytics MCP, gateway, tools and signed evidence
+      - name: Real candidate People Analytics MCP, gateway, tools and signed evidence
         env:
           PATH: ${{ runner.temp }}:/usr/local/bin:/usr/bin:/bin
         run: bash full-demo/scripts/test-people-analytics-talon.sh
-      - name: Run independent Document Processing admission and evidence contract on same core main
+      - name: Independent Document Processing admission contract on same candidate
         env:
           TALON_BIN: ${{ runner.temp }}/talon
           TALON_TOKEN_CONTRACT_MODE: core-main
