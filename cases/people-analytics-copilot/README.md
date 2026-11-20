@@ -29,6 +29,23 @@ This example begins with an ordinary workforce application: **DuckDB** stores 1,
 
 Talon is introduced **between the application and its model/MCP endpoints**. We keep the database and chart API as they are; we do not give the AI application raw DuckDB access.
 
+## Skeptical buyer comparison and truthful proof
+
+**Buyer objection:** "Bifrost, Portkey and TrueFoundry already allow per-agent MCP tool permissions; Solo can impose MCP policy, and LiteLLM grants tools per key/team. Why introduce Talon to my HR application?"
+
+**Winning answer to demonstrate, not simply say:** keep the existing DuckDB/HR SQL authorization intact; route only selected AI model/MCP requests through Talon; allow `hr_headcount_summary`, reject the employee-export MCP tool *before upstream dispatch*, then separately prove the HR SQL server still rejects a prohibited query even if a permitted MCP tool is called incorrectly. Attribute each intervention to its actual enforcement point. Verify one session with Talon's signed policy/evidence and an independent HR call counter. A fixed local chart or direct DuckDB query is outside Talon, and must be labeled accordingly.
+
+| Required proof | Concrete independent observation | Status in this PR |
+| --- | --- | --- |
+| Useful pre-existing app result | Existing workforce browser + DuckDB aggregate, no fake analytics | Existing fixture/CI covers |
+| Talon MCP tool governance | One allowed aggregate; forbidden export: **zero** HR dispatch; actual runtime signed receipt | Isolated fixture/CLI contract passes |
+| Backend defense in depth | Prohibited SQL fails at HR backend even if the MCP request itself is allowed | Isolated fixture contract |
+| One organization policy shared with another app | One `talon.config.yaml` company rule; native HR + existing Customer Support distinct keys, loaded effective policy, observed traffic and identical applicable denial; first app remains working | **NOT RUN** in shared persistent deployment; owned by #48/#50 |
+| Seven-area read-only Console | Actual paired browser across Overview / AI Use Cases / Approvals / Sessions / Costs / Configuration / System, source parity and safe redaction | **NOT RUN** on complete published 1.17.0 |
+| Published artifact handoff | Exact official tag + checksum/digest and clean customer onboarding | **NOT RUN** on complete published 1.17.0 |
+
+**Competitive test:** ask the buyer to reproduce that *two-app* policy reuse in Bifrost, Portkey or TrueFoundry—not merely one denied MCP tool. If Talon requires a second policy engine or manual policy duplication, it has not won the claimed company-control-plane value. Do not claim competitors lack tool filtering, signing or governance. See the [approved five-competitor scorecard](https://github.com/dativo-io/talon-full-demo/blob/docs/acme-release-aligned-showcase/docs/COMPETITOR_PROOF_SCORECARD.md) and [buyer-win strategy](https://github.com/dativo-io/talon-full-demo/blob/docs/acme-release-aligned-showcase/docs/TALON_BUYER_WIN_STRATEGY.md).
+
 ## Customer integration recipe
 
 **Company-first adoption:** establish `talon.config.yaml` company policy before registering the HR AI use case. One use case = one `agent.talon.yaml`, identity and active Talon key. Prefer the merged core-main native registration path (`talon agents add <name> --owner <team>`; verify released flags after publication) and verify its exact syntax before replacing the existing standalone fixture instructions. The latter remain an older isolated topology, not verified native fleet onboarding. Prove registration, loaded policy/runtime identity, actual intercepted application traffic and governed outcome separately, using the real Console/CLI/API and independent HR counters. Do not claim a file edit or registration alone proves enforcement. For the short pilot/ACME, show the same applicable mandatory company control inherited by another use case, with first still operating. Measure prepared installation/pairing, integration and denied-action investigation time; record actual results, not targets as results.
