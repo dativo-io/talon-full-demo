@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      TALON_CORE_SHA: 5912dc1215ccfc27a90ede9366b41450450359ea
+      TALON_CORE_SHA: 6a01d985746e203808f11943778b4fbd5c7857e9
     steps:
       - name: Check out Full Demo PR
         uses: actions/checkout@v4
@@ -52,6 +52,18 @@ jobs:
           N8N_IMAGE: docker.n8n.io/n8nio/n8n:2.48.5
           TALON_CORE_DIR: ${{ github.workspace }}/talon
         run: bash full-demo/integrations/n8n/shopify-support/test-n8n.sh
+      - name: Install independent People Analytics fixture dependencies
+        run: python3 -m pip install -r full-demo/cases/people-analytics-copilot/requirements.txt
+      - name: Real Talon core-main People Analytics MCP, gateway, tools and signed evidence
+        env:
+          PATH: ${{ runner.temp }}:/usr/local/bin:/usr/bin:/bin
+        run: bash full-demo/scripts/test-people-analytics-talon.sh
+      - name: Run independent Document Processing admission and evidence contract on same core main
+        env:
+          TALON_BIN: ${{ runner.temp }}/talon
+        run: |
+          cd full-demo
+          make tokeneconomizer-contract
       - name: Install core-reference n8n 2.48.5
         run: |
           mkdir -p "$RUNNER_TEMP/n8n"
