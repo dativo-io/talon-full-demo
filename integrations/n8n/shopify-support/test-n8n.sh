@@ -3,8 +3,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="$(mktemp -d)"
-fixture_pid= talon_pid=
+fixture_pid= talon_pid= action_n8n_container=
 cleanup() {
+  [[ -z "$action_n8n_container" ]] || docker rm -f "$action_n8n_container" >/dev/null 2>&1 || true
   [[ -z "$talon_pid" ]] || kill "$talon_pid" 2>/dev/null || true
   [[ -z "$fixture_pid" ]] || kill "$fixture_pid" 2>/dev/null || true
   rm -rf "$WORK"
