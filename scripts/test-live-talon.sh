@@ -346,6 +346,23 @@ agents_dir: agents
 agents_reload_interval: "2s"
 EOF
 
+# Current main treats a missing price as a safety denial (#399). Explicitly
+# price the local OpenAI-wire fixture: it is a counted synthetic commercial
+# endpoint, not a zero-cost local LLM. Keep this under the temp directory.
+mkdir -p "$BUDGET/pricing"
+cat > "$BUDGET/pricing/models.yaml" <<'YAMLPRICE'
+version: "1"
+currency: USD
+providers:
+  openai:
+    models:
+      gpt-4o-mini:
+        input_per_1m: 0.15
+        output_per_1m: 0.60
+  mock-openai:
+    inherit: openai
+YAMLPRICE
+
 write_probe_agent() {
   local max_cost="$1"
   cat > "$BUDGET/agents/budget-probe/agent.talon.yaml" <<EOF
