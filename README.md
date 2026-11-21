@@ -6,6 +6,8 @@
 
 **[Start with the ACME demo index](docs/DEMO_EXPERIENCE_INDEX.md)** — what a skeptical buyer sees, the 10–15 minute First Production Pilot and 20–25 minute Full ACME journey, proof levels and which parts are actually runnable. For the commercial thesis and hard evidence requirements, see the [five-competitor buyer scorecard](docs/COMPETITOR_PROOF_SCORECARD.md).
 
+**[Read the audited RC2 Full Demo acceptance report](docs/RC2_CONSUMER_ACCEPTANCE.md)** — four separately verified application paths on the official binary, with the remaining shared-fleet and LIVE gaps stated explicitly.
+
 **Release target:** the [published `v1.17.0-rc.2` prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2) (immutable Linux/amd64 archive SHA256 `5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c`). Talon core's published-artifact pilot passed. Full Demo's **combined four-application ACME** remains a separate, unaccepted runtime gate; the individual branch tests and synthetic fixtures below must not be mistaken for it.
 
 ## Existing standalone gallery (historical and independently testable)
