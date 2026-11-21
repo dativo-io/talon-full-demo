@@ -64,6 +64,7 @@ Be precise: **approval is not dispatch**; **at-most-once Talon dispatch is not e
 
 ## Operator/presenter links
 
+- [**Verified published-RC2 Full Demo consumer acceptance (four component paths)**](RC2_CONSUMER_ACCEPTANCE.md)
 - [Live walkthrough and scene-by-scene claims](SHOWCASE_LIVE_WALKTHROUGH.md)
 - [Buyer-win strategy and decision gates](TALON_BUYER_WIN_STRATEGY.md)
 - [Bifrost / LiteLLM / Portkey / Solo agentgateway / TrueFoundry scorecard](COMPETITOR_PROOF_SCORECARD.md)
