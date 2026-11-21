@@ -215,3 +215,8 @@ jobs:
           echo "$RUNNER_TEMP/rc2-bin" >> "$GITHUB_PATH"
       - name: Real Talon policy + external approval + dispatch against synthetic PostgreSQL
         run: make incident-talon-preflight
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Bridge durable per-intent operation ids against the same real Talon (no Docker)
+        run: TALON_CLI="$RUNNER_TEMP/rc2-bin/talon" make incident-bridge-intents

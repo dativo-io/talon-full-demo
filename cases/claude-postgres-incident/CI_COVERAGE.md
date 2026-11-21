@@ -4,9 +4,10 @@ This case follows the same test classification as [People Analytics CI coverage]
 
 | Layer | Command / CI | Real dependencies | Assertions | Explicit limitation |
 |---|---|---|---|---|
-| Contract | `make incident-contract-test` (routine CI) | Node 22; stub **Talon transport only** | Six closed schema shapes, no dangerous model tool advertised, stable mutation identity, HTTP routes, no sandbox secret injected by bridge, deny/pending do not claim; synthetic hook reachable-host positive control | Stub response is NOT Talon enforcement |
+| Contract | `make incident-contract-test` (routine CI) | Node 22; stub **Talon transport only** | Six closed schema shapes, no dangerous model tool advertised, durable per-intent mutation identity (two identical intents → two operations; approval, not-dispatched retry and crash resume reuse the id; unknown never replaced; ledger survives a bridge restart), HTTP routes, no sandbox secret injected by bridge, deny/pending do not claim; synthetic hook reachable-host positive control | Stub response is NOT Talon enforcement |
 | Application | `make incident-fixture-validate` (Docker CI) | Real Postgres 16, OrderDesk Node app, protected executor, in-memory fake infrastructure, independent collector | Baseline staging `/health` and `/api/orders/summary` **503/28P01**; production rows=1000; independent collector reachable with zero hits; production observer lacks write grant; staging repair yields real `200` and orders count 2 / sum 4598; one executor mutation; no fake delete | Deliberate **direct executor** fixture call is NOT Talon authorization |
 | Action governance | `make incident-talon-preflight` (separate Docker CI) | Exact **Talon v1.16.1** Go tag, real `talon validate`/`secrets`/`approver`/`serve`/`audit`, synthetic host bearer key | Company-source DENY; zero downstream volume effects; pending approval; no dispatch on approval; one later exact dispatch; replay/argument conflict; real app/business recovery; production invariant; `audit verify --operation` | This authenticated HOST-key preflight is not the OpenShell workload-hop C06–C09 proof; agent-key action evidence intentionally has no verified sandbox/session attribution |
+| Bridge intents on real Talon | `make incident-bridge-intents` (CI, published RC2 binary; no Docker) | Real `talon serve` Action Gateway and reviewer, the real stdio bridge restarted at every call, an independent downstream counter; a local header proxy adds the host key in place of the OpenShell hop | Pending repeats resume one operation; approval sends nothing; one dispatch; a second identical intent is a new operation; unknown never retried or replaced; company DENY reaches nothing; signed lifecycles verify | The header proxy is **not** the verified OpenShell hop |
 | Delegated model + tool path | Full Demo #42 integration | Real pinned OpenShell and real Claude executable, Talon v1.16.1+ verified runtime | Same sandbox/use case/session for Anthropic and exact actions, real middleware, request-bound identity, no direct bypass, no key in sandbox | **Not implemented or passed here** |
 | Hook containment | Full Demo #42 integration | Real Claude Code hook, OpenShell policy, independent collector | Hook executes and egress is blocked, collector receives zero despite reachable authorized-host positive control | **Not yet verified** |
 | Signed customer claim | Full Demo #44 | Shared Talon data dir, real session, offline verifier, independently sourced run facts | Session-filtered signed export, verified operation lifecycle, models/usage, policy sources, exact payload digest, same sandbox, non-forged OpenShell provenance; buyer and technical views from same proof | **Not yet implemented** |
@@ -29,6 +30,9 @@ Prior successful work (v1.16.0, before the current release pin) showed host-key 
 ```bash
 # from repo root — no keys, no containers
 make incident-contract-test
+
+# the bridge's intent ledger against a real Talon (no Docker, no key)
+TALON_CLI=/path/to/talon make incident-bridge-intents
 
 # disposable real application + PostgreSQL, no LLM key
 make incident-fixture-validate

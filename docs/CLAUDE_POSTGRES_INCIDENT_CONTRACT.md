@@ -140,7 +140,7 @@ Do not introduce argument-sensitive authorization rules (Talon #205) for this de
 
 ### 4.4 Operation identity, approval and no-double-effect contract
 
-- The bridge assigns a **stable** `operation_id` per session + intent; replays use the identical ID and exact arguments. Volatile model request IDs are **not** operation identity.
+- The bridge assigns a **durable per-intent** `operation_id`: a new random id (`incident-<uuid>`) for each new business intent, recorded in a private intent ledger (`ORDERDESK_INTENT_LEDGER`, 0600, written atomically) **before** the establish. A repeat of the same session + action + exact arguments resumes that operation while it is awaiting approval, authorized, failed before dispatch (`not_dispatched`) or interrupted between establish and claim; an `unknown` outcome is never retried and never replaced by a new operation; once a terminal outcome has been reported to the model, an identical repeat is a **new** intent (a legitimate second identical action is never collapsed into the first). Neither the arguments nor the model choose the id; volatile model request IDs are **not** operation identity.
 - Establish: 403 DENY means no downstream dispatch. 202 pending approval means zero dispatch until an authorized external decision.
 - Reviewer must authenticate as a Talon tenant-scoped approver in group `oncall`; an agent, admin key, forged token or another tenant cannot decide. A reviewer decision alone makes **zero** downstream calls.
 - After approval, agent claims using `POST .../attempts`. Talon revalidates the current policy and definition. One committed attempt may call the executor **at most once**.
