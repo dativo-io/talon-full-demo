@@ -1,5 +1,15 @@
 # Talon Full Demo
 
+**One company · four existing AI applications · one Talon control plane.**
+
+> We can introduce more AI applications without independently reinventing how we operate and control each one.
+
+**[Start with the ACME demo index](docs/DEMO_EXPERIENCE_INDEX.md)** — what a skeptical buyer sees, the 10–15 minute First Production Pilot and 20–25 minute Full ACME journey, proof levels and which parts are actually runnable. For the commercial thesis and hard evidence requirements, see the [five-competitor buyer scorecard](docs/COMPETITOR_PROOF_SCORECARD.md).
+
+**Release target:** the [published `v1.17.0-rc.2` prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2) (immutable Linux/amd64 archive SHA256 `5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c`). Talon core's published-artifact pilot passed. Full Demo's **combined four-application ACME** remains a separate, unaccepted runtime gate; the individual branch tests and synthetic fixtures below must not be mistaken for it.
+
+## Existing standalone gallery (historical and independently testable)
+
 A standalone, early-adopter-oriented demonstration of recognizable applications governed through [Dativo Talon](https://github.com/dativo-io/talon):
 
 - **n8n customer-support resolution** — a duplicate-charge workflow drafts a reply through a policy-valid provider path, protects customer PII, blocks the refund action, and then literally waits for a demo operator to approve or reject the synthetic finance handoff.
