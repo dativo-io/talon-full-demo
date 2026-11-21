@@ -1,8 +1,21 @@
 # Talon Full Demo
 
+**One company · four existing AI applications · one Talon control plane.**
+
+> We can introduce more AI applications without independently reinventing how we operate and control each one.
+
+**[Start with the ACME demo index](docs/DEMO_EXPERIENCE_INDEX.md)** — what a skeptical buyer sees, the 10–15 minute First Production Pilot and 20–25 minute Full ACME journey, proof levels and which parts are actually runnable. For the commercial thesis and hard evidence requirements, see the [five-competitor buyer scorecard](docs/COMPETITOR_PROOF_SCORECARD.md).
+
+**[Read the audited RC2 Full Demo acceptance report](docs/RC2_CONSUMER_ACCEPTANCE.md)** — four separately verified application paths on the official binary, with the remaining shared-fleet and LIVE gaps stated explicitly.
+
+**Release target:** the [published `v1.17.0-rc.2` prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2) (immutable Linux/amd64 archive SHA256 `5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c`). Talon core's published-artifact pilot passed. Full Demo's **combined four-application ACME** remains a separate, unaccepted runtime gate; the individual branch tests and synthetic fixtures below must not be mistaken for it.
+
+## Existing standalone gallery (historical and independently testable)
+
 A standalone, early-adopter-oriented demonstration of recognizable applications governed through [Dativo Talon](https://github.com/dativo-io/talon):
 
 - **n8n customer-support resolution** — a duplicate-charge workflow drafts a reply through a policy-valid provider path, protects customer PII, blocks the refund action, and then literally waits for a demo operator to approve or reject the synthetic finance handoff.
+  **Historical legacy trust boundary:** this older flow uses a separate demo-specific approval server. It is NOT a canonical Talon Action Gateway approval, and its successful handoff is not a refund execution. The new [Shopify-style Customer Support read/draft reference](https://github.com/dativo-io/talon-full-demo/pull/52) has a tested synthetic Stage A; canonical action Stage B requires its own integrated acceptance.
 - **n8n vendor-contract review** — a confidential synthetic contract package is blocked from one destination, redacted, and reviewed through the approved provider with both decisions in one signed session.
 - **Customer support / Zendesk** — a support workflow requests a governed reply draft through direct and adapter paths.
 - **GitHub Copilot CLI** — a real Copilot client sends model traffic through Talon and reaches a synthetic release boundary through Talon's MCP proxy.
@@ -13,11 +26,33 @@ The support, n8n and Copilot cases provide their own evidence projections. The P
 
 See [Audience-specific demo views](docs/AUDIENCE_DEMOS.md) for the full command matrix and truth boundaries.
 
+## Customer adoption roadmap (not yet released)
+
+**Talon is the control plane for a company's AI use cases.** ACME shows how an existing People Analytics, Customer Support, OrderDesk or Document Processing application joins a shared installation and inherits company policy instead of rebuilding operational controls. The four pillars are cost control, reliability, shared policy and session understanding; signed evidence is the proof layer. Self-hosting/privacy/sovereignty are differentiators, not the product category.
+
+The Full Demo first independently validates Talon from a customer's perspective, then reduces onboarding effort, then demonstrates value. [OSS #561](https://github.com/dativo-io/talon/issues/561) owns engineering readiness; [Enterprise #32](https://github.com/dativo-io/talon-enterprise/issues/32) owns external activation. People Analytics is the independent launch example. The *customer-ready* integrated path targets complete verified official **v1.17.0 stable** (core PRs #562–569 and #572). Exact tagged RC2 source is available as an internal compatibility target; tag availability is not proof of a published or installable artifact. No Full Demo dependency for core release.
+
+Use native Talon installation, persistent deployment, registration, configuration, reviewer and recovery commands. One AI use case = one agent.talon.yaml / identity / active key; talon.config.yaml sets company policy once. Prove each use case is registered, loaded, connected and governed, and demonstrate a second application's inherited applicable control without duplicating infrastructure. n8n orchestrates Customer Support's generic argument-aware refund example and Document Processing; no extra application or policy engine. The existing standalone paths below are not the integrated v1.17.0 acceptance path.
+
+The planned **10–15 minute First Production Pilot** and **20–25 minute Full ACME** use the same runtime and scenarios. **Start with the [one-company demo index and verification legend](docs/DEMO_EXPERIENCE_INDEX.md)**, then see [walkthrough specification](docs/SHOWCASE_LIVE_WALKTHROUGH.md), [buyer-win product strategy](docs/TALON_BUYER_WIN_STRATEGY.md), [Bifrost / LiteLLM / Portkey / Solo / TrueFoundry proof scorecard](docs/COMPETITOR_PROOF_SCORECARD.md), [adoption friction report](docs/CUSTOMER_ADOPTION_FRICTION.md) and [ACME epic #47](https://github.com/dativo-io/talon-full-demo/issues/47). These are implementation plans, not available unified commands or measured timings.
+
+**Talon RC2 tag checked 2026-11-21:** core PRs **#562–#569 and #572 are merged**; `v1.17.0-rc.2` is an annotated tag pointing to core commit `3f3f20dff910dc2416c8d82467de2d4e2dd8acc5`. RC2 is now published; its Full Demo consumer acceptance is separate from the Talon core release test. The latest *confirmed published stable* was v1.16.1. The native **seven-area read-only Console includes Approvals**. [Core's real-n8n action acceptance](https://github.com/dativo-io/talon/actions/runs/44786799917) passes at **n8n 2.48.5**. Full Demo's historical n8n demonstrations use **2.30.4**; this version mismatch is a release-compatibility gate. The [PR #52 source-main compatibility lane](https://github.com/dativo-io/talon-full-demo/pull/52) is development-only and cannot replace a verified published v1.17.0 consumer run.
+
+**Competitive argument:** Talon is not the only way to get LLM cost accounting, routing, tracing, guardrails, signed audits or human review. The approved top-five rivals are Bifrost, LiteLLM, Portkey, Solo.io agentgateway and TrueFoundry. The buyer must see company policy inheritance across two genuinely existing applications, then independent exact action authorization and signed dispatch/business-outcome proof. See the [strategy](docs/TALON_BUYER_WIN_STRATEGY.md) and [updated competitive scorecard](docs/COMPETITOR_PROOF_SCORECARD.md) before claiming a differentiated buyer win. The action example has passed source-main synthetic CI; the one-fleet four-app customer adoption path has not.
+
 ## Proposed Claude Code × OpenShell incident demo — contract-first
 
-The planned **OrderDesk PostgreSQL incident** case combines a credential-drift staging recovery, a contained malicious Claude Code hook, and a company-governed denial of a simulated production volume deletion. It is a **proposed integration, not a shipped demo**.
+The [OrderDesk PostgreSQL incident case](cases/claude-postgres-incident/README.md) is under active implementation: a *real synthetic PostgreSQL staging outage and business recovery fixture* plus a separate, real Talon host-key Action Gateway preflight have passed prior CI. Full Claude Code × OpenShell delegated same-session acceptance C01–C12 has **not** passed. OpenShell owns sandbox containment; Talon only governs actions it intercepts.
 
-**Authoritative consumer-side contract:** [Claude/Postgres incident contract](docs/CLAUDE_POSTGRES_INCIDENT_CONTRACT.md). It defines supported versus unverified Talon capabilities, action/approval interfaces, trust boundaries, 12 mandatory proof gates and cross-repository responsibilities. The case must not be described as released until its real-runtime and published-artifact gates pass.
+For developers with the required local Docker environment:
+
+```bash
+make incident-contract-test          # static/typed business bridge
+make incident-fixture-validate       # PostgreSQL outage and recovery; no Talon
+make incident-talon-preflight        # host-key Talon action; not a sandbox hop
+```
+
+[Case CI coverage](cases/claude-postgres-incident/CI_COVERAGE.md) and the [ratified C01–C12 contract](docs/CLAUDE_POSTGRES_INCIDENT_CONTRACT.md) specify the remaining same-hop proof. The historical preflight uses v1.16.1, and must be rerun against the exact RC2 published artifact before any RC2 acceptance claim.
 
 ## People Analytics (standalone)
 
@@ -68,7 +103,7 @@ The OpenShell case uses the same prepared Talon fleet and signed evidence as the
 
 In another terminal during the human gate: `make status-openshell-approval`, then `make approve-openshell` (or `make reject-openshell`). To re-present the same run: `make present-openshell-all`. Technical view: `make demo-openshell-tech`.
 
-**Integration status:** Talon PR #501 is merged but the latest published release predates it. The canonical main-Talon OpenShell showcase runner must be delivered and verified before this is a self-service demo. See [OpenShell demo contract](docs/OPENSHELL_DEMO.md). The option is off by default and does not affect existing cases.
+**Integration status:** Talon now publishes the OpenShell showcase bundle in the [RC2 prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2), but the Full Demo's complete Claude/OpenShell C01–C12 and same-fleet presenter path remain unaccepted. A released bundle alone is not a working buyer demo. See [OpenShell demo contract](docs/OPENSHELL_DEMO.md). The option is off by default and does not affect existing cases.
 
 ## Choose a case and audience
 
@@ -325,7 +360,7 @@ make real-stop
 - An offline Zendesk ZIP is not described as Zendesk server-validated.
 - Zendesk browser-only observations are operator-confirmed, not misrepresented as Talon evidence.
 - Talon does not govern Copilot's local shell commands, filesystem changes, browser actions, or direct API calls.
-- Session limits are soft caps.
+- Budget behavior is version-specific. For the console-enabled release, session admission uses atomic estimate reservations and binding caps fail closed when required budget state or pricing is unavailable; actual charges can exceed estimates. This is preventive admission, not an invoice ceiling. Verify the behavior against the pinned artifact and its [limitations](https://github.com/dativo-io/talon/blob/main/LIMITATIONS.md); do not extrapolate newer guarantees to older standalone pins.
 - Vendor-contract review output is advisory, synthetic, and requires human review.
 - HMAC evidence is tamper-evident and offline-verifiable, not immutable.
 - Only synthetic data belongs in this repository and demo.
