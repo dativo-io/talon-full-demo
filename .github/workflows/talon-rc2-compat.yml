@@ -1,7 +1,7 @@
 name: Talon RC2 published-artifact consumer acceptance
 
-# RC2 must first exist as a PUBLISHED GitHub pre-release, not an RC1 build
-# or a tagless release draft. A skipped job is NOT a demo acceptance pass.
+# Official RC2 is now published; this is a hard gate on the immutable reviewed
+# archive SHA-256. Missing/different binary is a FAILURE, never a skipped PASS.
 on:
   pull_request:
     paths:
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   availability:
-    name: Find the real v1.17.0-rc.2 published artifact
+    name: Require published v1.17.0-rc.2 and independently pinned digest
     runs-on: ubuntu-latest
     outputs:
       published: ${{ steps.probe.outputs.published }}
@@ -27,13 +27,14 @@ jobs:
           set -euo pipefail
           tag=v1.17.0-rc.2
           if ! gh api "repos/dativo-io/talon/releases/tags/$tag" > "$RUNNER_TEMP/rc2.json" 2>/dev/null; then
-            echo published=false >> "$GITHUB_OUTPUT"
-            echo 'NOT RUN: official RC2 is not published; a source-main pass is not RC2.' >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            echo 'FAIL: official RC2 is no longer publicly accessible; do not skip published-artifact acceptance' >&2
+            exit 1
           fi
           asset=talon_1.17.0-rc.2_linux_amd64.tar.gz
           digest="$(jq -r --arg name "$asset" '.assets[] | select(.name==$name) | .digest' "$RUNNER_TEMP/rc2.json")"
-          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo 'Published release lacks an independently verifiable Linux archive digest' >&2; exit 1; }
+          [[ "$digest" == 'sha256:5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c' ]] || {
+            echo 'Published RC2 Linux archive does not match reviewed immutable checksum' >&2; exit 1;
+          }
           jq -e '.draft==false and .prerelease==true' "$RUNNER_TEMP/rc2.json" >/dev/null
           echo published=true >> "$GITHUB_OUTPUT"
           echo "Published RC2 artifact digest present: $digest" >> "$GITHUB_STEP_SUMMARY"
@@ -88,7 +89,7 @@ jobs:
           asset=talon_1.17.0-rc.2_linux_amd64.tar.gz
           gh api 'repos/dativo-io/talon/releases/tags/v1.17.0-rc.2' >"$RUNNER_TEMP/release/metadata.json"
           digest="$(jq -r --arg name "$asset" '.assets[] | select(.name==$name) | .digest' "$RUNNER_TEMP/release/metadata.json")"
-          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 1
+          [[ "$digest" == 'sha256:5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c' ]] || exit 1
           gh release download v1.17.0-rc.2 --repo dativo-io/talon \
             --pattern "$asset" --dir "$RUNNER_TEMP/release" --clobber
           printf '%s  %s\n' "${digest#sha256:}" "$RUNNER_TEMP/release/$asset" | sha256sum -c -
