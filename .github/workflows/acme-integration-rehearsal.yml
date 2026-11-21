@@ -65,7 +65,12 @@ jobs:
           bash -n integrations/n8n/shopify-support/test-n8n.sh
           bash -n integrations/n8n/shopify-support/test-current-main-actions.sh
           python3 -m py_compile integrations/n8n/shopify-support/fixture.py
-          python3 -m unittest cases/people-analytics-copilot/test_docs.py -v
+          python3 cases/people-analytics-copilot/test_docs.py -v
+      - name: Prepare existing HR local validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          python3 -m pip install -r cases/people-analytics-copilot/requirements.txt
       - name: Build/test merged repository without live external systems
         run: |
           make validate-local
