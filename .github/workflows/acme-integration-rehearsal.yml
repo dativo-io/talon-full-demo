@@ -10,6 +10,8 @@ on:
       - 'docs/SHOWCASE_LIVE_WALKTHROUGH.md'
       - 'docs/COMPETITOR_PROOF_SCORECARD.md'
       - 'docs/TALON_BUYER_WIN_STRATEGY.md'
+      - 'docs/RC2_CONSUMER_ACCEPTANCE.md'
+      - 'docs/AUDIENCE_DEMOS.md'
       - 'README.md'
   workflow_dispatch:
 
