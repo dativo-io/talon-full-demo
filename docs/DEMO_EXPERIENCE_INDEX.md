@@ -41,7 +41,7 @@ Read-only native Talon Console **seven areas**: Overview · AI Use Cases · Appr
 | **LIVE PROVIDER / TEST STORE** | Actual authorized inference and/or explicit development-store test request with independent observed response | Exactly-once external financial effect, assumed payout settlement, universal out-of-path governance |
 | **ACME ACCEPTED** | Official digest-pinned release + one shared persistent company deployment + two/four real apps (as claimed), paired Console, native restart/recovery, same-run session/action evidence and business counters | Claims based only on isolated green PR workflows |
 
-The RC2 **Git tag exists**; a GitHub release and its public artifacts must be checked separately. If absent, the published-artifact test remains **NOT RUN**. A GitHub Actions run whose availability check succeeds but consumer job skips is **not** a runtime PASS.
+RC2 is now a [published GitHub prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2). The Linux/amd64 SHA256 is `5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c`. **The published-artifact Full Demo run must still execute and pass; publication alone is NOT an acceptance PASS.** A GitHub Actions run whose availability check succeeds but consumer job skips is **not** a runtime PASS.
 
 ## Same-run evidence checklist — use for EVERY scene
 
