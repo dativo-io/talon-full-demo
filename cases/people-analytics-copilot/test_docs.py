@@ -82,7 +82,7 @@ class DocumentationContract(unittest.TestCase):
         # A Talon denial, a post-dispatch HR SQL rejection and provider spend
         # must be distinct paths, backed by the shared signed evidence store.
         for node in ("Talon denies; not dispatched",
-                     "HR rejects SQL; Talon allowed tool",
+                     "HR rejects SQL after dispatch; outcome unknown",
                      "Independent HR dispatch counter",
                      "Talon model and budget policy?",
                      "talon costs --session",
@@ -90,7 +90,13 @@ class DocumentationContract(unittest.TestCase):
             self.assertIn(node,decisions)
         self.assertIn('O -->|"If model requests a tool, app dispatches it"| T',decisions)
         spec=(CASE/"compose.isolated.yaml").read_text()
-        self.assertIn("networks: [app_net, private_hr]",spec)
+        # HR and talon-mcp share one network namespace; HR listens on
+        # loopback only, so Talon's loopback-only http source rule holds and
+        # nothing on app_net can reach HR.
+        self.assertEqual(spec.count('network_mode: "service:hr-mcp-net"'),2)
+        self.assertIn("DEMO_BIND_HOST: 127.0.0.1",spec)
+        self.assertIn("aliases: [talon-mcp]",spec)
+        self.assertIn("condition: service_healthy",spec)
         self.assertIn("volumes: [hr_data:/data:ro]",spec)
 
     def test_existing_vault_key_continuity_guard(self):
@@ -114,7 +120,7 @@ class DocumentationContract(unittest.TestCase):
         self.assertIsNotNone(match,"Expected a separately managed talon-ui service")
         service=match.group("service")
         for term in ('profiles: ["operator"]', "talon", "ui", "serve", "--listen", "0.0.0.0:8787",
-                     "--allow-non-loopback", "/policies/proxy.isolated.talon.yaml",
+                     "--allow-non-loopback",
                      "/policies/gateway.talon.yaml", "./.state/talon:/state",
                      "./.state/policy:/policies:ro", "/usr/local/bin/talon:ro",
                      "TALON_SIGNING_KEY:", 'ports: ["127.0.0.1:8787:8787"]',
@@ -139,6 +145,28 @@ class DocumentationContract(unittest.TestCase):
             self.assertIn(term.lower(), shots.lower())
         self.assertIn("Approvals", body)
         self.assertNotIn("approve/reject buttons", body.lower())
+
+    def test_governed_mcp_only_no_proxy_shim(self):
+        """The case uses Talon's governed /mcp; the removed MCP proxy has no shim."""
+        removed=("/mcp/proxy","--proxy-config","proxy.talon.yaml","proxy.isolated.talon.yaml")
+        files=[p for p in CASE.rglob("*") if p.is_file() and p.suffix in (".py",".yaml",".yml",".sh","")
+               and ".state" not in p.parts and "__pycache__" not in p.parts and p.name!="test_docs.py"]
+        files+= [ROOT/"scripts"/name for name in ("test-people-analytics-talon.sh",
+                 "test-people-analytics-real-provider.sh","test-people-analytics-policy-change.py",
+                 "test-people-analytics-browser.py")]
+        for path in files:
+            body=path.read_text(encoding="utf-8",errors="replace")
+            for term in removed:
+                self.assertNotIn(term,body,f"{path} still references the removed MCP proxy ({term})")
+        agent=(CASE/"agent.talon.yaml").read_text(encoding="utf-8")
+        for term in ("actions:","sources:","type: mcp","definitions:","read_only: true",
+                     "forbidden_tools:","- hr_employee_export"):
+            self.assertIn(term,agent)
+        self.assertRegex((CASE/"TALON_GOVERNED_MCP_COMMIT").read_text().strip(),r"^[0-9a-f]{40}$")
+        app=(CASE/"demo.py").read_text(encoding="utf-8")
+        self.assertIn("'/mcp'",app)
+        self.assertIn("server/discover",app)
+        self.assertIn("talon_execute_operation",app)
 
     def test_web_app_does_not_fabricate_employee_access_denials(self):
         app=(CASE/"demo.py").read_text(encoding="utf-8")

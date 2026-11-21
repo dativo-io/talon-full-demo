@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Real-Talon, credential-free People Analytics governance acceptance.
+# The HR MCP server is the AI use case's trusted MCP action source (declared in
+# agent.talon.yaml); the app reaches Talon only at its governed MCP endpoint
+# POST /mcp. Requires a Talon with governed MCP (talon#431).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CASE="$ROOT/cases/people-analytics-copilot"
@@ -65,17 +68,32 @@ sed 's|https://api.openai.com|http://127.0.0.1:9092|' \
   "$TALON_BIN" validate
   "$TALON_BIN" secrets set hr-analytics-assistant-talon-key talon-hr-demo-key-0001
   "$TALON_BIN" secrets set openai-api-key sk-demo-mock-provider-not-a-real-api-key
-  exec "$TALON_BIN" serve --host 127.0.0.1 --port 8080 --proxy-config "$CASE/proxy.talon.yaml"
-) >"$TEMP/talon.log" 2>&1 &
-TALON_PID=$!
-for n in {1..60}; do
-  if curl --silent --fail http://127.0.0.1:8080/health >/dev/null 2>&1; then break; fi
-  sleep .5
-done
-curl --silent --fail http://127.0.0.1:8080/health >/dev/null
+) >"$TEMP/talon-setup.log" 2>&1
+
+# The governed MCP endpoint: a native talon serve for the use case in
+# $TALON_DATA_DIR/agent.talon.yaml. Restarted (only it) after a policy edit.
+start_mcp() {
+  (cd "$TALON_DATA_DIR" && exec "$TALON_BIN" serve --host 127.0.0.1 --port 8080) >>"$TEMP/talon.log" 2>&1 &
+  TALON_PID=$!
+  for n in {1..60}; do
+    if curl --silent --fail http://127.0.0.1:8080/health >/dev/null 2>&1; then break; fi
+    sleep .5
+  done
+  curl --silent --fail http://127.0.0.1:8080/health >/dev/null
+}
+restart_mcp() {
+  kill "$TALON_PID" 2>/dev/null || true
+  wait "$TALON_PID" 2>/dev/null || true
+  for n in {1..40}; do
+    curl --silent --max-time 1 http://127.0.0.1:8080/health >/dev/null 2>&1 || break
+    sleep .25
+  done
+  start_mcp
+}
+start_mcp
 
 
-# Same data directory, signing vault and agent identity as the MCP proxy.
+# Same data directory, signing vault and agent identity as the MCP endpoint.
 (
   cd "$TALON_DATA_DIR"
   exec "$TALON_BIN" serve --host 127.0.0.1 --port 8082 --gateway \
@@ -90,4 +108,43 @@ curl --silent --fail http://127.0.0.1:8082/health >/dev/null
 
 (cd "$CASE" && python3 verify.py --talon-bin "$TALON_BIN")
 (cd "$CASE" && HR_DEMO_PROVIDER_KIND=simulated-openai-compatible-provider python3 verify_live.py --talon-bin "$TALON_BIN")
-echo "PASS: Real Talon People Analytics MCP + model-to-tool governance contract"
+# Policy reload: edit only the use case's agent file, restart only Talon, and
+# check every phase at the HR backend's own counters.
+POLICY="$TALON_DATA_DIR/agent.talon.yaml"
+cp "$POLICY" "$TEMP/agent.original.yaml"
+python3 - "$POLICY" <<'PYEDIT'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+block = "  forbidden_tools:\n    - hr_employee_export\n"
+assert s.count(block) == 1, "default forbidden_tools block not found"
+open(p, "w").write(s.replace(block, block + "    - hr_aggregate_sql\n", 1))
+PYEDIT
+(cd "$TALON_DATA_DIR" && "$TALON_BIN" validate) >>"$TEMP/talon-setup.log" 2>&1
+restart_mcp
+(cd "$CASE" && python3 verify_policy_reload.py sql-denied)
+python3 - "$TEMP/agent.original.yaml" "$POLICY" <<'PYEDIT'
+import sys
+s = open(sys.argv[1]).read()
+block = "  forbidden_tools:\n    - hr_employee_export\n"
+assert s.count(block) == 1
+open(sys.argv[2], "w").write(s.replace(block, "  forbidden_tools: []\n", 1))
+PYEDIT
+(cd "$TALON_DATA_DIR" && "$TALON_BIN" validate) >>"$TEMP/talon-setup.log" 2>&1
+restart_mcp
+(cd "$CASE" && python3 verify_policy_reload.py export-allowed)
+cp "$TEMP/agent.original.yaml" "$POLICY"
+restart_mcp
+(cd "$CASE" && python3 verify_policy_reload.py restored)
+"$TALON_BIN" audit verify --session hr-demo-policy-reload >"$TEMP/policy-reload-verify.log" 2>&1
+echo "PASS: policy reload session records verify"
+
+# Credential isolation: no process log carries the agent key or a Talon key.
+for secret in talon-hr-demo-key-0001 "$TALON_SECRETS_KEY" "$TALON_SIGNING_KEY" "$TALON_ADMIN_KEY" sk-demo-mock-provider-not-a-real-api-key; do
+  if grep -rqF -- "$secret" "$TEMP"/*.log; then
+    echo "FAIL: key material found in a process log" >&2
+    exit 1
+  fi
+done
+echo "PASS: no key material in Talon, HR, dashboard or model logs"
+echo "PASS: Real Talon People Analytics governed MCP + model-to-tool governance contract"

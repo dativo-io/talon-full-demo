@@ -1,0 +1,67 @@
+name: People Analytics against the exact governed-MCP Talon candidate source
+
+# Real HR MCP server as the use case's trusted MCP action source, Talon's
+# governed MCP endpoint (talon#431) and a synthetic model upstream; no paid
+# inference. The candidate commit is not released: this is SOURCE-BUILT proof,
+# not a published binary. (The RC2-source proof of the proxy-based case stays on
+# its own PR; RC2 predates governed MCP and cannot run this consumer.)
+on:
+  pull_request:
+    paths:
+      - 'cases/people-analytics-copilot/**'
+      - '.github/workflows/people-analytics-governed-mcp-source.yml'
+      - 'scripts/test-people-analytics-talon.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: full-demo
+          persist-credentials: false
+      - name: Resolve the candidate commit
+        id: talon
+        run: echo "sha=$(tr -d '[:space:]' < full-demo/cases/people-analytics-copilot/TALON_GOVERNED_MCP_COMMIT)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: ${{ steps.talon.outputs.sha }}
+          path: talon
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache: true
+          cache-dependency-path: talon/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Exact candidate-source provenance
+        run: |
+          test "$(git -C talon rev-parse HEAD)" = "${{ steps.talon.outputs.sha }}"
+          echo "CANDIDATE SOURCE ${{ steps.talon.outputs.sha }}, NOT A PUBLISHED BINARY" >> "$GITHUB_STEP_SUMMARY"
+      - name: Compile exact candidate source and record checksum
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev jq
+          (cd talon && go build -o "$RUNNER_TEMP/talon" ./cmd/talon/)
+          "$RUNNER_TEMP/talon" version
+          sha256sum "$RUNNER_TEMP/talon"
+      - name: Install existing HR fixture dependencies
+        run: python3 -m pip install -r full-demo/cases/people-analytics-copilot/requirements.txt
+      - name: Unit, documentation and model-loop checks
+        run: cd full-demo/cases/people-analytics-copilot && python3 -m unittest discover -p 'test_*.py' -v
+      - name: Governed MCP, policy reload, model policy, independent HR counters and signed evidence
+        env:
+          PATH: ${{ runner.temp }}:/usr/local/bin:/usr/bin:/bin
+        run: bash full-demo/scripts/test-people-analytics-talon.sh
+      - name: Explicit proof boundary
+        if: ${{ !cancelled() }}
+        run: |
+          echo 'PASS = synthetic HR consumer on the governed-MCP candidate SOURCE. NOT RUN = published binary/image, Compose isolation (ci.yml job), paired seven-area Console, LIVE paid model.' >> "$GITHUB_STEP_SUMMARY"

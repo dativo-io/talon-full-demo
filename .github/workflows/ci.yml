@@ -57,27 +57,42 @@ jobs:
       - name: Exercise released Talon budget, gateway and signed-evidence contract without paid models
         run: make tokeneconomizer-contract
 
+  # People Analytics uses Talon's governed MCP endpoint (talon#431), which no
+  # published Talon release contains yet: these jobs build the exact candidate
+  # commit in cases/people-analytics-copilot/TALON_GOVERNED_MCP_COMMIT from
+  # source (source-built proof, NOT a released artifact).
   people-analytics-talon-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve the governed-MCP Talon candidate commit
+        id: talon
+        run: echo "sha=$(tr -d '[:space:]' < cases/people-analytics-copilot/TALON_GOVERNED_MCP_COMMIT)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: ${{ steps.talon.outputs.sha }}
+          path: .talon-src
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.10"
+          go-version-file: .talon-src/go.mod
           cache: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install workforce metrics dependencies
         run: python -m pip install -r cases/people-analytics-copilot/requirements.txt
-      - name: Install pinned Talon release
+      - name: Build the exact Talon candidate commit
         run: |
-          TALON_RELEASE="$(cat config/tokeneconomizer-talon-release.txt)"
-          go install "github.com/dativo-io/talon/cmd/talon@$TALON_RELEASE"
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          "$(go env GOPATH)/bin/talon" version
-      - name: Verify real Talon MCP boundary with synthetic HR service and signed evidence
+          test "$(git -C .talon-src rev-parse HEAD)" = "${{ steps.talon.outputs.sha }}"
+          mkdir -p "$RUNNER_TEMP/talon-bin"
+          (cd .talon-src && go build -o "$RUNNER_TEMP/talon-bin/talon" ./cmd/talon)
+          echo "$RUNNER_TEMP/talon-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/talon-bin/talon" version
+          sha256sum "$RUNNER_TEMP/talon-bin/talon"
+      - name: Verify Talon's governed MCP endpoint with the synthetic HR service and signed evidence
         run: bash scripts/test-people-analytics-talon.sh
 
   people-analytics-isolation-contract:
@@ -85,16 +100,27 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+      - name: Resolve the governed-MCP Talon candidate commit
+        id: talon
+        run: echo "sha=$(tr -d '[:space:]' < cases/people-analytics-copilot/TALON_GOVERNED_MCP_COMMIT)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: ${{ steps.talon.outputs.sha }}
+          path: .talon-src
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26.10"
+          go-version-file: .talon-src/go.mod
           cache: false
-      - name: Install pinned Talon for the container network proof
+      - name: Build the exact Talon candidate for the container network proof
         run: |
-          TALON_RELEASE="$(cat config/tokeneconomizer-talon-release.txt)"
-          go install "github.com/dativo-io/talon/cmd/talon@$TALON_RELEASE"
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          echo "HR_DEMO_TALON_BIN=$(go env GOPATH)/bin/talon" >> "$GITHUB_ENV"
+          test "$(git -C .talon-src rev-parse HEAD)" = "${{ steps.talon.outputs.sha }}"
+          mkdir -p "$RUNNER_TEMP/talon-bin"
+          (cd .talon-src && go build -o "$RUNNER_TEMP/talon-bin/talon" ./cmd/talon)
+          echo "$RUNNER_TEMP/talon-bin" >> "$GITHUB_PATH"
+          echo "HR_DEMO_TALON_BIN=$RUNNER_TEMP/talon-bin/talon" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/talon-bin/talon" version
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -116,7 +142,6 @@ jobs:
           mkdir -p .state/policy .state/talon
           printf 'HR_DEMO_SECRETS_KEY=%s\nHR_DEMO_SIGNING_KEY=%s\nHR_DEMO_ADMIN_KEY=%s\nHR_DEMO_UID=%s\nHR_DEMO_GID=%s\n' \
             "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" "$(id -u)" "$(id -g)" > .env
-          cp proxy.isolated.talon.yaml .state/policy/proxy.isolated.talon.yaml
           cp gateway.talon.yaml .state/policy/gateway.talon.yaml
           docker compose -f compose.isolated.yaml up --build -d seed hr-server dashboard
       - name: Initialize and configure released Talon with its actual CLI
@@ -127,7 +152,7 @@ jobs:
           cp agent.talon.yaml .state/talon/agent.talon.yaml
           docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
           docker compose -f compose.isolated.yaml run --rm talon-cli talon secrets set hr-analytics-assistant-talon-key talon-hr-demo-key-0001
-      - name: Start Talon MCP and the existing workforce browser
+      - name: Start Talon's governed MCP endpoint and the existing workforce browser
         run: |
           cd cases/people-analytics-copilot
           docker compose -f compose.isolated.yaml up --no-deps -d talon-mcp

@@ -74,9 +74,11 @@ flowchart LR
         G["Talon LLM gateway (LIVE only)"]
         OC["Talon operations console (read-only)"]
     end
-    M["Talon MCP proxy (joins both networks)"]
-    subgraph HRNet["Private HR network"]
-        H["HR MCP service"]
+    subgraph TalonNS["Network namespace shared only by talon-mcp and HR"]
+        M["Talon governed MCP endpoint /mcp"]
+        H["HR MCP service (127.0.0.1 only)"]
+    end
+    subgraph HRNet["Private seed network"]
         Seed["One-time synthetic data seeding"]
     end
     D[("DuckDB file: shared data volume")]
@@ -95,14 +97,16 @@ flowchart LR
     H -->|"Named aggregates; restricted SQL"| D
     W <-->|"Model requests and responses"| G
     G -->|"HTTPS"| O
-    M -->|"Committed MCP decisions"| E
+    M -->|"Signed action lifecycle"| E
     G -->|"Model policy, usage and cost"| E
     C -->|"Session summaries and signature checks"| E
 ```
 
-This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The **Workforce browser** reaches only the Workforce application on port 8501; a separate **operator browser** can pair with the read-only Talon operations console on host-loopback port 8787. Neither browser directly reaches the private HR service. The fixed chart API reads the DuckDB **file** via a read-only Docker volume without Talon. DuckDB is embedded, not a network database; the private HR service reads the same volume. The Talon MCP proxy is the only application-side service connected to the private HR network. Talon governs intercepted model requests and MCP capabilities, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
+This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The **Workforce browser** reaches only the Workforce application on port 8501; a separate **operator browser** can pair with the read-only Talon operations console on host-loopback port 8787. Neither browser directly reaches the private HR service. The fixed chart API reads the DuckDB **file** via a read-only Docker volume without Talon. DuckDB is embedded, not a network database; the private HR service reads the same volume. The HR MCP service is the AI use case's **trusted MCP action source**: it listens on `127.0.0.1` inside a network namespace it shares only with `talon-mcp`, so Talon reaches it at `http://127.0.0.1:9091/mcp` and nothing on the application network can. Every tool call from the application goes to Talon's **governed MCP endpoint** (`POST /mcp`, talon#431) and is an Action Gateway operation: policy, at most one dispatch, signed lifecycle evidence. Talon governs intercepted model requests and these MCP actions, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
 
 All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2 and OpenSSL. Talon itself must come from a verified release artifact; Go is not required.
+
+**Talon version requirement:** this case uses Talon's governed MCP endpoint (talon#431), which **no published Talon release contains yet**. Until one does, it runs only against the candidate commit in [`TALON_GOVERNED_MCP_COMMIT`](TALON_GOVERNED_MCP_COMMIT), built from source by CI — internal acceptance, **not** customer-facing proof. Releases up to v1.17.0-rc.2 serve the removed MCP proxy (`--proxy-config`, `/mcp/proxy`) instead and cannot run this version of the case.
 
 **Release acceptance gate:** the complete official v1.17.0 stable release is the customer baseline (core #562–569/#572). RC.1 is incomplete; earlier compatible candidate runs can provide internal Console evidence only. Record the exact tag/commit, platform, executable checksum and image digest. Follow the released [official installation guidance](https://github.com/dativo-io/talon/releases) and verify its artifacts using the matching release's verification instructions. This draft has not yet been exercised on that stable release; do not replace the pin with a floating source build.
 
@@ -182,25 +186,22 @@ docker compose -f compose.isolated.yaml run --rm talon-cli talon init --scaffold
 
 # The scaffold is real. Start with the app-specific example policies, then edit them.
 cp agent.talon.yaml .state/talon/agent.talon.yaml
-cp proxy.isolated.talon.yaml .state/policy/proxy.isolated.talon.yaml
 cp gateway.talon.yaml .state/policy/gateway.talon.yaml
 ${EDITOR:-vi} .state/talon/agent.talon.yaml
-${EDITOR:-vi} .state/policy/proxy.isolated.talon.yaml
 
 docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
 docker compose -f compose.isolated.yaml run --rm talon-cli talon secrets set \
   hr-analytics-assistant-talon-key talon-hr-demo-key-0001
 ```
 
-The three relevant files are:
+The two relevant files are:
 
 | File | Why it exists |
 |---|---|
-| `.state/talon/agent.talon.yaml` | Agent identity, tool capabilities, model routing, budgets and audit settings |
-| `.state/policy/proxy.isolated.talon.yaml` | Which MCP tools can reach the private HR service |
+| `.state/talon/agent.talon.yaml` | Agent identity, the HR MCP action source and its declared actions, forbidden tools, model routing, budgets and audit settings |
 | `.state/policy/gateway.talon.yaml` | OpenAI endpoint and secret name for model requests |
 
-The choices matter because they change behavior. In `agent.talon.yaml`, `agent.key.secret_name` binds requests to this AI use case; `capabilities.allowed_tools` names the capabilities it is meant to have; `policies.cost_limits` bounds per-request, daily and monthly model expenditure; `policies.session_limits.max_cost: 0.10` caps spending by the browser's Talon session (in the configured pricing currency); and `audit.include_prompts: false` avoids storing raw prompts. In the MCP proxy YAML, `proxy.allowed_tools` limits what can actually reach the HR backend, while `proxy.forbidden_tools` explicitly blocks `hr_employee_export`. The gateway file names the OpenAI endpoint and its **vault secret reference**, rather than embedding the provider key.
+The choices matter because they change behavior. In `agent.talon.yaml`, `agent.key.secret_name` binds requests to this AI use case; `capabilities.allowed_tools` names the capabilities it is meant to have; `policies.cost_limits` bounds per-request, daily and monthly model expenditure; `policies.session_limits.max_cost: 0.10` caps spending by the browser's Talon session (in the configured pricing currency); and `audit.include_prompts: false` avoids storing raw prompts. `actions.sources.hr` declares the HR MCP server as this use case's trusted action source and `actions.definitions` declares each tool the application may call: only a declared action can reach the HR backend. The four aggregates are marked `read_only: true` (no side effect, so an allowed call runs in one MCP request); `hr_employee_export` is declared but listed in `capabilities.forbidden_tools`, so Talon hides it from discovery and denies it before dispatch when it is called by name. The gateway file names the OpenAI endpoint and its **vault secret reference**, rather than embedding the provider key.
 
 These restrictions are complementary: the SQL tool is callable only when Talon allows it, and the HR service independently accepts two standard department-count aggregates plus a strictly limited `department LIKE '%Customer%'` filter. The filter is bound as a SQL parameter, subject to minimum-cohort enforcement. Arbitrary SQL, joins, employee-level projections and additional clauses are not accepted.
 
@@ -218,7 +219,7 @@ The CLI's `secrets set` command accepts a positional value: Docker administrator
 
 The Talon containers use a small Debian image with the system `ca-certificates` bundle. The bare `debian:bookworm-slim` image does not reliably provide that bundle, which can cause OpenAI requests to fail with `x509: certificate signed by unknown authority`. Rebuild Talon's image after upgrading. If your network intercepts HTTPS, install your organization's trusted root CA **in addition** to the standard CA bundle; never turn TLS verification off.
 
-For real model calls, start the MCP proxy and LLM gateway **in the foreground** so their actual `talon serve` output remains visible:
+For real model calls, start Talon's governed MCP endpoint and the LLM gateway **in the foreground** so their actual `talon serve` output remains visible:
 
 ```bash
 docker compose -f compose.isolated.yaml --profile live up --build --force-recreate talon-mcp talon-gateway
@@ -229,13 +230,13 @@ In another terminal, from this same directory and with `HR_DEMO_TALON_BIN` expor
 ```bash
 export HR_DEMO_TALON_BIN="$(command -v talon)"
 HR_DEMO_AI_MODE=live docker compose -f compose.isolated.yaml up --no-deps -d ui
-# Separate read-only operator view; does not restart the gateway or proxy.
+# Separate read-only operator view; does not restart the gateway or the MCP endpoint.
 docker compose -f compose.isolated.yaml --profile operator up -d talon-ui
 ```
 
 Open **http://127.0.0.1:8501**. Its charts remain backed by DuckDB. SQL requests invoke the `hr_aggregate_sql` MCP tool through Talon, and AI questions use Talon's OpenAI-compatible gateway.
 
-You can also follow the HR backend and application traces with `docker compose -f compose.isolated.yaml logs -f hr-server ui`. The actual Talon commands are declared in `compose.isolated.yaml`: `talon serve --proxy-config ...` and `talon serve --gateway --gateway-config ...`.
+You can also follow the HR backend and application traces with `docker compose -f compose.isolated.yaml logs -f hr-server ui`. The actual Talon commands are declared in `compose.isolated.yaml`: `talon serve` (the governed MCP endpoint for the use case in `/state/agent.talon.yaml`) and `talon serve --gateway --gateway-config ...`. `talon serve` discovers the HR action source when it starts and refuses to start if HR is unreachable; Compose starts `talon-mcp` only after HR's health check passes.
 
 This includes Talon process output and the application's separately labeled `HR_AI_TRACE` events. The latter describe requests observed at the application/Talon boundary, **not** a packet capture inside OpenAI. Full prompt and response bodies are not logged by default.
 
@@ -255,44 +256,39 @@ docker compose -f compose.isolated.yaml --profile operator exec -T talon-ui talo
 docker compose -f compose.isolated.yaml --profile operator logs --tail=20 talon-ui
 ```
 
-Open **http://127.0.0.1:8787/** and enter the fresh, single-use pairing code. The browser gets a **read-only session cookie**, not an admin, provider, vault or agent key. Do not expose this port beyond localhost or publish pairing codes in screenshots or shared logs. The **`operator` Compose profile** keeps the console opt-in (the existing CI uses a pinned earlier Talon release). The Compose service mounts the **same Talon state and policy files**, but runs on `app_net` only (no `private_hr` network); only the evidence **signing** key is passed to it for HMAC verification.
+Open **http://127.0.0.1:8787/** and enter the fresh, single-use pairing code. The browser gets a **read-only session cookie**, not an admin, provider, vault or agent key. Do not expose this port beyond localhost or publish pairing codes in screenshots or shared logs. The **`operator` Compose profile** keeps the console opt-in. The Compose service mounts the **same Talon state and policy files**, but runs on `app_net` only (no `private_hr` network); only the evidence **signing** key is passed to it for HMAC verification.
 
 **First operator check — Overview:** distinguish installation readiness from use-case attention. Select **AI Use Cases → hr-analytics-assistant → Summary** to show its actual identity, policy and available activity. Fresh traffic history is not proof of health. In **Configuration**, inspect the organization/use-case settings and the current versus loaded generation (only claim activation when proven).
 
-**Current-main Console check — Approvals:** the read-only **Approvals** area is now a seventh primary page (core #565). With this HR MCP-only scenario, no Action Gateway approval is requested, so an empty or unavailable approval view must not be presented as an approval proof or console malfunction. In Customer Support's eventual canonical refund scenario, Approvals shows requests and decisions while a separate `talon approvals` reviewer CLI/API performs decisions; the browser cannot approve, reject or dispatch actions. This seven-area acceptance is **NOT RUN** with the current older pinned HR fixture. Do not fabricate a pending approval screenshot.
+**Current-main Console check — Approvals:** the read-only **Approvals** area is now a seventh primary page (core #565). With this HR scenario, every governed MCP call is an Action Gateway operation, but none requires approval (the aggregates are allowed, the export is forbidden), so an empty approval view must not be presented as an approval proof or console malfunction. In Customer Support's eventual canonical refund scenario, Approvals shows requests and decisions while a separate `talon approvals` reviewer CLI/API performs decisions; the browser cannot approve, reject or dispatch actions. This seven-area Console acceptance is **NOT RUN** for this case: it has no automated Console checks, and the screenshots below are manual captures. Do not fabricate a pending approval screenshot.
 
-**Then check System:** confirm the MCP proxy is *running*, the evidence store is readable and a configuration generation is reported. In GUIDED mode the LLM gateway is deliberately not started; because its gateway config exists, it may read *offline*. That does not mean the MCP proxy or the HR application is down. Use **System** for process liveness; the AI Use Cases health metric is derived from recorded activity, not a live probe.
+**Then check System:** confirm the **MCP endpoint** is *running*, the evidence store is readable and a configuration generation is reported. In GUIDED mode the LLM gateway is deliberately not started; because its gateway config exists, it may read *offline*. That does not mean the MCP endpoint or the HR application is down. Use **System** for process liveness; the AI Use Cases health metric is derived from recorded activity, not a live probe.
 
-> **Screenshot slot 1:** `screenshots/01-talon-system.png` — System showing MCP proxy running, gateway state and shared evidence-store status. Add the real capture to this PR; omit the pairing code.
+> **Screenshot slot 1:** `screenshots/01-talon-system.png` — System showing the MCP endpoint running, gateway state and shared evidence-store status. Add the real capture to this PR; omit the pairing code.
 
 ### Demonstrate a policy flip: deny → allow employee export
 
-The upstream HR MCP server already defines `hr_employee_export`, which returns **at most eight fictional employee records**. The example agent capability list includes the tool; the **default MCP proxy** forbids it. The application does not override Talon's tool discovery or hardcode an employee-access refusal. In **GUIDED** mode, matching question keywords deterministically choose a tool, but never authorize it: the operation is sent through Talon and the committed allow/deny decision determines the response. In **LIVE** mode, the model selects from the tools that Talon actually advertised.
+The upstream HR MCP server already defines `hr_employee_export`, which returns **at most eight fictional employee records**. The example agent file declares it as an action of the HR source and **forbids** it (`capabilities.forbidden_tools`). The application does not override Talon's tool discovery or hardcode an employee-access refusal. In **GUIDED** mode, matching question keywords deterministically choose a tool, but never authorize it: the operation is sent through Talon and the committed allow/deny decision determines the response. In **LIVE** mode, the model selects from the tools that Talon actually advertised.
 
-To enable the tool, edit `.state/policy/proxy.isolated.talon.yaml` (not just the checked-in example): **move** `hr_employee_export` from `forbidden_tools` into `allowed_tools`:
+To enable the tool, edit `.state/talon/agent.talon.yaml` (not just the checked-in example) and lift the use case's prohibition:
 
 ```yaml
-  allowed_tools:
-    - name: hr_attrition_summary
-    - name: hr_headcount_summary
-    - name: hr_tenure_summary
-    - name: hr_aggregate_sql
-    - name: hr_employee_export
+capabilities:
   forbidden_tools: []
 ```
 
-Make sure `.state/talon/agent.talon.yaml` also includes `hr_employee_export` under `capabilities.allowed_tools` (the revised checked-in example does). Recreate the MCP proxy to load the edited policy:
+The export stays a declared, **consequential** action (it is not `read_only`): Talon first *prepares* the operation and dispatches nothing, and the application then executes exactly that operation with `talon_execute_operation`. Recreate the MCP endpoint to load the edited policy:
 
 ```bash
 docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
 docker compose -f compose.isolated.yaml up --no-deps -d --force-recreate talon-mcp
 ```
 
-Refresh the Workforce page and click **Request individual employee records**. You should now see an **ALLOWED** receipt and the returned fictional rows. In LIVE mode, ask for an individual record; the LLM can discover and call the export tool, though model tool selection is not guaranteed. The button gives a deterministic end-to-end tool execution check independent of model selection. Restore the original proxy policy to show **BLOCKED / not dispatched** again.
+Refresh the Workforce page and click **Request individual employee records**. You should now see an **ALLOWED** receipt and the returned fictional rows. In LIVE mode, ask for an individual record; the LLM can discover and call the export tool, though model tool selection is not guaranteed. The button gives a deterministic end-to-end tool execution check independent of model selection. Restore `forbidden_tools: [hr_employee_export]` and recreate `talon-mcp` to show **BLOCKED / not dispatched** again.
 
-**Operator check — AI Use Cases → hr-analytics-assistant → Effective policy:** compare the MCP proxy's `hr_employee_export` decision *before* and *after* the proxy restart. The **Configuration** page distinguishes the file on disk from what a running process loaded; **System** distinguishes a running proxy from a stale or stopped one. The gateway-effective policy and the MCP tool policy have **separate** active-proof states: a running MCP proxy does not prove the gateway policy active. Refresh after the restart; a file edit alone is not evidence that the process has adopted it.
+**Operator check — AI Use Cases → hr-analytics-assistant → Effective policy:** compare the `hr_employee_export` decision *before* and *after* the `talon-mcp` restart. The **Configuration** page distinguishes the file on disk from what a running process loaded; **System** distinguishes a running MCP endpoint from a stale or stopped one. The gateway-effective policy and the Action Gateway policy have **separate** active-proof states: a running MCP endpoint does not prove the gateway policy active. Refresh after the restart; a file edit alone is not evidence that the process has adopted it.
 
-> **Screenshot slot 2:** `screenshots/02-talon-effective-policy.png` — use-case Effective policy showing the tool rule, its source, and whether the MCP boundary is proven active.
+> **Screenshot slot 2:** `screenshots/02-talon-effective-policy.png` — use-case Effective policy showing the forbidden action, its source, and whether the Action Gateway policy is proven active.
 
 This is strictly a synthetic demonstration. Never enable this export tool against real employee data without independent HR authorization and identity checks.
 
@@ -323,13 +319,16 @@ It is not general-purpose SQL access: the HR backend accepts only the reviewed a
 
 ### Change one permission; keep the application and queries unchanged
 
-Suppose the workforce team decides that its AI application should still analyze attrition but should **no longer submit SQL**. In `.state/policy/proxy.isolated.talon.yaml`, remove this entry from `proxy.allowed_tools`:
+Suppose the workforce team decides that its AI application should still analyze attrition but should **no longer submit SQL**. In `.state/talon/agent.talon.yaml`, forbid that action for this use case:
 
 ```yaml
-    - name: hr_aggregate_sql
+capabilities:
+  forbidden_tools:
+    - hr_employee_export
+    - hr_aggregate_sql
 ```
 
-Revalidate the agent policy and restart the Talon MCP service to load the edited proxy configuration:
+Revalidate the agent policy and restart the Talon MCP endpoint to load it:
 
 ```bash
 docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
@@ -338,20 +337,20 @@ docker compose -f compose.isolated.yaml up --no-deps -d --force-recreate talon-m
 
 Now compare the same requests:
 
-| Request | Before: SQL tool permitted | After: SQL tool removed |
+| Request | Before: SQL tool permitted | After: SQL tool forbidden |
 |---|---|---|
 | Department distribution SQL | Allowed; counts returned | **Talon denies before HR dispatch** |
 | Active headcount SQL | Allowed; counts returned | **Talon denies before HR dispatch** |
 | Customer department SQL | Allowed; filtered counts returned | **Talon denies before HR dispatch** |
-| Six-month attrition using `hr_attrition_summary` | Still permitted | **Still permitted**; this tool was not removed |
+| Six-month attrition using `hr_attrition_summary` | Still permitted | **Still permitted**; this tool was not forbidden |
 | Existing dashboard charts | Render from the fixed aggregate API | **Unchanged**; chart traffic does not go through Talon |
-| Employee-level SQL | **HR validator rejects** an authorized tool dispatch | **Talon denies** the tool call before HR can validate it |
+| Employee-level SQL | Talon dispatches it; the **HR validator rejects** it: **outcome unknown** (never a Talon denial) | **Talon denies** the tool call before HR can validate it |
 
 This is the key distinction: **Talon controls which intercepted operations the AI application can invoke; the HR service controls which SQL those operations may execute.** Talon does not inspect an arbitrary SQL statement and determine whether it is safe. A denial from Talon carries a committed `not_dispatched` evidence record, and the HR backend's execution counter does not increase.
 
-In the Talon console, open **Sessions** and inspect the same session before and after the change. The timeline should distinguish **Talon denied → Not dispatched** from a tool call the HR backend rejected *after* Talon allowed its dispatch. The console can show which actor made the policy decision; the HR execution counter remains the independent proof of what actually reached the backend.
+In the Talon console, open **Sessions** and inspect the same session before and after the change. The timeline should distinguish **Talon denied → Not dispatched** from a tool call the HR backend rejected *after* Talon dispatched it (**outcome unknown**). The console can show which actor made the policy decision; the HR execution counter remains the independent proof of what actually reached the backend.
 
-Restore the `hr_aggregate_sql` entry and recreate `talon-mcp` to permit the same queries again. No changes to the workforce application's code, DuckDB data, or chart API are needed.
+Remove `hr_aggregate_sql` from `forbidden_tools` and recreate `talon-mcp` to permit the same queries again. No changes to the workforce application's code, DuckDB data, or chart API are needed.
 
 ## 5. Business observability: access, spend and tools
 
@@ -369,7 +368,7 @@ flowchart TB
     P -->|"Yes"| H["HR receives permitted call"]
     H --> K{"Aggregate SQL tool?"}
     K -->|"Yes"| V{"HR accepts reviewed SQL?"}
-    V -->|"No"| R["HR rejects SQL; Talon allowed tool"]
+    V -->|"No"| R["HR rejects SQL after dispatch; outcome unknown"]
     V -->|"Yes"| A["Cohort-filtered aggregate result"]
     K -->|"Other allowed aggregate tool"| A
     L --> B{"Talon model and budget policy?"}
@@ -386,12 +385,12 @@ flowchart TB
     E --> C["talon costs --session"]
 ```
 
-The **employee-export example** follows the first denied branch: the application explicitly attempts `hr_employee_export`, Talon denies before the HR backend receives it, and the HR dispatch counter stays unchanged. The model is *not* offered this forbidden tool, so this does not claim that an LLM independently selected it or that Talon parsed a salary query. An unauthorized SQL shape follows a different branch: Talon allows `hr_aggregate_sql`, then **HR** rejects the SQL; Talon has recorded an allowed tool dispatch, not an HR validation decision. The model/budget branch applies only in LIVE mode. Talon's signed records provide the session's tool decisions and cost data, and the HR counter independently confirms whether a tool call reached the backend.
+The **employee-export example** follows the first denied branch: the application explicitly attempts `hr_employee_export`, Talon denies before the HR backend receives it, and the HR dispatch counter stays unchanged. The model is *not* offered this forbidden tool, so this does not claim that an LLM independently selected it or that Talon parsed a salary query. An unauthorized SQL shape follows a different branch: Talon allows and dispatches `hr_aggregate_sql`, then **HR** rejects the SQL. Talon records that operation's outcome as **unknown** (`upstream_outcome_unknown`, provenance `unknown`) — the backend returned no successful result — never as a Talon denial, does not relay HR's error text, and never retries it automatically. The model/budget branch applies only in LIVE mode. Talon's signed records provide the session's tool decisions and cost data, and the HR counter independently confirms whether a tool call reached the backend.
 
 ### Individual employee data: a real denied tool request
 
 1. Open the single Workforce application and use **Run SQL through Talon** for a valid department aggregate. Its Talon receipt is `allow`; the HR backend executes an approved aggregate.
-2. Click **Request individual employee records**. The application attempts `hr_employee_export` through Talon's MCP endpoint with the **same session identity**. The capability is forbidden in `proxy.isolated.talon.yaml`.
+2. Click **Request individual employee records**. The application attempts `hr_employee_export` through Talon's MCP endpoint with the **same session identity**. The action is forbidden for this use case (`capabilities.forbidden_tools` in `agent.talon.yaml`).
 3. The screen must show **BLOCKED**, `hr_employee_export`, `deny`, `not_dispatched`, a committed Talon evidence ID, and **no employee rows**. Independently check that HR's `hr_employee_export` counter did not increase.
 
 This is **genuine Talon tool authorization**, not simulated text. Talon recognizes the *forbidden MCP capability* and prevents execution; it is **not** interpreting an arbitrary SQL statement, inferring malicious intent from a natural-language prompt or autonomously detecting employee data in the database. An individual-salary `SELECT` sent through the allowed SQL tool is rejected **by HR's SQL validator**, not by Talon. The explicit button is an application-initiated request, **not a claim that OpenAI chose the forbidden tool**.
@@ -401,18 +400,18 @@ This is **genuine Talon tool authorization**, not simulated text. Talon recogniz
 **Recommended operator journey (Talon UI):**
 
 1. In the Workforce app, run a valid department aggregate, try **Request individual employee records**, then try an employee-level `SELECT` in the SQL workspace. Copy the **session ID** shown by the app, not one individual request's correlation ID.
-2. In **http://127.0.0.1:8787/**, open **Sessions**, locate that ID (the MCP-only session may be listed as *evidence-observed*), and select `hr-analytics-assistant` if asked to disambiguate. The timeline should contain separate evidence rows for the requests Talon intercepted.
-3. Compare the outcomes: the permitted aggregate is **Talon allowed → Dispatched → Destination answered**; forbidden `hr_employee_export` is **Talon denied → Not dispatched**; a valid-tool call whose SQL fails HR validation is **Talon allowed → Dispatched → Destination rejected**. Only report the rows actually produced by your run.
+2. In **http://127.0.0.1:8787/**, open **Sessions**, locate that ID (the MCP-only session may be listed as *evidence-observed*), and select `hr-analytics-assistant` if asked to disambiguate. The timeline contains the signed lifecycle records of each governed MCP operation (several rows per operation: established, attempt armed, attempt completed), all joined to the session the app asserted.
+3. Compare the outcomes: the permitted aggregate is **Talon allowed → Dispatched → Destination answered**; forbidden `hr_employee_export` is **Talon denied → Not dispatched**; a valid-tool call whose SQL fails HR validation is **Talon allowed → Dispatch unknown → Outcome unknown** (Talon dispatched it; HR returned no successful result). Only report the rows actually produced by your run.
 4. Open one timeline evidence ID. **Signature valid** means Talon verified the HMAC on this read; it is tamper-evidence, not immutable storage. Use the CLI below for independent `audit verify` and the HR counter for upstream non-dispatch.
 
-> **Screenshot slot 3:** `screenshots/03-talon-session-timeline.png` — one session timeline contrasting Talon denial with downstream HR rejection and the allowed aggregate.
+> **Screenshot slot 3:** `screenshots/03-talon-session-timeline.png` — one session timeline contrasting Talon denial with an unknown outcome after dispatch (HR rejection) and the allowed aggregate.
 
 Run these native Talon commands from `cases/people-analytics-copilot`. Use the session shown in the browser, not a `correlation_id` taken from an individual request:
 
 ```bash
 SESSION=hr-demo-REPLACE-WITH-SESSION-FROM-BROWSER
 
-# Signed-evidence rollup: spend, tokens, decisions, tool names and intervention reasons
+# Signed-evidence rollup: spend, tokens, decisions and the session's lifecycle records
 docker compose -f compose.isolated.yaml run --rm talon-cli \
   talon audit list --session "$SESSION"
 
@@ -433,16 +432,18 @@ docker compose -f compose.isolated.yaml exec -T hr-server \
 |---|---|
 | Did the application attempt to obtain individual salary records? | `hr_employee_export` tool-call record with `allowed=false`, policy reason, and committed evidence ID. The separate app-request log confirms the intent that triggered it. |
 | Were individual records actually exposed? | Talon `not_dispatched` plus an unchanged HR `hr_employee_export` counter proves this **intercepted route** never executed. It does not prove that no unrelated bypass exists. |
-| What tools were available versus invoked? | Tool discovery omits `hr_employee_export`; the session rollup lists intercepted `tool_calls`, `tool_calls_denied`, and `tool_names`. The browser shows recent committed allowed/denied tool receipts. A discovered tool is not necessarily executed. |
+| What tools were available versus invoked? | Tool discovery omits `hr_employee_export`. Each governed MCP call is an Action Gateway **operation**: `talon audit list --session "$SESSION"` lists its signed lifecycle records (several per operation), and `talon audit verify --operation <operationId>` checks one operation end to end. The rollup fields `tool_calls`, `tool_calls_denied` and `tool_names` count only records an earlier release's MCP proxy wrote; they stay empty for governed calls. A discovered tool is not necessarily executed. |
 | What did this interaction cost? | `talon costs --session "$SESSION" --json` returns evidence-derived `total_cost`, `currency`, `input_tokens`, `output_tokens` and related session statistics. In GUIDED mode there are no real model calls, so model spend should be zero. |
 | What budget constrained that spending? | The loaded `agent.talon.yaml` example enforces a **per-session** cap of `0.10`, in addition to per-request, daily and monthly caps. This cap is configuration, **not** an amount to fabricate from logs. A genuine `session_budget_exceeded` decision must appear in evidence when admission is denied by that cap. Admission is estimate-based, not an invoice ceiling; do not infer denial from settled spend alone. |
-| Was the operation rejected by Talon or the backend? | A Talon `deny` / `not_dispatched` is a policy block. An `allow` receipt followed by `HR_SQL_REJECTED` is a backend validation failure. Keep those outcomes separate in any report. |
+| Was the operation rejected by Talon or the backend? | A Talon `deny` / `not_dispatched` is a policy block. An `unknown` receipt (`upstream_outcome_unknown`, provenance `unknown`) means Talon dispatched the call and the backend returned no successful result — here, the HR SQL validator's rejection. Keep those outcomes separate in any report. |
+
+> **Known Talon rollup defect (reported, talon#431 review):** the session summary's `allowed` / `denied` counts and `denied_by_reason` read each lifecycle record's policy flag, so the attempt record of an **unknown** outcome (HR rejected the SQL after dispatch) is currently counted as `denied` with reason `policy_deny`. It is not a Talon denial: the receipt, `talon audit verify --operation` and the record's `action_lifecycle.result_provenance: unknown` are authoritative. Do not present that count as a policy block.
 
 For an operator-level spend overview, open the Talon **Costs** page in both modes. In GUIDED, show the genuine empty/unavailable or measured-zero state, not invented spend. In LIVE after real priced model calls, it displays fixed UTC-day/month accounting windows and any unavailable/unpriced amounts. **Do not substitute those fleet windows for the session-specific total:** the `talon costs --session "$SESSION" --json` command above remains the exact per-session proof. In GUIDED mode there is no model spend to demonstrate.
 
 > **Optional screenshot slot 5 (LIVE only):** `screenshots/05-talon-costs-live.png` — Costs page after genuine priced model traffic, with accounting window and currency visible.
 
-Talon's session rollup includes model/provider attribution, accumulated spend, token counts, allow/deny totals, denied reasons, and intercepted MCP tool counts. **Tool availability**, **tool invocations**, and **actual backend execution** are different measurements. A historical session may contain earlier activity: use a new browser session to isolate a new run. The session ID is client-asserted attribution rather than user authentication.
+Talon's session rollup includes model/provider attribution, accumulated spend, token counts, allow/deny totals and denied reasons (see the known rollup defect above for unknown outcomes); its MCP tool counters cover only earlier proxy records. **Tool availability**, **tool invocations**, and **actual backend execution** are different measurements. A historical session may contain earlier activity: use a new browser session to isolate a new run. The session ID is client-asserted attribution rather than user authentication.
 
 To explore a budget denial, change only `policies.session_limits.max_cost` in the agent YAML to a deliberately low *positive* limit, let Talon reload it, then make a new LIVE model request with a new browser session. Expect a `session_budget_exceeded` denial only **if the model gateway's priced pre-request estimate exceeds the effective cap**. The session's signed evidence will record the actual outcome; do not claim a denial if no priced request occurred. An unknown model price, an untrusted provider, or a failed upstream call requires separate investigation.
 
@@ -450,7 +451,7 @@ To explore a budget denial, change only `policies.session_limits.max_cost` in th
 
 For routine status checks, open **Talon UI → System** first: it tells you which data-plane processes are reporting a fresh heartbeat, whether a reload was rejected, and whether the store is readable. Use the raw logs below for detailed request tracing or to debug an unavailable/unknown status. A healthy-looking historical session is **not** proof of a live process.
 
-The MCP proxy and LLM gateway emit structured logs about **which Talon service is running, which AI use case issued a request, where a governed operation was directed, and whether operational metrics are caught up with persisted evidence**. These logs are useful for understanding the AI application's execution path; they are not a substitute for policy receipts, signed evidence, model traces or downstream execution counters.
+The governed MCP endpoint and LLM gateway emit structured logs about **which Talon service is running, which AI use case issued a request, where a governed operation was directed, and whether operational metrics are caught up with persisted evidence**. These logs are useful for understanding the AI application's execution path; they are not a substitute for policy receipts, signed evidence, model traces or downstream execution counters.
 
 From the application directory, follow Talon's logs and the application's own trace separately:
 
@@ -463,10 +464,12 @@ docker compose -f compose.isolated.yaml logs -f ui hr-server
 
 | Log field / event | Meaning in this application |
 |---|---|
-| `agent_config_reload_enabled interval=30000 source=/state/agent.talon.yaml` | Talon enabled polling of the **agent** configuration every 30,000 milliseconds (30 seconds). It does not mean a policy change occurred. The separate MCP **proxy** YAML is loaded when the proxy service starts; after editing that file, recreate `talon-mcp` as described above. |
+| `agent_config_reload_enabled interval=30000 source=/state/agent.talon.yaml` | Talon enabled polling of the **agent** configuration every 30,000 milliseconds (30 seconds). It does not mean a policy change occurred. The MCP action source and its actions are part of that file; the walkthrough recreates `talon-mcp` after an edit so the change is in effect immediately. |
+| `action_catalog_active actions=[...] agent=hr-analytics-assistant sources=1` | Talon discovered the HR MCP source and compiled the use case's action catalog. A declared action is listed even when it is forbidden; discovery to the client hides forbidden ones. |
 | `agent_identity_registry_loaded agents=1 tenants=1` | Talon's identity registry loaded one agent and one tenant scope. This is not a count of human users or open workforce sessions. |
-| `talon_serve_started addr=0.0.0.0:8080 ... gateway=false mcp_proxy=true` | The MCP proxy is listening on **container** port 8080. It controls HR tool discovery and invocation. |
-| `talon_serve_started addr=0.0.0.0:8082 ... gateway=true mcp_proxy=false` | A separate service is listening on **container** port 8082 for model traffic. The released Operations Console runs separately; legacy dashboards and their routes are retired. |
+| `talon_serve_started addr=0.0.0.0:8080 ... gateway=false mcp_governed=true` | The governed MCP endpoint is listening on **container** port 8080. It controls HR tool discovery and invocation. |
+| `runtime_status_publishing ... roles=["native","mcp"]` | This process reports itself to the Operations Console as a data plane serving the MCP endpoint. |
+| `talon_serve_started addr=0.0.0.0:8082 ... gateway=true` | A separate service is listening on **container** port 8082 for model traffic (it also serves `/mcp`; the application uses port 8080). The released Operations Console runs separately; legacy dashboards and their routes are retired. |
 | `openshell_middleware=false` / `cron_entries=0` | Those Talon runtime features are not active in this example; neither field is an error. |
 
 ### Follow a request through the harness
@@ -474,20 +477,19 @@ docker compose -f compose.isolated.yaml logs -f ui hr-server
 These are abbreviated examples of the actual log shapes; IDs vary on each request:
 
 ```text
-talon-mcp      INF data_flow_recorded agent_id=hr-analytics-assistant correlation_id=mcp_proxy_bf80eb46 flow_destination=mcp_tool:fictional-hr-warehouse flow_items=1 flow_region=unknown tenant_id=default
 talon-gateway  INF data_flow_recorded agent_id=hr-analytics-assistant correlation_id=gw_3fb86b9d-6d5 flow_destinations=llm_provider:openai flow_items=1 flow_regions=US tenant_id=default
 ```
+
+A governed MCP call writes no per-call log line when it succeeds or is denied: its record of truth is the operation's signed lifecycle (`talon audit verify --operation <operationId>`, the id in the application's receipt). An outcome Talon cannot trust logs `mcp_action_outcome_unknown action=hr_aggregate_sql outcome_code=upstream_tool_error`, without the backend's text.
 
 | Field | What it means — and what it does **not** prove |
 |---|---|
 | `data_flow_recorded` | Talon constructed a data-flow observation for this routed request and emitted its metadata. It is **not proof that the destination accepted the request or that the operation succeeded**. Read the decision, status, provider errors and signed evidence to establish the outcome. |
-| `correlation_id` | ID for a **single Talon request**. The MCP proxy accepts a validated `X-Correlation-ID` or generates an `mcp_proxy_...` ID; the gateway has its own `gw_...` IDs. Different calls from one Workforce AI question normally have **different** correlation IDs. |
-| `agent_id=hr-analytics-assistant` | The Talon agent identity attributed to the request, derived from the authenticated request context or proxy configuration as applicable. It is not an employee ID. |
+| `correlation_id` | ID for a **single Talon request**: the gateway's own `gw_...` IDs; on a governed MCP call's lifecycle records it is the operation reference (`op_...`), and a client's `X-Correlation-ID` is kept separately as `client_correlation_id`. Different calls from one Workforce AI question normally have **different** correlation IDs. |
+| `agent_id=hr-analytics-assistant` | The Talon agent identity, derived from the authenticated agent key. It is not an employee ID. |
 | `tenant_id=default` | This local example is running in Talon's default tenant scope. It does not demonstrate production multi-tenant provisioning or access controls. |
-| `flow_destination=mcp_tool:fictional-hr-warehouse` | The logical MCP upstream named in the proxy policy. It does not say which SQL query ran, whether it passed HR validation, or how many rows were returned. |
 | `flow_destinations=llm_provider:openai` | The configured model-provider destination for the recorded flow. It is not confirmation that OpenAI received or processed the request: an HTTPS/TLS error can follow the same log event. |
 | `flow_items=1` | One structured **data-flow item** was recorded (e.g. a request-to-destination relationship). It is **not** one HR record, model token, tool call, or successful network delivery. |
-| `flow_region=unknown` | No trustworthy HR-upstream region was resolved from the available metadata. It does not mean the HR data moved to an unknown jurisdiction. |
 | `flow_regions=US` | Talon resolved US as the provider's configured/registered jurisdiction metadata. This is **not independent network-geolocation evidence**, a processing-location guarantee, or a GDPR compliance conclusion. |
 
 To connect the whole AI interaction, use the **session ID**, not the per-request correlation ID. The Workforce browser generates a `hr-demo-...` session ID and sends it as `X-Talon-Session-ID` on its MCP and LLM requests. Talon records this for grouping; it is **client-asserted attribution, not authentication or a policy decision input**. A single browser session may contain many model requests, tool calls and independent `correlation_id` values.

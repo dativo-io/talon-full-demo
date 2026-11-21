@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Explicit opt-in external OpenAI API smoke; incurs provider cost. No credential printing.
+# MCP tools go through Talon's governed MCP endpoint (POST /mcp, talon#431).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CASE="$ROOT/cases/people-analytics-copilot"
@@ -56,7 +57,7 @@ cp "$CASE/gateway.talon.yaml" "$TEMP/gateway.talon.yaml"
   "$TALON_BIN" validate
   "$TALON_BIN" secrets set hr-analytics-assistant-talon-key talon-hr-demo-key-0001
   "$TALON_BIN" secrets set openai-api-key "$OPENAI_API_KEY" >/dev/null
-  exec "$TALON_BIN" serve --host 127.0.0.1 --port 8080 --proxy-config "$CASE/proxy.talon.yaml"
+  exec "$TALON_BIN" serve --host 127.0.0.1 --port 8080
 ) >"$TEMP/talon.log" 2>&1 &
 TALON_PID=$!
 for n in {1..60}; do
@@ -66,7 +67,7 @@ done
 curl --silent --fail http://127.0.0.1:8080/health >/dev/null
 
 
-# Same data directory, signing vault and agent identity as the MCP proxy.
+# Same data directory, signing vault and agent identity as the MCP endpoint.
 (
   cd "$TALON_DATA_DIR"
   exec "$TALON_BIN" serve --host 127.0.0.1 --port 8082 --gateway \

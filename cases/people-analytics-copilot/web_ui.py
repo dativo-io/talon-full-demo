@@ -40,7 +40,7 @@ ORDER BY department;</textarea>
 <button id="askbutton" onclick="ask()">Ask assistant</button>
 <pre id="answer">No question asked.</pre></section>
 <section class="panel"><h2>Talon governance</h2>
-<p class="muted">The following results are real MCP decisions for this session. HR SQL rejection and Talon policy denial are distinct.</p>
+<p class="muted">The following results are real decisions of Talon's governed MCP endpoint for this session. A Talon policy denial (never dispatched) and an unknown outcome after dispatch (the HR backend rejected or failed) are distinct.</p>
 <p class="muted">Allowed tools in discovery:</p>
 <pre id="allowedTools">Not requested yet.</pre>
 <p class="muted">Individual employee records require <code>hr_employee_export</code>. Talon policy decides whether the request is denied or allowed (fictional records only).</p>
@@ -86,10 +86,10 @@ el('receipt').textContent='Decision: '+(g.decision||'unknown')+'\nProvenance: '+
 '\nEvidence ID: '+(e.id||'none')+'\nCommitted: '+String(e.committed===true)}
 async function runSQL(){el('runSQL').disabled=true;el('sqlResult').textContent='Submitting through Talon…';
 try{const r=await api('/api/sql',{sql:el('sql').value});receipt(r.receipt);
-remember('hr_aggregate_sql',r.receipt,r.status==='hr_sql_rejected'?'HR rejected SQL':r.status==='executed'?'HR executed':'not dispatched');
+remember('hr_aggregate_sql',r.receipt,r.status==='outcome_unknown'?'HR returned no result':r.status==='executed'?'HR executed':'not dispatched');
 el('sqlResult').textContent=(r.status==='executed'?'EXECUTED · HR-approved aggregate\n':
 r.status==='talon_denied'?'DENIED · Talon blocked before dispatch\n':
-'REJECTED · HR SQL validator (Talon allowed tool dispatch)\n')+
+'OUTCOME UNKNOWN · Talon allowed and dispatched; the HR SQL validator returned no successful result\n')+
 (r.data?JSON.stringify(r.data,null,2):(r.message||''));}
 catch(e){el('sqlResult').textContent='Error: '+e.message}finally{el('runSQL').disabled=false}}
 async function ask(){el('askbutton').disabled=true;el('answer').textContent='Requesting…';
@@ -105,9 +105,11 @@ el('probe').textContent=r.denied?
 'BLOCKED · Talon denied hr_employee_export before HR dispatch. No employee rows returned.':
 r.status==='allowed'?
 'ALLOWED · Talon authorized hr_employee_export. Fictional HR backend returned:\n'+JSON.stringify(r.data,null,2):
+r.status==='outcome_unknown'?
+'OUTCOME UNKNOWN · Talon dispatched hr_employee_export; HR returned no successful result. Talon does not retry it.':
 'UNEXPECTED · check Talon receipt';
 toolsSeen(r.tools);receipt(r.tool.governance);
-remember('hr_employee_export',r.tool.governance,r.denied?'not dispatched':'HR returned fictional rows')}
+remember('hr_employee_export',r.tool.governance,r.denied?'not dispatched':r.status==='outcome_unknown'?'HR returned no result':'HR returned fictional rows')}
 catch(e){el('probe').textContent='Error: '+e.message}}
 async function loadDashboard(){const d=el('department').value;el('charts').src='/charts'+(d?'?department='+encodeURIComponent(d):'')}
 async function init(){try{const r=await fetch('/api/dashboard');if(!r.ok)throw Error('Dashboard API unavailable');

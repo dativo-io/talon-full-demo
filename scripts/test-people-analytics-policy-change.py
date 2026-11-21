@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Verify SQL and employee-query allow/deny policy flips through the real Talon MCP service."""
+"""Verify SQL and employee-query allow/deny policy flips through Talon's governed MCP endpoint.
+
+The only file edited is the AI use case's own agent.talon.yaml in Talon's state
+(capabilities.forbidden_tools); the app, the HR service and DuckDB are untouched.
+"""
 import json
 import os
 from pathlib import Path
@@ -8,7 +12,8 @@ import time
 from urllib.request import Request, urlopen
 
 ROOT=Path(__file__).resolve().parent.parent
-POLICY=ROOT/"cases/people-analytics-copilot/.state/policy/proxy.isolated.talon.yaml"
+POLICY=ROOT/"cases/people-analytics-copilot/.state/talon/agent.talon.yaml"
+FORBIDDEN="  forbidden_tools:\n    - hr_employee_export\n"
 CASE=ROOT/"cases/people-analytics-copilot"
 SQL="SELECT department, COUNT(*) AS employees FROM employees GROUP BY department ORDER BY department"
 SESSION="hr-demo-policy-change"
@@ -57,17 +62,17 @@ def assert_receipt(r,decision):
     assert receipt.get("evidence",{}).get("id"),r
 def check_export_flip():
     original=POLICY.read_text()
-    forbidden="  forbidden_tools:\n    - hr_employee_export\n"
-    allowed_anchor="    - name: hr_aggregate_sql\n"
-    assert original.count(forbidden)==1 and original.count(allowed_anchor)==1,original
+    assert original.count(FORBIDDEN)==1,original
     before=export_count()
     denied=post_employee_question()
     assert denied.get("status")=="talon_denied" and denied["tool"]["governance"]["decision"]=="deny",denied
     assert denied["tool"]["governance"]["provenance"]=="not_dispatched",denied
     assert denied["tool"]["governance"]["evidence"]["committed"] is True,denied
     assert export_count()==before,"Denied guided export reached HR backend"
-    modified=(original.replace(allowed_anchor,allowed_anchor+"    - name: hr_employee_export\n",1)
-              .replace(forbidden,"  forbidden_tools: []\n",1))
+    # Lifting the use case's own prohibition: the export is a declared,
+    # consequential action, so the app prepares it and then executes that
+    # exact operation (talon_execute_operation).
+    modified=original.replace(FORBIDDEN,"  forbidden_tools: []\n",1)
     try:
         POLICY.write_text(modified)
         reload()
@@ -91,15 +96,15 @@ def check_export_flip():
 
 def main():
     original=POLICY.read_text()
-    entry="    - name: hr_aggregate_sql\n"
-    assert original.count(entry)==1,"Expected exactly one MCP SQL allowance"
+    assert original.count(FORBIDDEN)==1,"Expected the default forbidden_tools block"
     before=count()
     allowed=post()
     assert allowed.get("status")=="executed",allowed
     assert_receipt(allowed,"allow")
     assert count()==before+1,"First SQL was not executed"
     try:
-        POLICY.write_text(original.replace(entry,"",1))
+        # Forbid the SQL action for this use case only.
+        POLICY.write_text(original.replace(FORBIDDEN,FORBIDDEN+"    - hr_aggregate_sql\n",1))
         reload()
         after=count()
         denied=post()
@@ -107,7 +112,7 @@ def main():
         assert_receipt(denied,"deny")
         assert (denied["receipt"].get("provenance")=="not_dispatched"),denied
         assert count()==after,"Denied SQL reached HR backend"
-        print("PASS: identical SQL, same app, only Talon MCP policy changed: allow -> deny; no upstream dispatch")
+        print("PASS: identical SQL, same app, only the use case's Talon policy changed: allow -> deny; no upstream dispatch")
     finally:
         POLICY.write_text(original)
         reload()

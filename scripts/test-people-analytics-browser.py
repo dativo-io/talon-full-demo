@@ -37,8 +37,11 @@ def main():
                 sql=page.locator("#sql")
                 sql.fill("SELECT employee_id, full_name, monthly_salary_mxn FROM employees")
                 page.get_by_role("button",name="Run SQL through Talon").click()
-                expect(page.locator("#sqlResult")).to_contain_text("REJECTED · HR SQL validator",timeout=30000)
-                expect(page.locator("#receipt")).to_contain_text("Decision: allow")
+                # Talon allowed and dispatched it; the HR validator's rejection
+                # after dispatch is an unknown outcome, never a Talon denial.
+                expect(page.locator("#sqlResult")).to_contain_text("OUTCOME UNKNOWN",timeout=30000)
+                expect(page.locator("#receipt")).to_contain_text("Decision: unknown")
+                expect(page.locator("#receipt")).to_contain_text("Provenance: unknown")
                 page.get_by_role("button",name="Ask assistant").click()
                 expect(page.locator("#answer")).to_contain_text("Guided deterministic analysis",timeout=30000)
                 page.get_by_role("button",name="Request individual employee records").click()
@@ -48,7 +51,7 @@ def main():
                 expect(page.locator("#allowedTools")).to_contain_text("hr_attrition_summary")
                 expect(page.locator("#allowedTools")).not_to_contain_text("hr_employee_export")
                 expect(page.locator("#activity")).to_contain_text("hr_employee_export · deny · not dispatched")
-                expect(page.locator("#activity")).to_contain_text("hr_aggregate_sql · allow · HR rejected SQL")
+                expect(page.locator("#activity")).to_contain_text("hr_aggregate_sql · unknown · HR returned no result")
                 expect(page.locator("#sessionCommands")).to_contain_text("talon costs --session")
                 expect(page.locator("#sessionCommands")).to_contain_text("talon audit list --session")
                 assert re.search(r"hr-demo-[a-z0-9]+",page.locator("#sessionLabel").inner_text())
@@ -59,6 +62,6 @@ def main():
                 except Exception: pass
                 raise
         finally: browser.close()
-    print("PASS: one dashboard; permitted SQL, HR rejection, AI MCP, Talon export denial; actual receipts")
+    print("PASS: one dashboard; permitted SQL, HR rejection after dispatch (unknown), AI MCP, Talon export denial; actual receipts")
 
 if __name__=="__main__": main()

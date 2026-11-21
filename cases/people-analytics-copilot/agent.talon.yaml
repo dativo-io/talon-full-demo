@@ -1,7 +1,9 @@
 # Demonstration-only agent policy for People Analytics AI.
-# Export is listed as an agent capability, but denied by the default MCP proxy policy.
-# Move hr_employee_export from proxy.forbidden_tools to proxy.allowed_tools to enable it.
-# One identity is reused for both the Talon LLM gateway and Talon MCP proxy.
+# One identity is used for both the Talon LLM gateway and Talon's governed MCP
+# endpoint (POST /mcp). The HR backend is this use case's trusted MCP action
+# source; every tool the app may call is declared below as an action.
+# The employee export is declared (so it is governed, not unknown) but
+# forbidden: remove it from capabilities.forbidden_tools to enable it.
 agent:
   name: hr-analytics-assistant
   description: Synthetic People Analytics aggregate assistant
@@ -17,10 +19,49 @@ capabilities:
     - hr_tenure_summary
     - hr_aggregate_sql
     - hr_employee_export
+  # Hidden from MCP discovery and denied before dispatch when called by name.
+  forbidden_tools:
+    - hr_employee_export
   forbidden_patterns:
     - ".env"
     - "secrets"
     - "credentials"
+
+actions:
+  sources:
+    hr:
+      type: mcp
+      # Plaintext http is accepted for loopback only. In the isolated Compose
+      # topology the HR service shares Talon's network namespace and listens
+      # on 127.0.0.1, so the same URL holds there.
+      url: "http://127.0.0.1:9091/mcp"
+  definitions:
+    # Aggregate reads with no side effect: read_only lets an allowed call run
+    # in one MCP request. Policy still decides every call.
+    hr_attrition_summary:
+      source: hr
+      read_only: true
+      review: {fields: [months, department]}
+    hr_headcount_summary:
+      source: hr
+      read_only: true
+      review: {fields: [department]}
+    hr_tenure_summary:
+      source: hr
+      read_only: true
+      review: {fields: [department]}
+    # The HR backend itself validates the SQL against approved aggregate
+    # shapes; a query it rejects after dispatch is an unknown outcome, never a
+    # Talon denial.
+    hr_aggregate_sql:
+      source: hr
+      read_only: true
+      review: {fields: [sql]}
+    # Employee-level export: consequential (prepared, then executed by
+    # operation id) whenever policy allows it at all.
+    hr_employee_export:
+      source: hr
+      review: {fields: [scope]}
 
 policies:
   cost_limits:

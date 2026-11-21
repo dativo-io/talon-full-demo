@@ -57,6 +57,32 @@ class LiveAgentTests(unittest.TestCase):
         self.assertEqual(result['calls'][0]['name'],'hr_employee_export')
         self.assertIn('hr_employee_export',[t['function']['name'] for t in gateway.call_args_list[0].args[2]['tools']])
 
+    def test_prepared_operation_goes_back_to_the_model_which_executes_it(self):
+        # Unmodified-client flow: a consequential tool is only prepared; the
+        # model reads the prepared answer and calls talon_execute_operation.
+        tools=[{'name':'hr_employee_export','description':'export','inputSchema':{'type':'object'}},
+               {'name':'talon_execute_operation','description':'execute','inputSchema':{'type':'object'}}]
+        prepared_ext={'code':'operation_prepared','decision':'pending','provenance':'not_dispatched',
+                      'operationId':'mcp-op-7','evidence':{'committed':True,'id':'act-prep'}}
+        calls=[]
+        def tool(name,arguments,session):
+            calls.append((name,arguments))
+            if name=='hr_employee_export':
+                return 200,{'result':{'content':[{'type':'text','text':'prepared mcp-op-7'}],
+                                      '_meta':{'io.dativo.talon/governance':prepared_ext}}}
+            return 200,{'result':{'content':[{'type':'text','text':'{"synthetic":true}'}],
+                                  '_meta':{'io.dativo.talon/governance':EXT}}}
+        r1={'choices':[{'message':{'role':'assistant','content':None,'tool_calls':[{
+            'id':'c1','type':'function','function':{'name':'hr_employee_export','arguments':'{"scope":"all"}'}}]}}]}
+        r2={'choices':[{'message':{'role':'assistant','content':None,'tool_calls':[{
+            'id':'c2','type':'function','function':{'name':'talon_execute_operation','arguments':'{"operation_id":"mcp-op-7"}'}}]}}]}
+        r3={'choices':[{'message':{'role':'assistant','content':'Done, based on the governed result.'}}]}
+        with patch('agent_runtime.chat_completion',side_effect=[r1,r2,r3]):
+            result=run_live_chat('export',tools,'hr-demo-prep','m','local','token',tool)
+        self.assertEqual(calls,[('hr_employee_export',{'scope':'all'}),
+                                ('talon_execute_operation',{'operation_id':'mcp-op-7'})])
+        self.assertEqual([c['name'] for c in result['calls']],['talon_execute_operation'])
+
     def test_missing_receipt_does_not_reach_second_model_step(self):
         response={'choices':[{'message':{'role':'assistant','tool_calls':[{
             'id':'call-1','type':'function',

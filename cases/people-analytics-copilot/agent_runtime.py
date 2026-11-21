@@ -1,7 +1,11 @@
-"""Real model-driven chat through Talon's OpenAI-compatible LLM gateway and MCP proxy.
+"""Real model-driven chat through Talon's OpenAI-compatible LLM gateway and its
+governed MCP endpoint (/mcp).
 
 Every tool call travels through Talon. The model has no direct URL, DB credential
 or access to the HR service. There is deliberately no ungoverned fallback path.
+A consequential tool answers with a PREPARED operation (nothing executed); the
+prepared answer goes back to the model, which may call talon_execute_operation
+with that operation id. Only an allow receipt counts as governed data.
 """
 import json
 import os
@@ -118,6 +122,16 @@ def run_live_chat(prompt, tools, session, model, llm_url, llm_key, call_tool):
                   arguments=args if previews_enabled() else "[metadata only]")
             status, out = call_tool(name, args, session)
             extension = out.get("result", {}).get("_meta", {}).get("io.dativo.talon/governance")
+            if (status == 200 and "result" in out and extension
+                    and extension.get("code") in ("operation_prepared", "approval_pending")
+                    and extension.get("provenance") == "not_dispatched"
+                    and extension.get("evidence", {}).get("committed") is True):
+                trace("llm.tool.prepared", session, tool=name,
+                      operation_id=extension.get("operationId"),
+                      evidence_id=extension.get("evidence", {}).get("id"))
+                messages.append({"role": "tool", "tool_call_id": call["id"],
+                                 "content": json.dumps(out["result"]["content"])})
+                continue
             if (status != 200 or "result" not in out or not extension
                     or extension.get("decision") != "allow"
                     or extension.get("evidence", {}).get("committed") is not True):
