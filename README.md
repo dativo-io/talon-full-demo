@@ -91,7 +91,7 @@ The OpenShell case uses the same prepared Talon fleet and signed evidence as the
 
 In another terminal during the human gate: `make status-openshell-approval`, then `make approve-openshell` (or `make reject-openshell`). To re-present the same run: `make present-openshell-all`. Technical view: `make demo-openshell-tech`.
 
-**Integration status:** Talon PR #501 is merged but the latest published release predates it. The canonical main-Talon OpenShell showcase runner must be delivered and verified before this is a self-service demo. See [OpenShell demo contract](docs/OPENSHELL_DEMO.md). The option is off by default and does not affect existing cases.
+**Integration status:** Talon now publishes the OpenShell showcase bundle in the [RC2 prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2), but the Full Demo's complete Claude/OpenShell C01–C12 and same-fleet presenter path remain unaccepted. A released bundle alone is not a working buyer demo. See [OpenShell demo contract](docs/OPENSHELL_DEMO.md). The option is off by default and does not affect existing cases.
 
 ## Choose a case and audience
 
