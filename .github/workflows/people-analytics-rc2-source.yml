@@ -1,0 +1,62 @@
+name: People Analytics against exact Talon RC2 tagged source
+
+# Real HR MCP and synthetic upstream; no paid inference.
+# Cannot substitute for a multi-app persistent ACME acceptance or published binary.
+on:
+  pull_request:
+    paths:
+      - 'cases/people-analytics-copilot/**'
+      - '.github/workflows/people-analytics-rc2-source.yml'
+      - 'scripts/test-people-analytics-talon.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tagged-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      TALON_RC2_COMMIT: 3f3f20dff910dc2416c8d82467de2d4e2dd8acc5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: full-demo
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: 3f3f20dff910dc2416c8d82467de2d4e2dd8acc5
+          path: talon
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache: true
+          cache-dependency-path: talon/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Exact RC2 tagged-source provenance
+        run: |
+          test "$(git -C talon rev-parse HEAD)" = "$TALON_RC2_COMMIT"
+          echo 'TAG SOURCE, NOT PUBLISHED RC2 BINARY' >> "$GITHUB_STEP_SUMMARY"
+      - name: Compile exact tagged source and record checksum
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev jq
+          (cd talon && go build -o "$RUNNER_TEMP/talon" ./cmd/talon/)
+          "$RUNNER_TEMP/talon" version
+          sha256sum "$RUNNER_TEMP/talon"
+      - name: Install existing HR fixture dependencies
+        run: python3 -m pip install -r full-demo/cases/people-analytics-copilot/requirements.txt
+      - name: Verify real HR MCP intercept, model policy, independent SQL boundary and signed evidence
+        env:
+          PATH: ${{ runner.temp }}:/usr/local/bin:/usr/bin:/bin
+        run: bash full-demo/scripts/test-people-analytics-talon.sh
+      - name: Verify static HR operator docs remain coherent
+        run: python3 full-demo/cases/people-analytics-copilot/test_docs.py -v
+      - name: Explicit proof boundary
+        run: |
+          echo 'PASS = isolated HR synthetic consumer on RC2 tagged SOURCE. NOT RUN = published RC2 image, 2-app inheritance, paired seven-area Console and LIVE model.' >> "$GITHUB_STEP_SUMMARY"
