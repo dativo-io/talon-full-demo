@@ -32,9 +32,11 @@ jobs:
           - candidate: rc2-tag-source
             sha: 3f3f20dff910dc2416c8d82467de2d4e2dd8acc5
             pa_consumer: e7fadfc3f84a3f768afa7b91b73ca85b317c051b  # Full Demo main: proxy-based People Analytics (control)
+            orderdesk: 79f500e43c21d7691e8c829334b510d88c4dd3ce    # #45 head, unmodified bridge (control)
           - candidate: talon-pr589
-            sha: d8ea45f5b85441a2f29daa031435b5182c9c9a47
-            pa_consumer: 345e879e84f167956d7ec4612094475df8bcb11b  # feat/people-analytics-governed-mcp
+            sha: 60aebf26efe852e43d962233bd86d363efab397b
+            pa_consumer: 3a7fbb89c399fb5c3cd8b5b81c190f9b8b64dc45  # feat/people-analytics-governed-mcp
+            orderdesk: 7fe0e5bb5a4903500c1bbf6b58aa9dc472c380e8    # fix/orderdesk-durable-intent-ids
     env:
       TALON_CORE_SHA: ${{ matrix.sha }}
     steps:
@@ -57,22 +59,24 @@ jobs:
           ref: ${{ matrix.pa_consumer }}
           path: pa-consumer
           persist-credentials: false
+      - name: Check out the real OrderDesk consumer for this candidate
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon-full-demo
+          ref: ${{ matrix.orderdesk }}
+          path: orderdesk
+          persist-credentials: false
       - name: Record exact provenance
         run: |
           {
             echo "Talon candidate: ${{ matrix.candidate }} $(git -C talon rev-parse HEAD)"
             echo "People Analytics consumer: $(git -C pa-consumer rev-parse HEAD)"
+            echo "OrderDesk consumer: $(git -C orderdesk rev-parse HEAD)"
             echo "Full Demo PR checkout: $(git -C full-demo rev-parse HEAD)"
           } >> "$GITHUB_STEP_SUMMARY"
           test "$(git -C talon rev-parse HEAD)" = "${{ matrix.sha }}"
           test "$(git -C pa-consumer rev-parse HEAD)" = "${{ matrix.pa_consumer }}"
-      - name: Check out the real OrderDesk consumer PR 45 fixture
-        uses: actions/checkout@v4
-        with:
-          repository: dativo-io/talon-full-demo
-          ref: feat/claude-postgres-incident-fixture
-          path: orderdesk
-          persist-credentials: false
+          test "$(git -C orderdesk rev-parse HEAD)" = "${{ matrix.orderdesk }}"
       - uses: actions/setup-go@v5
         with:
           go-version-file: talon/go.mod
@@ -113,6 +117,17 @@ jobs:
           bash orderdesk/cases/claude-postgres-incident/validate-fixture.sh
           bash orderdesk/cases/claude-postgres-incident/validate-talon-actions.sh
           echo 'OrderDesk HOST-KEY preflight passed. OpenShell C01–C12 is NOT RUN.' >> "$GITHUB_STEP_SUMMARY"
+      - name: OrderDesk bridge per-intent operation identity against the candidate (real Talon, restarted bridge)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          TALON_CLI: ${{ runner.temp }}/talon
+        run: |
+          if [ ! -f orderdesk/cases/claude-postgres-incident/validate-bridge-intents.sh ]; then
+            echo 'OrderDesk bridge intents: NOT APPLICABLE (this consumer revision has the argument-derived bridge)' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          (cd orderdesk && make incident-bridge-intents)
+          echo 'OrderDesk bridge intents passed against the candidate.' >> "$GITHUB_STEP_SUMMARY"
       - name: Independent Document Processing admission contract on same candidate
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         env:
