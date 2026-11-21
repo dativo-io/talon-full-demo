@@ -207,25 +207,36 @@ echo "LLM call: coding-assistant reached the gateway (session $SESSION_MCP)"
 # 2) The MCP scene through the PROXY-ONLY process — agent bearer only, NO admin
 #    key. If the admin key were still required this call would 401.
 MCP_URL="http://127.0.0.1:$MCP_PROXY_PORT/mcp/proxy"
+# Current Talon main enforces MCP 2026-07-28 (#447), with request
+# _meta, explicit wire headers, and server/discover (no initialize).
 mcp() {
+  local body="$1" method name
+  method="$(jq -r '.method' <<<"$body")"
+  name="$(jq -r '.params.name // empty' <<<"$body")"
+  body="$(jq -c '.params = (.params // {}) | .params._meta = {
+    "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+    "io.modelcontextprotocol/clientInfo": {"name":"live-check","version":"1.0"},
+    "io.modelcontextprotocol/clientCapabilities": {}
+  }' <<<"$body")"
+  local -a extra=()
+  if [[ "$method" == "tools/call" ]]; then
+    extra+=( -H "Mcp-Name: $name" )
+  fi
   curl --fail --silent --show-error --max-time 10 "$MCP_URL" \
     -H "Authorization: Bearer $CA_KEY" \
     -H "X-Talon-Session-ID: $SESSION_MCP" \
-    -H 'X-Talon-Client: live-check' \
-    -H 'Content-Type: application/json' \
-    -d "$1"
+    -H "X-Talon-Client: live-check" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json, text/event-stream" \
+    -H "MCP-Protocol-Version: 2026-07-28" \
+    -H "Mcp-Method: $method" \
+    "${extra[@]}" \
+    -d "$body"
 }
 
-mcp '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"live-check","version":"0.0.1"}}}' \
-  | jq -e '.result.serverInfo.name == "talon-mcp-proxy"' >/dev/null \
-  || { echo 'MCP initialize was not answered locally by the proxy (#367)' >&2; exit 1; }
-mcp '{"jsonrpc":"2.0","method":"notifications/initialized"}' >/dev/null
-# tools/list must advertise exactly the two allowed tools AND each must declare
-# run_nonce required (the schema the real client is driven by).
-# Control A — preventive filtering: the forbidden tool is ABSENT from discovery,
-# so a conforming client never sees it. Assert both the exact allowed set and
-# that release_publish specifically is not advertised, and that each advertised
-# tool marks run_nonce required (the schema a real client is driven by).
+mcp '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}' \
+  | jq -e '.result.capabilities.extensions["io.dativo.talon/governance"].schemaVersion == 1' >/dev/null \
+  || { echo 'MCP server/discover did not advertise governance extension (#372)' >&2; exit 1; }
 LIST="$(mcp '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')"
 echo "$LIST" | jq -e '[.result.tools[].name] | sort == ["release_prepare","release_status"]' >/dev/null \
   || { echo 'tools/list must advertise exactly the two allowed tools' >&2; exit 1; }
@@ -243,8 +254,8 @@ done
 # for a non-conforming client) submits the undiscovered release_publish anyway.
 # Talon must still block it. This is defence-in-depth, NOT "Copilot published".
 mcp "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"release_publish\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}" \
-  | jq -e '.error.data.talon_code == "TALON_TOOL_FORBIDDEN"' >/dev/null \
-  || { echo 'release_publish denial must carry talon_code TALON_TOOL_FORBIDDEN (#369)' >&2; exit 1; }
+  | jq -e '.error.data["io.dativo.talon/governance"].code == "policy_denied" and .error.data["io.dativo.talon/governance"].decision == "deny" and .error.data["io.dativo.talon/governance"].evidence.committed == true' >/dev/null \
+  || { echo 'release_publish denial must carry committed policy_denied governance extension (#372)' >&2; exit 1; }
 echo "control B (runtime enforcement): adversarial release_publish probe denied with TALON_TOOL_FORBIDDEN"
 
 RELEASE_RUN_NONCE="$NONCE" RELEASE_MCP_RECEIPTS="$RECEIPTS" \
@@ -310,7 +321,6 @@ cat > "$BUDGET/talon.config.yaml" <<EOF
 gateway:
   enabled: true
   listen_prefix: "/v1/proxy"
-  mode: "enforce"
   providers:
     mock-openai:
       enabled: true
@@ -335,6 +345,23 @@ gateway:
 agents_dir: agents
 agents_reload_interval: "2s"
 EOF
+
+# Current main treats a missing price as a safety denial (#399). Explicitly
+# price the local OpenAI-wire fixture: it is a counted synthetic commercial
+# endpoint, not a zero-cost local LLM. Keep this under the temp directory.
+mkdir -p "$BUDGET/pricing"
+cat > "$BUDGET/pricing/models.yaml" <<'YAMLPRICE'
+version: "1"
+currency: USD
+providers:
+  openai:
+    models:
+      gpt-4o-mini:
+        input_per_1m: 0.15
+        output_per_1m: 0.60
+  mock-openai:
+    inherit: openai
+YAMLPRICE
 
 write_probe_agent() {
   local max_cost="$1"

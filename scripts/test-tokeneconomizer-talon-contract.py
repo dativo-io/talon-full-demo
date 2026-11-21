@@ -114,11 +114,17 @@ def main():
             "You can also set TALON_BIN=/absolute/path/to/talon for Make.")
     # Compatibility alone is insufficient: do not silently accept old Talon
     # binaries merely because a local mock can exercise their budget subset.
-    if not RELEASE.startswith("v") or not RELEASE[1:].replace(".", "").isdigit():
+    validation_sha = len(RELEASE) == 40 and all(c in "0123456789abcdef" for c in RELEASE)
+    if not validation_sha and (not RELEASE.startswith("v") or not RELEASE[1:].replace(".", "").isdigit()):
         raise RuntimeError("Invalid pinned Talon release tag: " + RELEASE)
     installed = run(["talon", "version"], cwd=ROOT, env=DEMO["safe_env"]())
     version_line = installed.splitlines()[0].strip() if installed.strip() else ""
-    if version_line != "Talon " + RELEASE:
+    # Validation-only branch: for an exact commit install, Go reports the
+    # pseudo-version (which embeds the Git SHA) rather than "Talon <SHA>".
+    if validation_sha:
+        if RELEASE[:12] not in version_line:
+            raise RuntimeError("Installed Talon does not match validation commit " + RELEASE + ": " + version_line)
+    elif version_line != "Talon " + RELEASE:
         raise RuntimeError(
             "TokenEconomizer requires the reviewed Talon stable release "
             + RELEASE + "; installed binary reports " + repr(version_line)
