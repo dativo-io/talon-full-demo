@@ -98,7 +98,7 @@ Do not translate engineering e2e duration into "customer installed in three minu
 ## 7. Sequence and kill / change-pivot criteria
 
 ### 0–30 days — complete product truth
-- Finish release pipeline and exact digest verification for the full 1.17.0 contract; RC2 must not count if only draft/absent.
+- Finish release pipeline and exact digest verification for the full 1.17.0 contract; RC2 is now a published prerelease, but counts as Full Demo acceptance **only if** its consumer test actually downloads its pinned digest and exercises the named use cases.
 - Reconcile existing open PRs and historical pins; all release-focused test lanes must be green **and actually execute the claimed binary**.
 - Reproduce native registrations + two connected apps in one persistent runtime; real company rule inherited and tested, first app still operating.
 - Finish Action Gateway/Shopify synthetic ledger integration into a documented **user-repeatable** setup; prove failure/UNKNOWN/restart with native operations.
