@@ -4,7 +4,7 @@
 
 Strategy and sequencing: [Talon buyer-win strategy](TALON_BUYER_WIN_STRATEGY.md). Demo definitions: [ACME walkthrough](SHOWCASE_LIVE_WALKTHROUGH.md). The buyer promise remains **one company policy and operating layer across distinct AI use cases**, not "our LLM gateway is universally best."
 
-**Version hygiene:** The historical joined development-only refund proof uses real **n8n 2.48.5** with a pinned Talon source-main build and synthetic Shopify/provider/ledger. An older Stage A path uses n8n 2.30.4 with a published v1.16.1 binary. Neither by itself proves a full v1.17.0 stable consumer journey; RC2 detection-only skip is not runtime acceptance.
+**Version hygiene:** The historical joined development-only refund proof uses real **n8n 2.48.5** with a pinned Talon source-main build and synthetic Shopify/provider/ledger. An older Stage A path uses n8n 2.30.4 with a published v1.16.1 binary. Neither by itself proves a full v1.17.0 stable consumer journey; RC2 is now published; a detection-only skip was not runtime acceptance, and consumer tests must execute the verified archive, not a source build.
 
 ## Evidence rules (apply to all competitors)
 
