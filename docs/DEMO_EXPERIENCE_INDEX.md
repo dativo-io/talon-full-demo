@@ -19,6 +19,8 @@
 
 **n8n is orchestration inside Support and Document Processing, not a fifth AI application.** One `agent.talon.yaml`, one active Talon key and operational identity per AI use case; shared mandatory policy is in company `talon.config.yaml`. Configuration, registered use case, loaded policy, intercepted requests and verified enforcement are four different facts.
 
+**Two-app pilot status: NOT RUN as one shared persistent deployment.** Separate real support and HR fixtures can pass without proving company policy inherited by two simultaneously governed applications. Do not present the combined pilot as accepted.
+
 ## Two presentation formats; same evidence, no separate dashboard
 
 | Format | Story and sequence | Exit criterion |
