@@ -42,6 +42,8 @@ Source-audited on 2026-07-20 against `dativo-io/talon/main` commit `24046ca690a6
 
 ## Executed live-server run (2026-07-20)
 
+> **2026-11-21, validation branch for Talon PR #589 (#431):** Talon removed the MCP proxy (`/mcp/proxy`, `--proxy-config`). On this branch `make live-check` runs the canonical MCP scene through the governed `POST /mcp`: the synthetic release server is a trusted MCP action source of the coding-assistant use case (declared in the temp copy of its agent file), `release_status` is read-only (one call), `release_prepare` is prepared and then executed by `talon_execute_operation` (one call), and `release_publish` is forbidden (hidden; denied with zero upstream receipts when called by name). Receipts are counted per run nonce at the upstream, every governed operation's signed lifecycle is verified with `talon audit verify --operation`, and the session-budget phase is unchanged. The executed v1.9.3 record below is kept as it was run.
+
 This is reproducible as a script — `make live-check` (`scripts/test-live-talon.sh`) — a rerunnable, mock-independent gate distinct from the source audit above, not a one-time transcript. It needs a `dativo-io/talon` checkout (`TALON_REPO`, default `../talon`; a mismatch with `TALON_PINNED_COMMIT` warns) and builds the Talon binary itself. Two hermetic phases run in a temp dir (the repo's `.env`/`.state`/`config/generated` are untouched):
 
 **Phase 1 — MCP release boundary and the identity story, in the demo's real two-process topology.** A gateway process (`:GW`) and a proxy-only process (`:MCP`) share one `TALON_DATA_DIR`. Then:

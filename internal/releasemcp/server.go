@@ -126,7 +126,23 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	modern := r.Header.Get("MCP-Protocol-Version") == "2026-07-28"
 	switch request.Method {
+	case "server/discover":
+		// MCP 2026-07-28 (SEP-2575): Talon discovers this server as a
+		// trusted action source of the coding-assistant use case.
+		if !modern {
+			rpcError(w, request.ID, -32601, "method not found")
+			return
+		}
+		reply(w, request.ID, map[string]any{
+			"resultType":        "complete",
+			"supportedVersions": []string{"2026-07-28"},
+			"capabilities":      map[string]any{"tools": map[string]any{}},
+			"ttlMs":             60000,
+			"cacheScope":        "public",
+			"_meta":             map[string]any{"io.modelcontextprotocol/serverInfo": map[string]string{"name": "talon-demo-release", "version": "0.1.0"}},
+		})
 	case "initialize":
 		reply(w, request.ID, map[string]any{
 			"protocolVersion": "2025-03-26",
@@ -161,7 +177,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		// Keep legacy response for original demo-unit tests while the
 		// main-compatibility lane exercises the MCP 2026-07-28 result contract.
-		if r.Header.Get("MCP-Protocol-Version") == "2026-07-28" {
+		if modern {
 			reply(w, request.ID, map[string]any{"resultType": "complete", "tools": tools, "ttlMs": 60000, "cacheScope": "public"})
 		} else {
 			reply(w, request.ID, map[string]any{"tools": tools})
@@ -194,7 +210,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Synthetic %s completed; no external release action exists", params.Name)}},
 			"isError": false,
 		}
-		if r.Header.Get("MCP-Protocol-Version") == "2026-07-28" {
+		if modern {
 			response["resultType"] = "complete"
 		}
 		reply(w, request.ID, response)

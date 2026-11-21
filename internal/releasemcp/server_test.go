@@ -144,3 +144,57 @@ func TestRejectsInvalidJSONRPCVersionBeforeReceipt(t *testing.T) {
 		t.Fatal("invalid JSON-RPC request must not write a receipt")
 	}
 }
+
+// MCP 2026-07-28: Talon discovers this server as a trusted action source
+// (server/discover, then a cacheable tools/list) and dispatches each
+// authorized operation as one tools/call whose result must be a complete
+// CallToolResult with a boolean isError.
+func TestModernProtocolDiscoverListAndCall(t *testing.T) {
+	handler, err := New(Config{ReceiptPath: filepath.Join(t.TempDir(), "r.jsonl")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	post := func(body string, modern bool) map[string]any {
+		t.Helper()
+		req, _ := http.NewRequest(http.MethodPost, server.URL+"/mcp", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		if modern {
+			req.Header.Set("MCP-Protocol-Version", "2026-07-28")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var out map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	disc := post(`{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}`, true)
+	res, _ := disc["result"].(map[string]any)
+	if res["resultType"] != "complete" || res["cacheScope"] != "public" || res["ttlMs"] == nil {
+		t.Fatalf("server/discover: %v", disc)
+	}
+	if v, _ := res["supportedVersions"].([]any); len(v) != 1 || v[0] != "2026-07-28" {
+		t.Fatalf("supportedVersions: %v", res["supportedVersions"])
+	}
+	if legacy := post(`{"jsonrpc":"2.0","id":2,"method":"server/discover","params":{}}`, false); legacy["error"] == nil {
+		t.Fatalf("server/discover is a 2026-07-28 method: %v", legacy)
+	}
+	list := post(`{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{}}`, true)
+	if lr, _ := list["result"].(map[string]any); lr["resultType"] != "complete" || lr["cacheScope"] == nil || lr["ttlMs"] == nil {
+		t.Fatalf("tools/list must be a cacheable 2026-07-28 result: %v", list)
+	}
+	call := post(`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"release_status","arguments":{"version":"x","run_nonce":"n1"},"_meta":{"io.dativo.talon/idempotencyKey":"talon-op_1"}}}`, true)
+	cr, _ := call["result"].(map[string]any)
+	if cr["resultType"] != "complete" || cr["isError"] != false {
+		t.Fatalf("tools/call: %v", call)
+	}
+	if c, _ := cr["content"].([]any); len(c) != 1 {
+		t.Fatalf("content: %v", cr["content"])
+	}
+}

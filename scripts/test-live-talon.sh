@@ -6,10 +6,14 @@ set -euo pipefail
 # "Executed live-server run" section records:
 #
 #   Phase 1 (canonical MCP scene): boot the canonical product-demo config,
-#   verify the live fleet view, run the MCP forbidden-tool scene through
-#   /mcp/proxy (local initialize handshake #367, nonce-correlated allowed
-#   calls, TALON_TOOL_FORBIDDEN denial #369, receipts assertion positive and
-#   negative), and verify the signed evidence offline.
+#   verify the live fleet view, and run the MCP forbidden-tool scene through
+#   Talon's governed POST /mcp (MCP 2026-07-28, Talon #431): the synthetic
+#   release server is a trusted MCP action source of the coding-assistant use
+#   case; release_status is read-only (one call), release_prepare is prepared
+#   and then executed by talon_execute_operation (one call), release_publish
+#   is forbidden (hidden, and denied with zero upstream calls when called by
+#   name). Nonce-correlated receipts are counted at the upstream; every
+#   operation's signed lifecycle is verified offline.
 #
 #   Phase 2 (session-budget engine): run allow/allow/deny through Talon's
 #   REAL budget engine (#198/#283) against a synthetic OpenAI-compatible
@@ -166,24 +170,48 @@ RELEASE_MCP_BIND="127.0.0.1:$MCP_UP_PORT" RELEASE_MCP_RECEIPTS="$RECEIPTS" \
 PIDS+=("$!")
 wait_http release-mcp "http://127.0.0.1:$MCP_UP_PORT/health" "$WORK/release-mcp.log"
 
-sed "s|http://127.0.0.1:8090/mcp|http://127.0.0.1:$MCP_UP_PORT/mcp|" \
-  "$ROOT/config/mcp-proxy.example.yaml" > "$WORK/mcp-proxy.yaml"
-grep -q "127.0.0.1:$MCP_UP_PORT/mcp" "$WORK/mcp-proxy.yaml" \
-  || { echo 'failed to point mcp-proxy config at the synthetic upstream' >&2; exit 1; }
+# The release server is a trusted MCP action source of the coding-assistant
+# use case (Talon #431; the MCP proxy and --proxy-config were removed):
+# declared in the temp copy of its agent file, never in the repository's.
+cat >> "$CANON/agents/coding-assistant/agent.talon.yaml" <<YAMLACT
+
+# Full Demo live check: the synthetic release MCP server as a governed source.
+capabilities:
+  forbidden_tools: [release_publish]
+actions:
+  sources:
+    release:
+      type: mcp
+      url: "http://127.0.0.1:$MCP_UP_PORT/mcp"
+  definitions:
+    release_status:
+      source: release
+      read_only: true
+      review: {fields: [version], non_material: [run_nonce]}
+    release_prepare:
+      source: release
+      review: {fields: [version], non_material: [run_nonce]}
+    release_publish:
+      source: release
+      review: {fields: [version], non_material: [run_nonce]}
+YAMLACT
+(cd "$CANON" && talon validate --file agents/coding-assistant/agent.talon.yaml >/dev/null) \
+  || { echo 'the governed MCP source declaration does not validate' >&2; exit 1; }
 
 # The demo's real topology: TWO Talon processes sharing one TALON_DATA_DIR (so
 # LLM and MCP evidence land in the same signed store, joinable by session).
 #   :GW  gateway  — LLM traffic, admin-gated native routes off
-#   :MCP proxy-only (no --gateway) — /mcp/proxy authenticates with AGENT keys
-#        (TenantKeyMiddleware), so MCP evidence attributes to the authenticated
-#        agent (coding-assistant), NOT the proxy config's name, and needs no
-#        admin key. exec so $! is talon's real PID.
+#   :MCP native serve (no --gateway) — the governed POST /mcp authenticates
+#        the use case's key (never the admin key), so MCP evidence attributes
+#        to the authenticated agent (coding-assistant). exec so $! is talon's
+#        real PID. Both processes discover the release source at start, so
+#        the release server is already healthy.
 ( cd "$CANON" && exec talon serve --host 127.0.0.1 --port "$GW_PORT" --gateway \
   > "$WORK/talon-gateway.log" 2>&1 ) &
 PIDS+=("$!")
 wait_http talon-gateway "http://127.0.0.1:$GW_PORT/health" "$WORK/talon-gateway.log"
 ( cd "$CANON" && exec talon serve --host 127.0.0.1 --port "$MCP_PROXY_PORT" \
-  --proxy-config "$WORK/mcp-proxy.yaml" > "$WORK/talon-mcp.log" 2>&1 ) &
+  > "$WORK/talon-mcp.log" 2>&1 ) &
 PIDS+=("$!")
 wait_http talon-mcp "http://127.0.0.1:$MCP_PROXY_PORT/health" "$WORK/talon-mcp.log"
 
@@ -204,9 +232,9 @@ LLM_CODE="$(curl --silent --output "$WORK/llm.json" --write-out '%{http_code}' -
 [[ "$LLM_CODE" == "200" ]] || { echo "coding-assistant LLM call failed: HTTP $LLM_CODE" >&2; cat "$WORK/llm.json" >&2; exit 1; }
 echo "LLM call: coding-assistant reached the gateway (session $SESSION_MCP)"
 
-# 2) The MCP scene through the PROXY-ONLY process — agent bearer only, NO admin
-#    key. If the admin key were still required this call would 401.
-MCP_URL="http://127.0.0.1:$MCP_PROXY_PORT/mcp/proxy"
+# 2) The MCP scene through the native serve's governed /mcp — the use case's
+#    key only, NO admin key (the admin key is refused on /mcp).
+MCP_URL="http://127.0.0.1:$MCP_PROXY_PORT/mcp"
 # Current Talon main enforces MCP 2026-07-28 (#447), with request
 # _meta, explicit wire headers, and server/discover (no initialize).
 mcp() {
@@ -238,25 +266,49 @@ mcp '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}' \
   | jq -e '.result.capabilities.extensions["io.dativo.talon/governance"].schemaVersion == 1' >/dev/null \
   || { echo 'MCP server/discover did not advertise governance extension (#372)' >&2; exit 1; }
 LIST="$(mcp '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')"
-echo "$LIST" | jq -e '[.result.tools[].name] | sort == ["release_prepare","release_status"]' >/dev/null \
-  || { echo 'tools/list must advertise exactly the two allowed tools' >&2; exit 1; }
+echo "$LIST" | jq -e '[.result.tools[].name] | sort == ["release_prepare","release_status","talon_execute_operation"]' >/dev/null \
+  || { echo 'tools/list must advertise exactly the two governed tools and talon_execute_operation' >&2; echo "$LIST" >&2; exit 1; }
 echo "$LIST" | jq -e '[.result.tools[].name] | index("release_publish") | not' >/dev/null \
   || { echo 'preventive filtering failed: release_publish must be ABSENT from tools/list discovery' >&2; exit 1; }
-echo "$LIST" | jq -e 'all(.result.tools[]; (.inputSchema.required // []) | index("run_nonce"))' >/dev/null \
-  || { echo 'each advertised tool must mark run_nonce required (schema-driven client would else omit it)' >&2; exit 1; }
-echo "control A (preventive filtering): release_publish absent from discovery; allowed tools require run_nonce"
-for tool in release_status release_prepare; do
-  mcp "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}" \
-    | jq -e '.result.isError == false' >/dev/null \
-    || { echo "allowed tool $tool failed through the live proxy" >&2; exit 1; }
-done
+echo "$LIST" | jq -e 'all(.result.tools[] | select(.name != "talon_execute_operation"); (.inputSchema.required // []) | index("run_nonce"))' >/dev/null \
+  || { echo 'each governed tool must mark run_nonce required (schema-driven client would else omit it)' >&2; exit 1; }
+echo "control A (preventive filtering): release_publish absent from discovery; governed tools require run_nonce"
+receipts_for() { jq -s --arg t "$1" --arg n "$NONCE" '[.[] | select(.tool == $t and .arguments.run_nonce == $n)] | length' "$RECEIPTS"; }
+gov() { jq -r '(.result._meta // .error.data)["io.dativo.talon/governance"] | '"$1"; }
+OPS=()
+
+# release_status is read-only (trusted Talon overlay): one call, one receipt.
+OUT="$(mcp "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"release_status\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}")"
+jq -e '.result.isError == false' <<<"$OUT" >/dev/null && [[ "$(gov .code <<<"$OUT")" == "allowed" ]] \
+  || { echo "read-only release_status failed through the governed /mcp: $OUT" >&2; exit 1; }
+[[ "$(receipts_for release_status)" == "1" ]] || { echo "release_status: expected 1 upstream receipt, got $(receipts_for release_status)" >&2; exit 1; }
+OPS+=("$(gov .operationId <<<"$OUT")")
+
+# release_prepare is consequential: the first call PREPARES (operation id,
+# nothing sent), talon_execute_operation executes it exactly once.
+OUT="$(mcp "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"release_prepare\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}")"
+PREP_OP="$(gov .operationId <<<"$OUT")"
+[[ "$(gov .code <<<"$OUT")" == "operation_prepared" && -n "$PREP_OP" ]] \
+  || { echo "release_prepare must be prepared first: $OUT" >&2; exit 1; }
+[[ "$(receipts_for release_prepare)" == "0" ]] || { echo 'preparing release_prepare reached the upstream' >&2; exit 1; }
+OUT="$(mcp "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"talon_execute_operation\",\"arguments\":{\"operation_id\":\"$PREP_OP\"}}}")"
+jq -e '.result.isError == false' <<<"$OUT" >/dev/null && [[ "$(gov .code <<<"$OUT")" == "allowed" ]] \
+  || { echo "talon_execute_operation for release_prepare failed: $OUT" >&2; exit 1; }
+OUT="$(mcp "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"talon_execute_operation\",\"arguments\":{\"operation_id\":\"$PREP_OP\"}}}")"
+[[ "$(gov .code <<<"$OUT")" == "operation_already_succeeded" ]] || { echo "a repeated execute must be refused: $OUT" >&2; exit 1; }
+[[ "$(receipts_for release_prepare)" == "1" ]] || { echo "release_prepare: expected exactly 1 upstream receipt, got $(receipts_for release_prepare)" >&2; exit 1; }
+OPS+=("$PREP_OP")
+echo "allowed calls: release_status 1 receipt (read-only), release_prepare 0 receipts when prepared, 1 when executed, still 1 after a repeat"
+
 # Control B — runtime enforcement: an ADVERSARIAL probe (this curl, standing in
 # for a non-conforming client) submits the undiscovered release_publish anyway.
 # Talon must still block it. This is defence-in-depth, NOT "Copilot published".
-mcp "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"release_publish\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}" \
-  | jq -e '.error.data["io.dativo.talon/governance"].code == "policy_denied" and .error.data["io.dativo.talon/governance"].decision == "deny" and .error.data["io.dativo.talon/governance"].evidence.committed == true' >/dev/null \
-  || { echo 'release_publish denial must carry committed policy_denied governance extension (#372)' >&2; exit 1; }
-echo "control B (runtime enforcement): adversarial release_publish probe denied with TALON_TOOL_FORBIDDEN"
+OUT="$(mcp "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"release_publish\",\"arguments\":{\"version\":\"live\",\"run_nonce\":\"$NONCE\"}}}")"
+jq -e '.error.data["io.dativo.talon/governance"].code == "policy_denied" and .error.data["io.dativo.talon/governance"].decision == "deny" and .error.data["io.dativo.talon/governance"].evidence.committed == true' <<<"$OUT" >/dev/null \
+  || { echo "release_publish denial must carry committed policy_denied governance extension (#372): $OUT" >&2; exit 1; }
+[[ "$(receipts_for release_publish)" == "0" ]] || { echo 'release_publish reached the upstream' >&2; exit 1; }
+OPS+=("$(gov .operationId <<<"$OUT")")
+echo "control B (runtime enforcement): adversarial release_publish probe denied (policy_denied), 0 upstream receipts"
 
 RELEASE_RUN_NONCE="$NONCE" RELEASE_MCP_RECEIPTS="$RECEIPTS" \
   "$ROOT/scripts/assert-release-blocked.sh" >/dev/null
@@ -267,12 +319,19 @@ if RELEASE_RUN_NONCE="stale-run" RELEASE_MCP_RECEIPTS="$RECEIPTS" \
 fi
 echo "receipts: nonce-correlated proof passes; stale nonce rejected"
 
-# The identity story: EVERY record in the session — the LLM call and the MCP
-# calls — must carry agent_id=coding-assistant (assert-evidence enforces that
-# all records share the agent), and the forbidden-tool denial must be present.
+# The identity story: EVERY record in the session — the LLM call and every
+# governed MCP lifecycle record (joined to the client's session by its
+# X-Talon-Session-ID, as untrusted attribution) — must carry
+# agent_id=coding-assistant (assert-evidence enforces that all records share
+# the agent), and the forbidden-tool denial must be present.
 "$ROOT/scripts/assert-evidence.sh" --session "$SESSION_MCP" --agent coding-assistant \
-  --min-denials 1 --deny-reason forbidden_tools --since "$RUN_TS"
+  --min-denials 1 --deny-reason "action forbidden by use_case policy (forbidden_tools: release_publish)" --since "$RUN_TS"
 echo "identity: LLM and MCP records share agent_id=coding-assistant"
+for op in "${OPS[@]}"; do
+  talon audit verify --operation "$op" | grep -q 'Lifecycle: VALID' \
+    || { echo "signed lifecycle of $op does not verify" >&2; exit 1; }
+done
+echo "signed lifecycle: ${#OPS[@]} governed MCP operations verify (talon audit verify --operation)"
 
 # ---------------------------------------------------------------------------
 # Phase 2 — session-budget engine: allow / allow / deny with a measured cap
