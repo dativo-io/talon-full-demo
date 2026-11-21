@@ -1,0 +1,105 @@
+name: Shopify support against pinned Talon source commits (RC2 tag included)
+
+# RC2 tag maps to an immutable source commit. This lane builds and exercises
+# that exact commit; it is NOT the verified release archive or image.
+on:
+  pull_request:
+    paths:
+      - 'integrations/n8n/shopify-support/**'
+      - '.github/workflows/shopify-core-main.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-main-reference:
+    name: Pinned source ${{ matrix.candidate }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - candidate: rc2-tag-source
+            sha: 3f3f20dff910dc2416c8d82467de2d4e2dd8acc5
+          - candidate: pre-rc2-regression
+            sha: 6a01d985746e203808f11943778b4fbd5c7857e9
+    env:
+      TALON_CORE_SHA: ${{ matrix.sha }}
+    steps:
+      - name: Check out Full Demo PR
+        uses: actions/checkout@v4
+        with:
+          path: full-demo
+          persist-credentials: false
+      - name: Check out exact reviewed Talon candidate commit
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: ${{ env.TALON_CORE_SHA }}
+          path: talon
+          persist-credentials: false
+      - name: Check out the real OrderDesk consumer PR 45 fixture
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon-full-demo
+          ref: feat/claude-postgres-incident-fixture
+          path: orderdesk
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache: true
+          cache-dependency-path: talon/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build pinned candidate source, without claiming released artifact
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev
+          (cd talon && go build -o "$RUNNER_TEMP/talon" ./cmd/talon/)
+          "$RUNNER_TEMP/talon" version
+          sha256sum "$RUNNER_TEMP/talon"
+      - name: Execute Full Demo Shopify Stage A and canonical actions against candidate
+        env:
+          TALON_EXTERNAL_BIN: ${{ runner.temp }}/talon
+          N8N_IMAGE: docker.n8n.io/n8nio/n8n:2.48.5
+          TALON_CORE_DIR: ${{ github.workspace }}/talon
+        run: bash full-demo/integrations/n8n/shopify-support/test-n8n.sh
+      - name: Install independent People Analytics fixture dependencies
+        run: python3 -m pip install -r full-demo/cases/people-analytics-copilot/requirements.txt
+      - name: Real candidate People Analytics MCP, gateway, tools and signed evidence
+        env:
+          PATH: ${{ runner.temp }}:/usr/local/bin:/usr/bin:/bin
+        run: bash full-demo/scripts/test-people-analytics-talon.sh
+      - name: Real OrderDesk synthetic PostgreSQL and Talon Action Gateway host preflight
+        env:
+          TALON_CLI: ${{ runner.temp }}/talon
+        run: |
+          bash orderdesk/cases/claude-postgres-incident/validate-fixture.sh
+          bash orderdesk/cases/claude-postgres-incident/validate-talon-actions.sh
+          echo 'OrderDesk HOST-KEY preflight passed. OpenShell C01–C12 is NOT RUN.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Independent Document Processing admission contract on same candidate
+        env:
+          TALON_BIN: ${{ runner.temp }}/talon
+          TALON_TOKEN_CONTRACT_MODE: core-main
+        run: |
+          cd full-demo
+          make tokeneconomizer-contract
+      - name: Install core-reference n8n 2.48.5
+        run: |
+          mkdir -p "$RUNNER_TEMP/n8n"
+          cd "$RUNNER_TEMP/n8n"
+          npm install --ignore-scripts --no-audit --no-fund --loglevel=error n8n@2.48.5
+          npm rebuild sqlite3
+          test "$(./node_modules/.bin/n8n --version | tail -n1)" = "2.48.5"
+      - name: Execute native canonical action integration and independent counts
+        env:
+          N8N_BIN: ${{ runner.temp }}/n8n/node_modules/.bin/n8n
+          TALON_BIN: ${{ runner.temp }}/talon
+        run: |
+          cd talon
+          bash scripts/n8n-refund-live.sh 2>&1 | tee "$RUNNER_TEMP/core-n8n-proof.log"
+          grep -E '^(PASS|FAIL)' "$RUNNER_TEMP/core-n8n-proof.log" >> "$GITHUB_STEP_SUMMARY"

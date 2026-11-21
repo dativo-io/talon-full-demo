@@ -1,0 +1,140 @@
+name: Talon RC2 published-artifact consumer acceptance
+
+# Official RC2 is now published; this is a hard gate on the immutable reviewed
+# archive SHA-256. Missing/different binary is a FAILURE, never a skipped PASS.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/talon-rc2-compat.yml'
+      - 'integrations/n8n/shopify-support/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  availability:
+    name: Require published v1.17.0-rc.2 and independently pinned digest
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.probe.outputs.published }}
+    steps:
+      - name: Check release and exact binary digest
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=v1.17.0-rc.2
+          if ! gh api "repos/dativo-io/talon/releases/tags/$tag" > "$RUNNER_TEMP/rc2.json" 2>/dev/null; then
+            echo 'FAIL: official RC2 is no longer publicly accessible; do not skip published-artifact acceptance' >&2
+            exit 1
+          fi
+          asset=talon_1.17.0-rc.2_linux_amd64.tar.gz
+          digest="$(jq -r --arg name "$asset" '.assets[] | select(.name==$name) | .digest' "$RUNNER_TEMP/rc2.json")"
+          [[ "$digest" == 'sha256:5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c' ]] || {
+            echo 'Published RC2 Linux archive does not match reviewed immutable checksum' >&2; exit 1;
+          }
+          jq -e '.draft==false and .prerelease==true' "$RUNNER_TEMP/rc2.json" >/dev/null
+          echo published=true >> "$GITHUB_OUTPUT"
+          echo "Published RC2 artifact digest present: $digest" >> "$GITHUB_STEP_SUMMARY"
+
+  rc2-consumer:
+    name: Real RC2 binary — Shopify, HR, budget and OrderDesk
+    needs: availability
+    if: needs.availability.outputs.published == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: full-demo
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: v1.17.0-rc.2
+          path: talon
+          persist-credentials: false
+      - name: Check out independent People Analytics PR 46 (not main fixture)
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon-full-demo
+          ref: docs/people-analytics-talon-ui-walkthrough
+          path: hr-demo
+          persist-credentials: false
+      - name: Check out independent OrderDesk PR 45 fixture
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon-full-demo
+          ref: feat/claude-postgres-incident-fixture
+          path: orderdesk
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download and verify the official RC2 Linux release archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin" "$RUNNER_TEMP/release"
+          asset=talon_1.17.0-rc.2_linux_amd64.tar.gz
+          gh api 'repos/dativo-io/talon/releases/tags/v1.17.0-rc.2' >"$RUNNER_TEMP/release/metadata.json"
+          digest="$(jq -r --arg name "$asset" '.assets[] | select(.name==$name) | .digest' "$RUNNER_TEMP/release/metadata.json")"
+          [[ "$digest" == 'sha256:5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c' ]] || exit 1
+          gh release download v1.17.0-rc.2 --repo dativo-io/talon \
+            --pattern "$asset" --dir "$RUNNER_TEMP/release" --clobber
+          printf '%s  %s\n' "${digest#sha256:}" "$RUNNER_TEMP/release/$asset" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/release/$asset" -C "$RUNNER_TEMP/bin" talon
+          "$RUNNER_TEMP/bin/talon" version | tee "$RUNNER_TEMP/release/version.txt"
+          head -n1 "$RUNNER_TEMP/release/version.txt" | grep -Eq '^Talon v?1\.17\.0-rc\.2$'
+          go version -m "$RUNNER_TEMP/bin/talon"
+          sha256sum "$RUNNER_TEMP/bin/talon"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          echo "Verified official RC2 archive digest: $digest" >> "$GITHUB_STEP_SUMMARY"
+      - name: Real n8n 2.48.5 + canonical refund action on this RC2 binary
+        env:
+          TALON_EXTERNAL_BIN: ${{ runner.temp }}/bin/talon
+          TALON_EXTERNAL_KIND: published-rc2
+          TALON_RELEASE_TAG: v1.17.0-rc.2
+          N8N_IMAGE: docker.n8n.io/n8nio/n8n:2.48.5
+          TALON_CORE_DIR: ${{ github.workspace }}/talon
+        run: bash full-demo/integrations/n8n/shopify-support/test-n8n.sh
+      - name: Install People Analytics dependencies
+        run: python3 -m pip install -r hr-demo/cases/people-analytics-copilot/requirements.txt
+      - name: Test real RC2 MCP/tool/LLM-policy/HR evidence
+        run: bash hr-demo/scripts/test-people-analytics-talon.sh
+      - name: Test Document Processing budget/evidence contract on RC2
+        env:
+          TALON_BIN: ${{ runner.temp }}/bin/talon
+          TALON_TOKEN_CONTRACT_MODE: published-rc2
+        run: |
+          cd full-demo
+          make tokeneconomizer-contract
+      - name: Test independent OrderDesk fixture and RC2 Action Gateway host preflight
+        env:
+          TALON_CLI: ${{ runner.temp }}/bin/talon
+        run: |
+          bash orderdesk/cases/claude-postgres-incident/validate-fixture.sh
+          bash orderdesk/cases/claude-postgres-incident/validate-talon-actions.sh
+          echo 'OrderDesk host-key preflight only: OpenShell C01–C12 NOT RUN.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify RC2 Console executable exists (not browser acceptance)
+        run: |
+          "$RUNNER_TEMP/bin/talon" ui serve --help > "$RUNNER_TEMP/ui-help.txt"
+          grep -F -- '--listen' "$RUNNER_TEMP/ui-help.txt"
+          echo 'Console CLI exists; paired browser acceptance NOT RUN.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Record boundaries of the actual acceptance
+        run: |
+          {
+            echo 'PUBLISHED RC2 BINARY verified, real Talon and n8n, fake Shopify/provider/finance.'
+            echo 'HR and Document Processing run separately, not four apps on one fleet.'
+            echo 'Not verified: paid models, Shopify payments, real sandbox C01-C12, Console browser, recovery and external onboarding.'
+          } >> "$GITHUB_STEP_SUMMARY"

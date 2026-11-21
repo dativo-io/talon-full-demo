@@ -1,0 +1,29 @@
+name: Shopify support acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/n8n/shopify-support/**'
+      - '.github/workflows/shopify-support.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage-a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute workflow Code node contracts
+        run: node integrations/n8n/shopify-support/workflow.test.cjs
+      - name: Validate harness syntax
+        run: |
+          bash -n integrations/n8n/shopify-support/test-n8n.sh
+          python3 -m py_compile integrations/n8n/shopify-support/fixture.py
+      - name: Real n8n import, execution, re-import and published Talon evidence
+        run: bash integrations/n8n/shopify-support/test-n8n.sh
