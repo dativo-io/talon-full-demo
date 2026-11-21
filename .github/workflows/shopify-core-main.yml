@@ -1,7 +1,7 @@
-name: Shopify support against unreleased Talon candidates (development only)
+name: Shopify support against pinned Talon source commits (RC2 tag included)
 
-# Compatibility gate: source-built Talon current main is NOT an official release.
-# This validates the real business-reference contract before v1.17.0 publication.
+# RC2 tag maps to an immutable source commit. This lane builds and exercises
+# that exact commit; it is NOT the verified release archive or image.
 on:
   pull_request:
     paths:
@@ -14,17 +14,17 @@ permissions:
 
 jobs:
   core-main-reference:
-    name: Unreleased Talon ${{ matrix.candidate }}
+    name: Pinned source ${{ matrix.candidate }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         include:
-          - candidate: main-after-568
+          - candidate: rc2-tag-source
+            sha: 3f3f20dff910dc2416c8d82467de2d4e2dd8acc5
+          - candidate: pre-rc2-regression
             sha: 6a01d985746e203808f11943778b4fbd5c7857e9
-          - candidate: pilot-PR569
-            sha: 4c20d4e224a457964675099abc5c8c7d42643535
     env:
       TALON_CORE_SHA: ${{ matrix.sha }}
     steps:
