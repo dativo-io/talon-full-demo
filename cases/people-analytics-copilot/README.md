@@ -29,6 +29,10 @@ This example begins with an ordinary workforce application: **DuckDB** stores 1,
 
 Talon is introduced **between the application and its model/MCP endpoints**. We keep the database and chart API as they are; we do not give the AI application raw DuckDB access.
 
+## RC2 compatibility and released-artifact evidence
+
+The [published Talon `v1.17.0-rc.2` prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2) is the immediate Full Demo integration target; tag commit `3f3f20dff910dc2416c8d82467de2d4e2dd8acc5`, Linux/amd64 archive SHA256 `5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c`. [HR RC2 tagged-source CI](https://github.com/dativo-io/talon-full-demo/actions/runs/44882091277) **passed** MCP model/policy and independent HR guard tests with a source-compiled executable; it is not the official archive. The [Full Demo RC2 published-binary consumer workflow](https://github.com/dativo-io/talon-full-demo/pull/52) must independently run against the verified archived executable. The HR **seven-area paired Console browser** and **shared persistent two-app adoption** are not yet completed in this PR. This distinction is mandatory for demos.
+
 ## Skeptical buyer comparison and truthful proof
 
 **Buyer objection:** "Bifrost, Portkey and TrueFoundry already allow per-agent MCP tool permissions; Solo can impose MCP policy, and LiteLLM grants tools per key/team. Why introduce Talon to my HR application?"
