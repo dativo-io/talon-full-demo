@@ -23,8 +23,8 @@ jobs:
         include:
           - candidate: rc2-tag-source
             sha: 3f3f20dff910dc2416c8d82467de2d4e2dd8acc5
-          - candidate: pre-rc2-regression
-            sha: 6a01d985746e203808f11943778b4fbd5c7857e9
+          - candidate: talon-pr589
+            sha: d8ea45f5b85441a2f29daa031435b5182c9c9a47
     env:
       TALON_CORE_SHA: ${{ matrix.sha }}
     steps:
