@@ -1,0 +1,11 @@
+# Merge into the SINGLE generated talon.config.yaml, under gateway.
+# This is not a standalone gateway config. The company DENY is critical for C06.
+gateway:
+  organization_policy:
+    constraints:
+      forbidden_tools: [volume_delete]
+      action_approvals:
+        rules:
+          orderdesk_staging_repair:
+            actions: [reconcile_staging_db_credentials]
+            approver_groups: [oncall]

@@ -1,0 +1,36 @@
+# Consumer-owned OpenShell policy overlay: use an actual pinned sandbox and
+# supervisor registration (Full Demo #42). Replace TALON_HTTP_PORT and
+# PROVIDER_HOST/PORT, then verify with OpenShell preflight.
+# Only Claude may reach the provider. The Node bridge may reach Talon ONLY.
+version: 1
+filesystem_policy:
+  include_workdir: true
+  read_only: [/bin]
+network_middlewares:
+  talon-governance:
+    middleware: talon
+    order: 10
+    on_error: fail_closed
+    endpoints:
+      include: [host.openshell.internal, PROVIDER_HOST]
+network_policies:
+  claude-provider:
+    endpoints:
+      - host: PROVIDER_HOST
+        port: PROVIDER_PORT
+        protocol: rest
+        access: read-write
+        enforcement: enforce
+    binaries:
+      - path: /usr/local/bin/claude
+  talon-action-hop:
+    endpoints:
+      - host: host.openshell.internal
+        port: TALON_HTTP_PORT
+        protocol: rest
+        access: read-write
+        enforcement: enforce
+    binaries:
+      - path: /usr/local/bin/node
+# No sandbox route to ops-api :9080, databases, fake-infra, or reviewer APIs.
+# Talon's reviewer path must also be refused at the L7 hop; validate it.
