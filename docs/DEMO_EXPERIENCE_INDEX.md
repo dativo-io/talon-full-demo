@@ -21,6 +21,8 @@
 
 **Two-app pilot status: NOT RUN as one shared persistent deployment.** Separate real support and HR fixtures can pass without proving company policy inherited by two simultaneously governed applications. Do not present the combined pilot as accepted.
 
+**Native Talon core proof is stronger:** The [published RC2 release pipeline](https://github.com/dativo-io/talon/actions/runs/44881314831) passed its official **first/second use case onboarding, shared company policy, SDK traffic, independent action claims, seven-page Console, restart, cold backup/restore and key replacement** on the released binary/image. That proves *product primitives*, not our specific Full Demo ACME apps running together. Avoid both understating RC2 and overstating Full Demo.
+
 ## Two presentation formats; same evidence, no separate dashboard
 
 | Format | Story and sequence | Exit criterion |
