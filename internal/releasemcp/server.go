@@ -159,7 +159,13 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 				},
 			})
 		}
-		reply(w, request.ID, map[string]any{"tools": tools})
+		// Keep legacy response for original demo-unit tests while the
+        // main-compatibility lane exercises the MCP 2026-07-28 result contract.
+        if r.Header.Get("MCP-Protocol-Version") == "2026-07-28" {
+            reply(w, request.ID, map[string]any{"resultType":"complete", "tools":tools, "ttlMs":60000, "cacheScope":"public"})
+        } else {
+            reply(w, request.ID, map[string]any{"tools": tools})
+        }
 	case "tools/call":
 		var params callParams
 		if err := json.Unmarshal(request.Params, &params); err != nil {
@@ -184,10 +190,14 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			rpcError(w, request.ID, -32603, "receipt write failed")
 			return
 		}
-		reply(w, request.ID, map[string]any{
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Synthetic %s completed; no external release action exists", params.Name)}},
-			"isError": false,
-		})
+		response := map[string]any{
+            "content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Synthetic %s completed; no external release action exists", params.Name)}},
+            "isError": false,
+        }
+        if r.Header.Get("MCP-Protocol-Version") == "2026-07-28" {
+            response["resultType"] = "complete"
+        }
+        reply(w, request.ID, response)
 	default:
 		rpcError(w, request.ID, -32601, "method not found")
 	}
