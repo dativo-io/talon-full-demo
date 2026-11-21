@@ -4,6 +4,10 @@
 
 This demo uses the **same application-first engineering method** as [People Analytics](../people-analytics-copilot/README.md): establish that a real application and its synthetic database behave as expected; introduce Talon at its supported AI/action boundary; use an independently restricted backend; and compare real business effects with Talon's signed decisions. It is a **terminal coding-agent workflow**, not a second workforce browser. The workflow-specific transport is different because this case requires exact-action approval and execution.
 
+## Version and evidence — Talon `v1.17.0-rc.2`
+
+**Current target:** the official [v1.17.0-rc.2 prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2), tagged core commit `3f3f20dff910dc2416c8d82467de2d4e2dd8acc5`. Linux/amd64 archive SHA256: `5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c`. The new [OrderDesk RC2-tag-source CI](https://github.com/dativo-io/talon-full-demo/actions/runs/44882074050) **passed** actual PostgreSQL fixture and host-key action tests; it is a *source build*, not proof of the archived release. PR #52 separately exercises the actual archived binary against this same branch's host-key path. **Claude/OpenShell same-hop C01–C12 remains NOT RUN**. Never present the older v1.16.1 host preflight as RC2 acceptance.
+
 ## Skeptical engineering buyer — alternative controls and proof boundary
 
 **Buyer objection:** "Bifrost governs coding-agent/MCP tool access; Solo.io agentgateway supplies CEL, HTTP/MCP guardrails and ext-auth; TrueFoundry can approve routed MCP tools. Why would I add Talon to my incident response workflow rather than one of these gateways plus our existing OpenShell?"
