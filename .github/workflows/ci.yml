@@ -199,15 +199,19 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26.10"
-          cache: false
-      - name: Install published Talon v1.16.1 for incident action contract
+      - name: Install SHA256-verified official Talon v1.17.0-rc.2 for incident action contract
         run: |
+          set -euo pipefail
           INCIDENT_TALON_RELEASE="$(cat cases/claude-postgres-incident/TALON_RELEASE)"
-          go install "github.com/dativo-io/talon/cmd/talon@${INCIDENT_TALON_RELEASE}"
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          "$(go env GOPATH)/bin/talon" version
+          [[ "$INCIDENT_TALON_RELEASE" == "v1.17.0-rc.2" ]] || exit 1
+          archive=talon_1.17.0-rc.2_linux_amd64.tar.gz
+          curl -fsSL --retry 3 "https://github.com/dativo-io/talon/releases/download/$INCIDENT_TALON_RELEASE/$archive" -o "$RUNNER_TEMP/$archive"
+          printf '%s  %s\n' 5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c "$RUNNER_TEMP/$archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/rc2-bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/rc2-bin" talon
+          "$RUNNER_TEMP/rc2-bin/talon" version | tee "$RUNNER_TEMP/rc2-version.txt"
+          head -n1 "$RUNNER_TEMP/rc2-version.txt" | grep -Fx 'Talon 1.17.0-rc.2'
+          sha256sum "$RUNNER_TEMP/rc2-bin/talon"
+          echo "$RUNNER_TEMP/rc2-bin" >> "$GITHUB_PATH"
       - name: Real Talon policy + external approval + dispatch against synthetic PostgreSQL
         run: make incident-talon-preflight
