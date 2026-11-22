@@ -1,3 +1,7 @@
+> **Historical standalone presenter views.** These commands describe separate legacy workflows and may require specific older Talon/provider runtimes. They are **not** a unified current-main customer installation or proof of native Talon approval for the older support-resolution workflow. For current merged use cases and native Action Gateway controls, start with the [active ACME catalog](DEMO_CATALOG.md), [test matrix](TEST_MATRIX.md), and [main README](../README.md). All approval/handoff caveats below apply to the historical standalone examples only.
+
+---
+
 # Audience-specific demo views
 
 Every application case follows one rule:
