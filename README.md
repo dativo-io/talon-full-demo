@@ -10,6 +10,10 @@
 
 **Release target:** the [published `v1.17.0-rc.2` prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2) (immutable Linux/amd64 archive SHA256 `5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c`). Talon core's published-artifact pilot passed. Full Demo's **combined four-application ACME** remains a separate, unaccepted runtime gate; the individual branch tests and synthetic fixtures below must not be mistaken for it.
 
+## Current merged-main adoption path (#589)
+
+For new customers use **one governed `POST /mcp` endpoint**, not `/mcp/proxy` or `--proxy-config`. HR read-only MCP functions execute immediately; consequential MCP actions prepare an operation and require `talon_execute_operation` to dispatch, with native independent reviewer approval when required. The OrderDesk incident correctly retains its existing HTTP Action Gateway for signed, exact-bound recovery. The Shopify/n8n customer-support reference is **n8n 2.48.5** with a separately imported canonical HTTP action workflow; its financial backend is synthetic. The authoritative integration source is exact Talon main `156188dea65cb6feab01aa92093a00e7717a6dd6`, **not a published stable release**. See the [ACME adoption journey](docs/DEMO_EXPERIENCE_INDEX.md), [governed HR #46](https://github.com/dativo-io/talon-full-demo/pull/46), [OrderDesk #45](https://github.com/dativo-io/talon-full-demo/pull/45), and [Shopify #52](https://github.com/dativo-io/talon-full-demo/pull/52). Individual synthetic consumer results do **not** establish a single running four-app ACME deployment.
+
 ## Existing standalone gallery (historical and independently testable)
 
 A standalone, early-adopter-oriented demonstration of recognizable applications governed through [Dativo Talon](https://github.com/dativo-io/talon):
@@ -18,7 +22,7 @@ A standalone, early-adopter-oriented demonstration of recognizable applications 
   **Historical legacy trust boundary:** this older flow uses a separate demo-specific approval server. It is NOT a canonical Talon Action Gateway approval, and its successful handoff is not a refund execution. The new [Shopify-style Customer Support read/draft reference](https://github.com/dativo-io/talon-full-demo/pull/52) has a tested synthetic Stage A; canonical action Stage B requires its own integrated acceptance.
 - **n8n vendor-contract review** — a confidential synthetic contract package is blocked from one destination, redacted, and reviewed through the approved provider with both decisions in one signed session.
 - **Customer support / Zendesk** — a support workflow requests a governed reply draft through direct and adapter paths.
-- **GitHub Copilot CLI** — a real Copilot client sends model traffic through Talon and reaches a synthetic release boundary through Talon's MCP proxy.
+- **GitHub Copilot CLI (legacy standalone)** — historical Copilot client integration used the now-removed MCP proxy. **Not supported on current Talon main** until migrated to the governed `POST /mcp` action-source contract. No current-main Copilot runtime acceptance claimed.
 - **People Analytics Copilot** — start with DuckDB and workforce analytics, then integrate Talon using its actual `init`, `validate`, `secrets`, `serve` and `audit` commands. One browser, an explicitly configured MCP/LLM boundary, restricted SQL and signed policy-change evidence. [Integration guide](cases/people-analytics-copilot/README.md).
 - **n8n cost boundary** — an imported document workflow preserves partial business output when Talon prevents the next request on projected session cost.
 
