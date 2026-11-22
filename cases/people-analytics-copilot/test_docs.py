@@ -160,6 +160,20 @@ class DocumentationContract(unittest.TestCase):
         self.assertIn("Approvals", body)
         self.assertNotIn("approve/reject buttons", body.lower())
 
+    def test_quickstart_setup_works_from_case_directory(self):
+        """A user following the case README must not need to guess the cwd."""
+        body = (CASE / "README.md").read_text(encoding="utf-8")
+        setup = body.split("### Prepare Talon", 1)[1].split("## 1.", 1)[0]
+        first_step = body.split("## 1. Start DuckDB", 1)[1].split("## 2.", 1)[0]
+        self.assertIn("from this directory", setup)
+        self.assertIn("bash ../../scripts/prepare-people-analytics-talon.sh", setup)
+        self.assertIn('export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"', setup)
+        self.assertNotIn("bash scripts/prepare-people-analytics-talon.sh", setup)
+        self.assertNotIn("bash scripts/check-people-analytics-talon-binary.sh", setup)
+        self.assertNotIn("cd cases/people-analytics-copilot", first_step)
+        self.assertTrue((CASE / "../../scripts/prepare-people-analytics-talon.sh").resolve().is_file())
+        self.assertTrue((CASE / "../../scripts/check-people-analytics-talon-binary.sh").resolve().is_file())
+
     def test_governed_mcp_binary_pin_and_safe_reinitialization(self):
         """Old Talon schema must not silently reject read_only or overwrite vault state."""
         body = (CASE / "README.md").read_text(encoding="utf-8")
