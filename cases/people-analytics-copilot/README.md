@@ -79,11 +79,11 @@ flowchart LR
     subgraph AppNet["Application network"]
         W["Workforce application server"]
         A["Read-only chart / aggregate API"]
-        G["Talon LLM gateway (LIVE only)"]
         OC["Talon operations console (read-only)"]
     end
-    subgraph TalonNS["Network namespace shared only by talon-mcp and HR"]
+    subgraph TalonNS["Shared HR namespace: HR loopback, Talon MCP and LIVE gateway"]
         M["Talon governed MCP endpoint /mcp"]
+        G["Talon LLM gateway (LIVE only)"]
         H["HR MCP service (127.0.0.1 only)"]
     end
     subgraph HRNet["Private seed network"]
@@ -110,7 +110,7 @@ flowchart LR
     C -->|"Session summaries and signature checks"| E
 ```
 
-This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The **Workforce browser** reaches only the Workforce application on port 8501; a separate **operator browser** can pair with the read-only Talon operations console on host-loopback port 8787. Neither browser directly reaches the private HR service. The fixed chart API reads the DuckDB **file** via a read-only Docker volume without Talon. DuckDB is embedded, not a network database; the private HR service reads the same volume. The HR MCP service is the AI use case's **trusted MCP action source**: it listens on `127.0.0.1` inside a network namespace it shares only with `talon-mcp`, so Talon reaches it at `http://127.0.0.1:9091/mcp` and nothing on the application network can. Every tool call from the application goes to Talon's **governed MCP endpoint** (`POST /mcp`, talon#431) and is an Action Gateway operation: policy, at most one dispatch, signed lifecycle evidence. Talon governs intercepted model requests and these MCP actions, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
+This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The **Workforce browser** reaches only the Workforce application on port 8501; a separate **operator browser** can pair with the read-only Talon operations console on host-loopback port 8787. Neither browser directly reaches the private HR service. The fixed chart API reads the DuckDB **file** via a read-only Docker volume without Talon. DuckDB is embedded, not a network database; the private HR service reads the same volume. The HR MCP service is the AI use case's **trusted MCP action source**: it listens on `127.0.0.1` inside a namespace shared by `talon-mcp` and the LIVE-only `talon-gateway`, because both Talon processes independently discover the HR action catalog at startup. Both reach the HR backend at `http://127.0.0.1:9091/mcp`; nothing else on the application network can call HR directly. Every tool call from the application goes to Talon's **governed MCP endpoint** (`POST /mcp`, talon#431) and is an Action Gateway operation: policy, at most one dispatch, signed lifecycle evidence. Talon governs intercepted model requests and these MCP actions, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
 
 All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2, OpenSSL, Git and Go (for this **source-pinned, unreleased** governed-MCP demo). The customer-ready published-release path remains a separate acceptance gate.
 
