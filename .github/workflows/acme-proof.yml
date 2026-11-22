@@ -1,0 +1,22 @@
+name: ACME skeptical-buyer proof contract
+
+on:
+  pull_request:
+    paths:
+      - 'docs/SHOWCASE_LIVE_WALKTHROUGH.md'
+      - 'docs/COMPETITOR_PROOF_SCORECARD.md'
+      - 'README.md'
+      - 'scripts/check-acme-proof-contract.py'
+      - '.github/workflows/acme-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate that demo claims match accepted current-main boundaries
+        run: python3 scripts/check-acme-proof-contract.py

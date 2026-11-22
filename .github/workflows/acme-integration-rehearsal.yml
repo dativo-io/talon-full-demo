@@ -1,0 +1,85 @@
+name: Full Demo combined-PR merge rehearsal
+
+# Test what a consumer would actually see AFTER merging all current demo PRs.
+# This is a temporary integration worktree, not a merge into main or a release.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/acme-integration-rehearsal.yml'
+      - 'docs/DEMO_EXPERIENCE_INDEX.md'
+      - 'docs/SHOWCASE_LIVE_WALKTHROUGH.md'
+      - 'docs/COMPETITOR_PROOF_SCORECARD.md'
+      - 'docs/TALON_BUYER_WIN_STRATEGY.md'
+      - 'docs/RC2_CONSUMER_ACCEPTANCE.md'
+      - 'docs/AUDIENCE_DEMOS.md'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  combined-tree:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out actual Full Demo main (not an isolated PR)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Rehearse merging PR 45, 46, 52 and 51 together
+        run: |
+          set -euo pipefail
+          git config user.name "Talon ACME merge rehearsal"
+          git config user.email "talon-acceptance@users.noreply.github.com"
+          git fetch --no-tags origin \
+            refs/heads/feat/claude-postgres-incident-fixture:refs/remotes/origin/demo-pr45 \
+            refs/heads/docs/people-analytics-talon-ui-walkthrough:refs/remotes/origin/demo-pr46 \
+            refs/heads/feat/shopify-customer-support-reference:refs/remotes/origin/demo-pr52 \
+            refs/heads/docs/acme-release-aligned-showcase:refs/remotes/origin/demo-pr51
+          for label in demo-pr45 demo-pr46 demo-pr52 demo-pr51; do
+            echo "== Integrating $label"
+            git merge --no-ff --no-edit "origin/$label" || {
+              git status --short
+              echo "FAIL: merge conflict in combined Full Demo — no customer acceptance" >&2
+              exit 1
+            }
+          done
+          git log -5 --format='%h %s'
+          printf 'ACME merge rehearsal head: %s\n' "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Require a consistent customer journey and evidence labels
+        run: |
+          python3 scripts/check-acme-proof-contract.py
+          python3 scripts/check-demo-coherence.py
+          node integrations/n8n/shopify-support/workflow.test.cjs
+          bash -n integrations/n8n/shopify-support/test-n8n.sh
+          bash -n integrations/n8n/shopify-support/test-current-main-actions.sh
+          python3 -m py_compile integrations/n8n/shopify-support/fixture.py
+          python3 cases/people-analytics-copilot/test_docs.py -v
+      - name: Prepare existing HR local validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          python3 -m pip install -r cases/people-analytics-copilot/requirements.txt
+      - name: Build/test merged repository without live external systems
+        run: |
+          make validate-local
+      - name: Report precisely what was and wasn't run
+        run: |
+          {
+            echo 'PASS = mergeable combined tree and local static/contract tests on four PR tips.'
+            echo 'NOT RUN here: actual Talon RC2 binary, OpenShell/Claude same-hop C01–C12, four-app LIVE fleet, real Shopify/provider/finance.'
+            echo 'Runtime RC2 is checked by PR #52 tagged-source and separately published-binary jobs.'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -8,6 +8,23 @@ real application execution -> Talon evidence -> buyer projection / technical pro
 
 The buyer and technical views never use separate fixtures or presenter-authored success data. Each presenter recreates a signed session export, verifies it, and derives its output from the same evidence. The customer-support resolution additionally verifies a separate signed operator-decision receipt before presenting a completed result.
 
+## Buyer-path truth — exact Talon RC2 source tag (2026-11-21)
+
+Start with the [single ACME demo index](DEMO_EXPERIENCE_INDEX.md), then the [approved five-competitor proof scorecard](COMPETITOR_PROOF_SCORECARD.md) and [customer-first ACME walkthrough](SHOWCASE_LIVE_WALKTHROUGH.md) before leading a flagship presentation. Existing commands below are **standalone gallery scenes**, not the unified production pilot; buyer views require a verified run, never prefabricated success numbers.
+
+| Business case | What is actually executed and verified today | What is NOT YET proved |
+| --- | --- | --- |
+| **People Analytics** | Real Workforce/MCP/HR counters and signed allow/deny/upstream-rejection in the isolated fixture | Current-main **seven-area** Console pairing via published v1.17.0 and a second shared runtime identity |
+| **Shopify-style Customer Support** | [PR #52](https://github.com/dativo-io/talon-full-demo/pull/52): released v1.16.1/n8n 2.30.4 read/draft; joined source-built Talon/n8n 2.48.5 real workflow tests with synthetic Shopify/model/finance, native PII block, exact €25/249/750 operations and signed ledger | Real Shopify/payment, paid model and two-app shared ACME NOT RUN; **published RC2 synthetic Support has now PASSED** [consumer CI](https://github.com/dativo-io/talon-full-demo/actions/runs/44882306751) |
+| **Canonical action proof (one Support identity, second n8n graph)** | [Joined real n8n test](https://github.com/dativo-io/talon-full-demo/actions/runs/44826457464): Shopify read/draft and official canonical action workflow in the same Talon process with native `customer-support` key; exact trusted synthetic reviewer and counted effect | Not a single community template; unverified external merchant eligibility, real payment and full restart/UNKNOWN in same Shopify ticket |
+| **Customer Support reliability** | Existing standalone real-OpenAI fallback/redaction/provider evidence when actual keys are configured | Shared progressive ACME runtime and exact source-main/released cost projection |
+| **OrderDesk incident** | Real PostgreSQL fixture and published v1.16.1 host-key Action Gateway preflight | Real same-hop Claude Code/OpenShell C01–C12, independent sandbox and full seven-area Console |
+| **Document Processing** | Existing n8n import/pipeline and budget-denial proof with standalone fixtures; LIVE conditional on provider | Same shared runtime, genuinely priced Anthropic session and seven-area Console correlation |
+
+**RC2 source contract:** annotated tag `v1.17.0-rc.2` points to `3f3f20dff910dc2416c8d82467de2d4e2dd8acc5`, and core #562–#569/#572 are merged. RC2 is now a [published prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2) with Linux/amd64 archive SHA256 `5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c`; the Full Demo must independently execute that archive. The last confirmed published stable was v1.16.1. The Console has **seven read-only primary areas**: Overview, AI Use Cases, Approvals, Sessions, Costs, Configuration, System. Reviewer decisions use native CLI/API, not this UI. Approval is not dispatch; at-most-once Talon dispatch is not exactly-once external effect. Only routed/intercepted operations are governed. GUIDED is deterministic; LIVE provider claims need actual external calls and independent evidence.
+
+A skeptical buyer can credibly choose **Bifrost (Maxim AI), LiteLLM, Portkey, Solo.io agentgateway or TrueFoundry** for features Talon also offers. Do not sell generic tracing, routing, tool filtering, signed audits or reviewer buttons as exclusive. The differentiated evidence needed is **shared company policy across two existing apps** and an exact action/reviewer/claim/independent outcome chain. See [#47](https://github.com/dativo-io/talon-full-demo/issues/47) and [#50](https://github.com/dativo-io/talon-full-demo/issues/50). No unified pilot or Full ACME completion is claimed.
+
 ## Command matrix
 
 | Application case | Buyer view | Technical view | Re-present completed run |

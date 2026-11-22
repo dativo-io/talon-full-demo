@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# The merged-four-PR rehearsal must not fail silently on a contract assertion.
+trap 'rc=$?; printf "local validation failed at line %d: %s (exit=%s)\n" "$LINENO" "$BASH_COMMAND" "$rc" >&2' ERR
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 for cmd in go node npm jq curl python3 git; do
