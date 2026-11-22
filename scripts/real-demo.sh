@@ -130,7 +130,7 @@ prepare() {
   local talon_repo="${TALON_REPO:-$ROOT/../talon}"
   [[ -d "$talon_repo/examples/product-demo" ]] || die "clone dativo-io/talon next to this repo, or set TALON_REPO"
 
-  say "[1/4] Copying the pinned Talon demo configuration..."
+  say "[1/4] Copying Talon demo configuration from the selected source checkout..."
   TALON_REPO="$talon_repo" "$ROOT/scripts/bootstrap-talon-config.sh" >/dev/null
   export TALON_GATEWAY_CONFIG="$TALON_CONFIG"
 
