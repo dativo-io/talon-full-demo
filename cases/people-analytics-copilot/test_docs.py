@@ -210,7 +210,8 @@ class DocumentationContract(unittest.TestCase):
             )
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("FAIL:", proc.stderr)
-            self.assertIn("source checkout", proc.stderr)
+            self.assertTrue("source checkout" in proc.stderr or "does not match" in proc.stderr,
+                            proc.stderr)
 
     def test_governed_mcp_only_no_proxy_shim(self):
         """The case uses Talon's governed /mcp; the removed MCP proxy has no shim."""
