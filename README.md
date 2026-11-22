@@ -4,7 +4,9 @@
 
 This repository contains *customer-facing reference applications and independently executable proof* for [Dativo Talon](https://github.com/dativo-io/talon). The applications remain separate. Talon supplies shared company policy, operational identity, model/MCP/action controls, independent approvals, cost admission, read-only Operations Console and verifiable signed evidence **only for requests routed through it**.
 
-**Start here:** [Demo catalog](docs/DEMO_CATALOG.md) · [Guided ACME journey](docs/DEMO_EXPERIENCE_INDEX.md) · [Test and release matrix](docs/TEST_MATRIX.md) · [Documentation index](docs/README.md)
+**Start here:** [People Analytics: complete operator playbook](cases/people-analytics-copilot/PLAYBOOK.md) · [Demo catalog](docs/DEMO_CATALOG.md) · [Guided ACME journey](docs/DEMO_EXPERIENCE_INDEX.md) · [Test and release matrix](docs/TEST_MATRIX.md) · [Documentation index](docs/README.md)
+
+**Source policy for active demos:** use the current `dativo-io/talon` `main` branch at run time, not a hardcoded core SHA. Each run records the resolved Talon revision and tests compatibility. Historical release checks remain historical; a source-built run is not a verified stable release.
 
 ## The four ACME use cases
 
@@ -14,6 +16,8 @@ This repository contains *customer-facing reference applications and independent
 | **People Analytics** | DuckDB workforce aggregate and existing browser | Governed `POST /mcp`, employee-export deny, SQL UNKNOWN handling, shared Console | [People Analytics](cases/people-analytics-copilot/README.md) |
 | **OrderDesk / Engineering** | Real local PostgreSQL staging outage repaired; production preserved | HTTP Action Gateway company DENY, separate on-call reviewer, durable operation | [OrderDesk incident](cases/claude-postgres-incident/README.md) |
 | **Document Processing** | Useful synthetic document responses before budget exhaustion | Real Talon per-session cost admission; next provider call denied | [Document/n8n reference](integrations/n8n/README.md) |
+
+Each case has its own operator instructions. Start with the [People Analytics playbook](cases/people-analytics-copilot/PLAYBOOK.md) for a complete beginner-to-finish Docker example. The shared-fleet acceptance below is an advanced cross-case check.
 
 **n8n is an orchestrator inside Support and Documents, not a fifth AI use case.** Use one use-case identity/key each and configure the organization baseline once. HR uses canonical governed MCP; OrderDesk's HTTP Action Gateway is intentional. New adopters must **not** use the removed `/mcp/proxy` or `--proxy-config` interfaces.
 
@@ -35,18 +39,21 @@ make validate-local            # offline app contracts, source tests and native 
 make live-check                # real source-built Talon MCP denial + session budget
 ```
 
-To reproduce the **single-installation four-use-case control-plane test**, build the exact reviewed Talon main and run:
+To reproduce the **single-installation four-use-case control-plane test**, use Talon's current `main` (run from the Full Demo repository root):
 
 ```bash
-git clone https://github.com/dativo-io/talon.git ../talon
-git -C ../talon checkout 156188dea65cb6feab01aa92093a00e7717a6dd6
+git clone --branch main https://github.com/dativo-io/talon.git ../talon  # first run only
+git -C ../talon fetch origin main
+git -C ../talon checkout --detach origin/main
 mkdir -p .state
 go -C ../talon build -o "$PWD/.state/talon" ./cmd/talon
 TALON_FLEET_BIN="$PWD/.state/talon" \
 TALON_CORE_DIR="$(cd ../talon && pwd)" \
-TALON_CORE_SHA=156188dea65cb6feab01aa92093a00e7717a6dd6 \
+TALON_CORE_SHA="$(git -C ../talon rev-parse HEAD)" \
 python3 scripts/test-acme-one-fleet.py
 ```
+
+If `../talon` already exists, skip the clone. The resolved SHA is recorded for reproducibility, **not pinned** in the runnable instructions.
 
 The runner creates a disposable local installation, starts the HR/merchant/document fixtures plus actual PostgreSQL containers, verifies company policy and backend counters, pairs the native Console and tears down. **No paid provider keys or real merchant access are needed.** Docker and fixed fixture ports must be available. For the official current CI, see [ACME cross-consumer workflow](.github/workflows/acme-governed-main-acceptance.yml).
 
