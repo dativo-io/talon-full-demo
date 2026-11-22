@@ -305,6 +305,7 @@ gateway:
         doc_file = f"""agent:
   name: document-summary
   description: ACME document processing synthetic cost-bound use case
+  version: "1.0.0"
   tenant_id: acme
   key:
     secret_name: document-summary-talon-key
