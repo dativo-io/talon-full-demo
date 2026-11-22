@@ -56,18 +56,18 @@ jobs:
           ref: v1.17.0-rc.2
           path: talon
           persist-credentials: false
-      - name: Check out independent People Analytics PR 46 (not main fixture)
+      - name: Check out historical PR 46 RC2 consumer (immutable pre-convergence SHA)
         uses: actions/checkout@v4
         with:
           repository: dativo-io/talon-full-demo
-          ref: docs/people-analytics-talon-ui-walkthrough
+          ref: 94f01394ad7f76560e41242ee6c004e833f75cba
           path: hr-demo
           persist-credentials: false
-      - name: Check out independent OrderDesk PR 45 fixture
+      - name: Check out historical PR 45 RC2 fixture (immutable pre-main SHA)
         uses: actions/checkout@v4
         with:
           repository: dativo-io/talon-full-demo
-          ref: feat/claude-postgres-incident-fixture
+          ref: 79f500e43c21d7691e8c829334b510d88c4dd3ce
           path: orderdesk
           persist-credentials: false
       - uses: actions/setup-node@v4
