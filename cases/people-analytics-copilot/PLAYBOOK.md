@@ -202,6 +202,75 @@ This stops containers while keeping `.env`, `.state/talon`, and the
 synthetic DuckDB volume. **Do not use `down -v` or delete `.state`** unless
 you explicitly want a reset and have backed up the demo state.
 
+## Recover safely after a Docker/network restart
+
+**Use this only for an already-initialized demo.** In this Compose topology,
+`hr-mcp-net` owns the network namespace used by `hr-server`, `talon-mcp`,
+and optional `talon-gateway`. Rebuilding or recreating only the network owner
+while Talon is running can leave the Talon containers referencing a removed
+namespace. A subsequent `docker compose restart talon-mcp` can fail with
+`joining network namespace of container: No such container` even though
+individual containers previously appeared healthy.
+
+From `cases/people-analytics-copilot` on the **Linux Docker host**:
+
+```bash
+# Use the previously built, source-verified Talon executable.
+export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
+export HR_DEMO_AI_MODE=guided
+test -x "$HR_DEMO_TALON_BIN"
+
+# Stop the whole topology together; no -v (keep named DuckDB volume).
+docker compose -f compose.isolated.yaml \
+  --profile live --profile operator down
+
+# Restore GUIDED mode from the existing images, with one coherent network.
+docker compose -f compose.isolated.yaml \
+  --profile operator up --no-build -d \
+  hr-mcp-net hr-server dashboard talon-mcp ui talon-ui
+
+# Wait for dependencies and verify the private HR listener from its namespace.
+docker compose -f compose.isolated.yaml --profile operator ps
+docker compose -f compose.isolated.yaml exec -T hr-server \
+  python3 -c "from urllib.request import urlopen; print(urlopen('http://127.0.0.1:9091/debug/counters', timeout=5).status)"
+
+# This uses GET. The Workforce example does not promise to implement HEAD.
+curl --fail --silent --show-error --output /dev/null \
+  --write-out 'Workforce HTTP %{http_code}\n' http://127.0.0.1:8501/
+```
+
+Expected: HR returns `200`, Workforce returns `200`, and the relevant
+containers stay up. `down` without `-v` interrupts running requests but keeps
+the persisted `.env`, `.state/talon` vault/evidence and named DuckDB volume.
+Never run `down -v`, `init --force` or regenerate signing/vault keys to repair
+a container network. Do **not** repeatedly `up --build` only `hr-mcp-net` or
+`hr-server` while the dependent Talon containers are running. If an image
+has not yet been built, first stop the full topology as above, then build
+and start **all** its dependent services together instead of a subset.
+
+**Remote laptop:** the Workforce app is bound to the **Docker host's**
+`127.0.0.1:8501`; the Console is bound to `127.0.0.1:8787`.
+HTTP `200` when curling on the host does not imply the URL is reachable
+from your laptop. From the **laptop**, tunnel both:
+
+```bash
+ssh -N -L 8501:127.0.0.1:8501 -L 8787:127.0.0.1:8787 USER@SERVER_IP
+```
+
+Then open `http://127.0.0.1:8501/` and `http://127.0.0.1:8787/` on
+the laptop. If the Console works but the Workforce app does not, check that
+port `8501` is included in the tunnel and that no local process owns it.
+
+**Console readiness:** GUIDED mode intentionally does **not** start the
+optional LIVE LLM gateway. A prior graceful shutdown may remain visible as
+an `LLM gateway is offline` runtime fact in the Console; do not mistake this
+for a fresh model call failure or claim that LIVE inference works. If
+**Configuration activation** is still degraded, inspect the current finding
+and `docker compose ... logs hr-server talon-mcp`; an old rejected
+configuration is not evidence that the current active policy is healthy.
+Verify the MCP route and three outcomes in step 4 before presenting.
+For a LIVE run, follow step 6 and separately verify actual provider traffic.
+
 ## Troubleshooting
 
 | Symptom | Check |
