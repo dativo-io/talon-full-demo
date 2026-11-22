@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "orderdesk-governed-actions": {
+      "type": "stdio",
+      "command": "/usr/local/bin/node",
+      "args": [
+        "--experimental-strip-types",
+        "/opt/incident/src/mcp-bridge.ts"
+      ]
+    }
+  }
+}

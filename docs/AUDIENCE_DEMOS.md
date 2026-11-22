@@ -29,6 +29,20 @@ All real-provider cases require `make real-prepare`, `make real-start`, and a he
 An existing [DuckDB workforce application](../cases/people-analytics-copilot/README.md) integrates Talon with its regular CLI and YAML. The app has one browser on port 8501; Docker keeps it away from the private HR database. Talon governs routed LLM/MCP calls, and the HR backend independently validates SQL. Changing a Talon MCP allowlist changes the result of the same SQL request, without modifying the app.
 
 
+## OrderDesk Claude Code incident (application-first, integration in progress)
+
+Like [People Analytics](../cases/people-analytics-copilot/README.md), start with a **real application outcome**, then introduce Talon to govern requests and verify effects independently. OrderDesk has a real PostgreSQL staging outage and read-only orders-summary endpoint; a protected executor can reconcile only a fixed staging credential revision. Talon's **Action Gateway** governs exact authorization, approval and dispatch, while OpenShell is responsible for the coding agent's network/process containment. This differs from People Analytics' MCP-proxy aggregate analytics and browser UI; the intended operator view is Claude Code + a separate on-call review terminal.
+
+Developer/test commands (not buyer or technical presenters):
+
+```bash
+make incident-contract-test
+make incident-fixture-validate
+make incident-talon-preflight
+```
+
+**Proof status:** the no-key real PostgreSQL fixture and **host-key** Talon API preflight test business recovery, company-source DENY, approval, replay and signed operation verification. They **do not** prove a verified sandbox identity, an OpenShell-blocked hook, or Claude Code selecting an actual tool. #42 and #44 own the remaining integrated execution and signed shared-session buyer/technical presenters. Do **not** add `demo-incident-buyer` or `present-incident-all` to the command matrix until both derive from a verified Full Demo run. See [incident guide](../cases/claude-postgres-incident/README.md), [CI coverage](../cases/claude-postgres-incident/CI_COVERAGE.md), and [frozen acceptance contract](CLAUDE_POSTGRES_INCIDENT_CONTRACT.md).
+
 ## 1. Customer-support gateway
 
 ```bash
