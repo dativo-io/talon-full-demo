@@ -45,7 +45,16 @@ require("Console review is read-only", "read-only" in index.lower() and "approva
 require("n8n is integration rather than fifth app", "not a fifth" in index.lower())
 require("source-build does not assert published artifact", "tag-built rc2 source" in index.lower() and "published rc2 binary" in index.lower())
 require("UNKNOWN and at-most-once are qualified", "unknown" in index.lower() and "at-most-once" in index.lower() and "not exactly-once" in index.lower())
-require("two-app pilot is explicitly NOT yet accepted", "two-app" in index.lower() and "not a fully runnable unified" in index.lower())
+require("one shared Talon data plane has real, traceable, source-built fleet proof",
+        "shared-company technical acceptance: pass" in index.lower() and
+        "41 signed records" in index.lower() and
+        "eight valid action lifecycles" in index.lower() and
+        "45014911307" in index)
+require("published persistent four-client customer showcase is NOT yet accepted",
+        "published official-artifact persistent deployment" in index.lower() and
+        "actual n8n ui" in index.lower() and
+        "claude/openshell" in index.lower() and
+        "not run" in index.lower())
 
 # No broken local links within the canonical merged buyer index.
 for link in re.findall(r"(?<!!)\[[^\]]+\]\(([^)]+)\)", index):
