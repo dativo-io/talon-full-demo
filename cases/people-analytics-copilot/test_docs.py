@@ -195,7 +195,7 @@ class DocumentationContract(unittest.TestCase):
         playbook = (CASE / "PLAYBOOK.md").read_text(encoding="utf-8")
         self.assertIn("current", playbook)
         self.assertIn("Talon main", playbook)
-        self.assertNotIn("git checkout 156188", playbook)
+        self.assertNotRegex(playbook, r"(?m)^\\s*git(?:\\s+-C\\s+\\S+)?\\s+checkout\\s+[0-9a-f]{40}\\b")
         for script in ("scripts/prepare-people-analytics-talon.sh",
                        "scripts/check-people-analytics-talon-binary.sh"):
             proc = subprocess.run(["bash", "-n", str(ROOT / script)], capture_output=True, text=True)
