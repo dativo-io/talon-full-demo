@@ -146,6 +146,20 @@ def main():
     assert records, timeline
     agents = {r.get('agent_id') for r in records}
     assert agents == {AGENT}, agents
+    # The signed-evidence rollup keeps outcomes apart (Talon #589): the export
+    # Talon refused is a denied tool call; the aggregate the HR validator
+    # rejected after dispatch is an unknown outcome, never a policy denial.
+    summary = timeline['summary']
+    outcomes = [r.get('outcome') or {} for r in records]
+    denied = [o for o in outcomes if o.get('decision') == 'denied']
+    unknown = [o for o in outcomes if o.get('dispatch') == 'unknown']
+    assert unknown and all(o.get('decision') == 'allowed' for o in unknown), unknown
+    assert summary.get('denied') == len(denied), (summary.get('denied'), len(denied))
+    assert summary.get('tool_calls_denied', 0) >= 1, summary
+    assert summary.get('tool_calls_unknown', 0) >= 1, summary
+    print(f"PASS: session rollup: {summary.get('tool_calls', 0)} governed tool calls, "
+          f"{summary['tool_calls_denied']} denied by Talon, {summary['tool_calls_unknown']} with an unknown outcome "
+          f"(the HR rejection is never counted as a Talon denial)")
     seen_ops = {e['operationRef'] for e in operations.values()}
     with tempfile.TemporaryDirectory() as temp:
         out = str(Path(temp) / 'session.json')
