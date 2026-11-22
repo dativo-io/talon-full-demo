@@ -112,18 +112,36 @@ flowchart LR
 
 This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The **Workforce browser** reaches only the Workforce application on port 8501; a separate **operator browser** can pair with the read-only Talon operations console on host-loopback port 8787. Neither browser directly reaches the private HR service. The fixed chart API reads the DuckDB **file** via a read-only Docker volume without Talon. DuckDB is embedded, not a network database; the private HR service reads the same volume. The HR MCP service is the AI use case's **trusted MCP action source**: it listens on `127.0.0.1` inside a network namespace it shares only with `talon-mcp`, so Talon reaches it at `http://127.0.0.1:9091/mcp` and nothing on the application network can. Every tool call from the application goes to Talon's **governed MCP endpoint** (`POST /mcp`, talon#431) and is an Action Gateway operation: policy, at most one dispatch, signed lifecycle evidence. Talon governs intercepted model requests and these MCP actions, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
 
-All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2 and OpenSSL. Talon itself must come from a verified release artifact; Go is not required.
+All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2, OpenSSL, Git and Go (for this **source-pinned, unreleased** governed-MCP demo). The customer-ready published-release path remains a separate acceptance gate.
 
 **Talon version requirement:** this case uses Talon's governed MCP endpoint (talon#431), which **no published Talon release contains yet**. Until one does, it runs only against the candidate commit in [`TALON_GOVERNED_MCP_COMMIT`](TALON_GOVERNED_MCP_COMMIT), built from source by CI — internal acceptance, **not** customer-facing proof. Releases up to v1.17.0-rc.2 serve the removed MCP proxy (`--proxy-config`, `/mcp/proxy`) instead and cannot run this version of the case.
 
 **Release acceptance gate:** the complete official v1.17.0 stable release is the customer baseline (core #562–569/#572). RC.1 is incomplete; earlier compatible candidate runs can provide internal Console evidence only. Record the exact tag/commit, platform, executable checksum and image digest. Follow the released [official installation guidance](https://github.com/dativo-io/talon/releases) and verify its artifacts using the matching release's verification instructions. This draft has not yet been exercised on that stable release; do not replace the pin with a floating source build.
 
-The supported no-source-build paths are the verified Linux binary or published image. Use the final release's supported persistent deployment and Console pairing instructions. The new no-clone quickstart is a separate disposable, keyless policy proof (it does not open the console or call a provider, and cleans up by default); it is not this application's running deployment. This isolated fixture currently mounts the installed Linux Talon binary into its Linux containers. Do not mount a macOS binary into Docker or silently build Talon from source. Before customer acceptance reconcile the fixture with the released supported path and verify by actually running it.
+The future no-source-build paths are a verified release Linux binary or published image **after** the target schema is actually released and re-tested. In the meantime this standalone demo requires a **source-built Linux Talon** at the pinned governed-MCP commit. The `read_only: true` overlays on the four HR actions are **supported** by that source commit but **rejected** by older binaries including v1.17.0-rc.2. Removing `read_only` is not a valid workaround: it would change aggregate execution from one-call reads to prepared consequential operations.
+
+### One-time prerequisite: select the correct Talon binary
+
+From the **Full Demo repository root** on Ubuntu:
 
 ```bash
-talon version
-talon ui serve --help  # Check the installed release's supported flags
+bash scripts/prepare-people-analytics-talon.sh
+export HR_DEMO_TALON_BIN="$PWD/.state/talon-bin/talon"
+bash scripts/check-people-analytics-talon-binary.sh "$HR_DEMO_TALON_BIN"
 ```
+
+The builder clones the **exact** `TALON_GOVERNED_MCP_COMMIT` under ignored `.state/talon-source`, builds a Linux executable under ignored `.state/talon-bin` and verifies its embedded Git commit using `go version -m`. It **never modifies** `cases/people-analytics-copilot/.env`, `.state/talon`, existing vault keys or evidence. This is an **internal source-built demo**, not a verification of a published stable artifact. Do not mount a host macOS executable into Linux Docker.
+
+**Common failure on Ubuntu:** `read_only: Additional property is not allowed` means Compose is mounting the **wrong executable** via `HR_DEMO_TALON_BIN` even if the policy YAML is correct. Check both the host and container before running `talon init`:
+
+```bash
+cd cases/people-analytics-copilot
+export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
+bash ../../scripts/check-people-analytics-talon-binary.sh "$HR_DEMO_TALON_BIN"
+docker compose -f compose.isolated.yaml run --rm talon-cli talon version
+```
+
+If `talon doctor` reports `llm_keys: No LLM provider configured`, that is expected for the **GUIDED** deterministic tool demo: it makes **no model calls**. `talon validate` must still pass policy schema validation. LIVE model mode requires separately configuring an actual provider secret and Talon gateway; `talon doctor`'s LLM readiness check is not a substitute for checking policy compatibility. A standalone `agent.talon.yaml` without `talon.config.yaml` means there is **no company-level baseline** in this isolated case; use the [shared ACME fleet](../../scripts/test-acme-one-fleet.py) to prove four agent identities inheriting one company policy.
 
 ## 1. Start DuckDB and the existing analytics services
 
@@ -131,7 +149,8 @@ From the demo repository:
 
 ```bash
 cd cases/people-analytics-copilot
-export HR_DEMO_TALON_BIN="$(command -v talon)"
+export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
+bash ../../scripts/check-people-analytics-talon-binary.sh "$HR_DEMO_TALON_BIN"
 
 # Local secrets for the Talon vault, audit signatures and admin access.
 # .env is ignored by Git; it contains no OpenAI key.
@@ -190,17 +209,41 @@ As an alternative when intentionally retaining the existing state, `talon secret
 We use Docker to put the Talon CLI on the correct application network, running under your host UID so the generated files remain editable. The commands themselves are the **normal Talon CLI**, not an initialization script.
 
 ```bash
-docker compose -f compose.isolated.yaml run --rm talon-cli talon init --scaffold --name hr-analytics-assistant
+# Check the version BEFORE creating or changing any state.
+bash ../../scripts/check-people-analytics-talon-binary.sh "$HR_DEMO_TALON_BIN"
+docker compose -f compose.isolated.yaml run --rm talon-cli talon version
 
-# The scaffold is real. Start with the app-specific example policies, then edit them.
-cp agent.talon.yaml .state/talon/agent.talon.yaml
-cp gateway.talon.yaml .state/policy/gateway.talon.yaml
+# Init is one-time only. NEVER use --force on existing .state/talon.
+# talon init also refuses when agent.talon.yaml is already present.
+if [ ! -f .state/talon/agent.talon.yaml ]; then
+  docker compose -f compose.isolated.yaml run --rm talon-cli \
+    talon init --scaffold --name hr-analytics-assistant
+  cp agent.talon.yaml .state/talon/agent.talon.yaml
+else
+  echo "Keeping existing HR agent policy, vault and evidence; skipping init."
+fi
+
+# Preserve existing gateway changes; don't clobber a live provider configuration.
+if [ ! -f .state/policy/gateway.talon.yaml ]; then
+  cp gateway.talon.yaml .state/policy/gateway.talon.yaml
+fi
 ${EDITOR:-vi} .state/talon/agent.talon.yaml
 
 docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
 docker compose -f compose.isolated.yaml run --rm talon-cli talon secrets set \
   hr-analytics-assistant-talon-key talon-hr-demo-key-0001
 ```
+
+### If this is an existing demo installation
+
+Do **not** repeat `talon init --scaffold` once `.state/talon/agent.talon.yaml` exists; `already exists` is an expected guard, not proof that initialization failed. If you copied the current policy into that state while using an older binary, the correct repair is to **change the mounted binary**, not to delete `read_only`, reset the vault, change signing keys or overwrite the agent file. Once the mounted binary prints the pinned version, run:
+
+```bash
+docker compose -f compose.isolated.yaml run --rm talon-cli talon validate
+docker compose -f compose.isolated.yaml --profile operator up -d --force-recreate talon-mcp
+```
+
+Restart any additional Talon gateway/Console service you have enabled to ensure it uses the same new binary. If the source pin differs in your checkout, run `git pull` on the Full Demo repository first and rebuild with the helper. The demonstration key `talon-hr-demo-key-0001` and the default allow-all secret ACL are **only for a disposable single-use-case demo**; never use them for production tenants.
 
 The two relevant files are:
 
@@ -236,7 +279,7 @@ docker compose -f compose.isolated.yaml --profile live up --build --force-recrea
 In another terminal, from this same directory and with `HR_DEMO_TALON_BIN` exported:
 
 ```bash
-export HR_DEMO_TALON_BIN="$(command -v talon)"
+export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
 HR_DEMO_AI_MODE=live docker compose -f compose.isolated.yaml up --no-deps -d ui
 # Separate read-only operator view; does not restart the gateway or the MCP endpoint.
 docker compose -f compose.isolated.yaml --profile operator up -d talon-ui
