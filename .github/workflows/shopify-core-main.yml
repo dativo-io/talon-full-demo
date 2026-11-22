@@ -35,7 +35,7 @@ jobs:
             orderdesk: 79f500e43c21d7691e8c829334b510d88c4dd3ce    # #45 head, unmodified bridge (control)
           - candidate: talon-pr589
             sha: 60aebf26efe852e43d962233bd86d363efab397b
-            pa_consumer: 3a7fbb89c399fb5c3cd8b5b81c190f9b8b64dc45  # feat/people-analytics-governed-mcp
+            pa_consumer: c304ff13f78395cd1c6f389499d47240a106c7b8  # feat/people-analytics-governed-mcp
             orderdesk: 7fe0e5bb5a4903500c1bbf6b58aa9dc472c380e8    # fix/orderdesk-durable-intent-ids
     env:
       TALON_CORE_SHA: ${{ matrix.sha }}
