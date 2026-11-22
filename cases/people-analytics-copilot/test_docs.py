@@ -167,6 +167,17 @@ class DocumentationContract(unittest.TestCase):
                        "scripts/check-people-analytics-talon-binary.sh"):
             proc = subprocess.run(["bash", "-n", str(ROOT / script)], capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, f"{script}: {proc.stderr}")
+        # A clearly wrong executable should fail before any Talon state change.
+        if shutil.which("go"):
+            import sys
+            proc = subprocess.run(
+                ["bash", str(ROOT / "scripts/check-people-analytics-talon-binary.sh"),
+                 sys.executable],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("Expected:", proc.stderr)
+            self.assertIn("prepare-people-analytics-talon.sh", proc.stderr)
 
     def test_governed_mcp_only_no_proxy_shim(self):
         """The case uses Talon's governed /mcp; the removed MCP proxy has no shim."""
