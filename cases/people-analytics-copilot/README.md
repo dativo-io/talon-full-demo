@@ -313,22 +313,29 @@ No OpenAI key? Run `docker compose -f compose.isolated.yaml --profile operator u
 The two UIs have different jobs. **Workforce app** at [127.0.0.1:8501](http://127.0.0.1:8501/) makes AI/HR requests and shows the synthetic workforce charts. **Talon operations console** at [127.0.0.1:8787](http://127.0.0.1:8787/) explains what Talon saw: runtime status, current versus loaded policy, session evidence, denials, and costs. The console never sends requests to the HR backend or changes policy.
 
 ```bash
-# From cases/people-analytics-copilot: start the operator console.
-# 'up -d' prints only container status, NOT the code from process stdout.
+# Run from cases/people-analytics-copilot, with HR_DEMO_TALON_BIN set.
+# Start the read-only Console without exposing it beyond host localhost.
 docker compose -f compose.isolated.yaml --profile operator up -d talon-ui
 
-# Read the pairing code from the real console process logs (keep it private).
-docker compose -f compose.isolated.yaml --profile operator logs --tail=40 talon-ui
+# Check that it is running. If not, see "Troubleshooting" below.
+docker compose -f compose.isolated.yaml --profile operator ps talon-ui
 
-# If the code has expired or the logs contain no usable code, issue a new one:
+# Request a NEW code. IMPORTANT: this command prints a confirmation,
+# NOT the pairing code; the running Console prints the code to its own stdout.
 docker compose -f compose.isolated.yaml --profile operator exec -T talon-ui talon ui pair
-docker compose -f compose.isolated.yaml --profile operator logs --tail=20 talon-ui
 
-# If the console has exited or restarted, inspect before requesting a code:
-docker compose -f compose.isolated.yaml --profile operator ps -a talon-ui
+# Read the code locally from the Console container's log.
+# Run promptly; the most recent "Talon console pairing code:" is the valid one.
+docker compose -f compose.isolated.yaml --profile operator logs --no-color --tail=30 talon-ui
 ```
 
+**Expected log line:** `Talon console pairing code: XXXXX-XXXXX-XXXXX-XXXXX` (the X characters illustrate the *format*, not a working code). Enter the **most recent actual code**, not the command's `Asked console process ...` confirmation. Generating a new code invalidates the previous unredeemed code. `up -d` only reports container startup; it **never prints pairing credentials in your terminal**.
+
+**Troubleshooting — no pairing code in the logs:** check `docker compose -f compose.isolated.yaml --profile operator ps -a talon-ui` and `docker compose -f compose.isolated.yaml --profile operator logs --tail=100 talon-ui`. If the Console exited, fix the logged startup error (such as missing `/state/evidence.db`), make sure `talon-mcp` has started, and recreate `talon-ui`. If `talon ui pair` says `no running console found` or `console process ... not reachable`, inspect/restart the `talon-ui` container; do not try `talon ui pair` from the host or from `talon-cli` because it must signal the **running Console process inside `talon-ui`**. The pair command itself never outputs the code.
+
 Open **http://127.0.0.1:8787/** and enter the fresh, single-use pairing code. The browser gets a **read-only session cookie**, not an admin, provider, vault or agent key. Do not expose this port beyond localhost or publish pairing codes in screenshots or shared logs. The **`operator` Compose profile** keeps the console opt-in. The Compose service mounts the **same Talon state and policy files**, but runs on `app_net` only (no `private_hr` network); only the evidence **signing** key is passed to it for HMAC verification.
+
+**Remote Ubuntu host:** port `8787` is intentionally bound to **the server's loopback**, so the Console isn't directly reachable from a laptop. Start `ssh -L 8787:127.0.0.1:8787 <user>@<server-ip>` in your laptop's terminal, then visit `http://127.0.0.1:8787/` **on the laptop**. Keep the one-time code private; do not add it to the README, screenshots, tickets or GitHub Actions logs.
 
 **First operator check — Overview:** distinguish installation readiness from use-case attention. Select **AI Use Cases → hr-analytics-assistant → Summary** to show its actual identity, policy and available activity. Fresh traffic history is not proof of health. In **Configuration**, inspect the organization/use-case settings and the current versus loaded generation (only claim activation when proven).
 
