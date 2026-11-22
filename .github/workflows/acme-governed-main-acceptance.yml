@@ -122,12 +122,22 @@ jobs:
         run: |
           test "$(cat TALON_PINNED_COMMIT)" = "$TALON_MAIN_SHA"
           make live-check
+      - name: ONE real Talon installation — FOUR use cases, one company policy, counted outcomes and native Console
+        working-directory: full-demo
+        timeout-minutes: 22
+        env:
+          TALON_FLEET_BIN: ${{ runner.temp }}/bin/talon
+          TALON_CORE_DIR: ${{ github.workspace }}/talon
+          TALON_CORE_SHA: ${{ env.TALON_MAIN_SHA }}
+        run: |
+          python3 -m py_compile scripts/test-acme-one-fleet.py scripts/acme-fleet-provider.py
+          python3 scripts/test-acme-one-fleet.py
       - name: Acceptance boundary
         if: ${{ !cancelled() }}
         run: |
           {
-            echo 'All green steps above execute REAL Talon source main, HR trusted MCP, actual n8n 2.48.5 and synthetic finance, PostgreSQL and durable HTTP action gateway.'
-            echo 'NOT RUN: combined persistent four-application ACME fleet, paired native Console browser, real Shopify payments, real model/provider credentials, real Claude/OpenShell C01–C12.'
+            echo 'All green steps above execute REAL Talon source main, HR trusted MCP, actual n8n 2.48.5, PostgreSQL, durable HTTP actions AND one separate four-use-case same-process fleet gate with independent counters and native paired Console.'
+            echo 'NOT RUN: a single interactive end-to-end n8n+Workforce+Claude+Document showcase driven by all four actual app UIs; paid model, live Shopify, genuine Claude/OpenShell C01–C12, published stable artifact.'
             echo 'Each synthetic fixture uses independent downstream counters and signed evidence.'
           } >> "$GITHUB_STEP_SUMMARY"
 
