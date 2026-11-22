@@ -2,6 +2,14 @@ name: Shopify support against pinned Talon source commits (RC2 tag included)
 
 # RC2 tag maps to an immutable source commit. This lane builds and exercises
 # that exact commit; it is NOT the verified release archive or image.
+#
+# People Analytics consumer per candidate (exact Full Demo SHAs, recorded in
+# the job summary): RC2 predates governed MCP and runs Full Demo main's
+# proxy-based case as the CONTROL; Merged Talon main #589 removes the MCP proxy and runs
+# the migrated consumer (verified governed-MCP HR consumer). #589 against the
+# unmigrated case is an expected break (--proxy-config refused), not a test.
+# Independent steps run even when an earlier one failed, so a blocked step
+# never hides the others; each is gated only on its own prerequisites.
 on:
   pull_request:
     paths:
@@ -23,8 +31,12 @@ jobs:
         include:
           - candidate: rc2-tag-source
             sha: 3f3f20dff910dc2416c8d82467de2d4e2dd8acc5
-          - candidate: pre-rc2-regression
-            sha: 6a01d985746e203808f11943778b4fbd5c7857e9
+            pa_consumer: e7fadfc3f84a3f768afa7b91b73ca85b317c051b  # Full Demo main: proxy-based People Analytics (control)
+            orderdesk: 79f500e43c21d7691e8c829334b510d88c4dd3ce    # #45 head, unmodified bridge (control)
+          - candidate: merged-main-589
+            sha: 156188dea65cb6feab01aa92093a00e7717a6dd6
+            pa_consumer: 5f503ce898e51fa1ea083c576d93f92134177e4d  # feat/people-analytics-governed-mcp
+            orderdesk: 7fe0e5bb5a4903500c1bbf6b58aa9dc472c380e8    # fix/orderdesk-durable-intent-ids
     env:
       TALON_CORE_SHA: ${{ matrix.sha }}
     steps:
@@ -40,13 +52,31 @@ jobs:
           ref: ${{ env.TALON_CORE_SHA }}
           path: talon
           persist-credentials: false
-      - name: Check out the real OrderDesk consumer PR 45 fixture
+      - name: Check out the People Analytics consumer for this candidate
         uses: actions/checkout@v4
         with:
           repository: dativo-io/talon-full-demo
-          ref: feat/claude-postgres-incident-fixture
+          ref: ${{ matrix.pa_consumer }}
+          path: pa-consumer
+          persist-credentials: false
+      - name: Check out the real OrderDesk consumer for this candidate
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon-full-demo
+          ref: ${{ matrix.orderdesk }}
           path: orderdesk
           persist-credentials: false
+      - name: Record exact provenance
+        run: |
+          {
+            echo "Talon candidate: ${{ matrix.candidate }} $(git -C talon rev-parse HEAD)"
+            echo "People Analytics consumer: $(git -C pa-consumer rev-parse HEAD)"
+            echo "OrderDesk consumer: $(git -C orderdesk rev-parse HEAD)"
+            echo "Full Demo PR checkout: $(git -C full-demo rev-parse HEAD)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          test "$(git -C talon rev-parse HEAD)" = "${{ matrix.sha }}"
+          test "$(git -C pa-consumer rev-parse HEAD)" = "${{ matrix.pa_consumer }}"
+          test "$(git -C orderdesk rev-parse HEAD)" = "${{ matrix.orderdesk }}"
       - uses: actions/setup-go@v5
         with:
           go-version-file: talon/go.mod
@@ -56,6 +86,7 @@ jobs:
         with:
           node-version: '24'
       - name: Build pinned candidate source, without claiming released artifact
+        id: build
         run: |
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev
@@ -63,25 +94,42 @@ jobs:
           "$RUNNER_TEMP/talon" version
           sha256sum "$RUNNER_TEMP/talon"
       - name: Execute Full Demo Shopify Stage A and canonical actions against candidate
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         env:
           TALON_EXTERNAL_BIN: ${{ runner.temp }}/talon
           N8N_IMAGE: docker.n8n.io/n8nio/n8n:2.48.5
           TALON_CORE_DIR: ${{ github.workspace }}/talon
         run: bash full-demo/integrations/n8n/shopify-support/test-n8n.sh
       - name: Install independent People Analytics fixture dependencies
-        run: python3 -m pip install -r full-demo/cases/people-analytics-copilot/requirements.txt
+        id: pa_deps
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python3 -m pip install -r pa-consumer/cases/people-analytics-copilot/requirements.txt
       - name: Real candidate People Analytics MCP, gateway, tools and signed evidence
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.pa_deps.outcome == 'success' }}
         env:
           PATH: ${{ runner.temp }}:/usr/local/bin:/usr/bin:/bin
-        run: bash full-demo/scripts/test-people-analytics-talon.sh
+        run: bash pa-consumer/scripts/test-people-analytics-talon.sh
       - name: Real OrderDesk synthetic PostgreSQL and Talon Action Gateway host preflight
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         env:
           TALON_CLI: ${{ runner.temp }}/talon
         run: |
           bash orderdesk/cases/claude-postgres-incident/validate-fixture.sh
           bash orderdesk/cases/claude-postgres-incident/validate-talon-actions.sh
           echo 'OrderDesk HOST-KEY preflight passed. OpenShell C01–C12 is NOT RUN.' >> "$GITHUB_STEP_SUMMARY"
+      - name: OrderDesk bridge per-intent operation identity against the candidate (real Talon, restarted bridge)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          TALON_CLI: ${{ runner.temp }}/talon
+        run: |
+          if [ ! -f orderdesk/cases/claude-postgres-incident/validate-bridge-intents.sh ]; then
+            echo 'OrderDesk bridge intents: NOT APPLICABLE (this consumer revision has the argument-derived bridge)' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          (cd orderdesk && make incident-bridge-intents)
+          echo 'OrderDesk bridge intents passed against the candidate.' >> "$GITHUB_STEP_SUMMARY"
       - name: Independent Document Processing admission contract on same candidate
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         env:
           TALON_BIN: ${{ runner.temp }}/talon
           TALON_TOKEN_CONTRACT_MODE: core-main
@@ -89,6 +137,8 @@ jobs:
           cd full-demo
           make tokeneconomizer-contract
       - name: Install core-reference n8n 2.48.5
+        id: n8n_install
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           mkdir -p "$RUNNER_TEMP/n8n"
           cd "$RUNNER_TEMP/n8n"
@@ -96,6 +146,7 @@ jobs:
           npm rebuild sqlite3
           test "$(./node_modules/.bin/n8n --version | tail -n1)" = "2.48.5"
       - name: Execute native canonical action integration and independent counts
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.n8n_install.outcome == 'success' }}
         env:
           N8N_BIN: ${{ runner.temp }}/n8n/node_modules/.bin/n8n
           TALON_BIN: ${{ runner.temp }}/talon
