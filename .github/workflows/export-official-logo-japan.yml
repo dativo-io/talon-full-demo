@@ -1,0 +1,32 @@
+name: Export official Talon website logo for Japan presentation
+on:
+  push:
+    branches: [validation/japan-keynote-logo-2026-11-22]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  logo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon-www
+          ref: main
+          persist-credentials: false
+      - name: Export exact public Talon brand asset
+        run: |
+          set -euo pipefail
+          test -s public/assets/talon-logo.png
+          test -s public/assets/talon-mark.svg
+          mkdir -p logo
+          cp public/assets/talon-logo.png logo/talon-logo-official.png
+          cp public/assets/talon-mark.svg logo/talon-mark-official.svg
+          sha256sum logo/*
+          file logo/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: talon-official-logo-for-partner-deck
+          path: logo/
+          retention-days: 7
