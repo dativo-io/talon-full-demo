@@ -7,7 +7,7 @@
 The active demo follows `dativo-io/talon` **main at execution time** and records the revision it built. This is source-built proof, not verification of a published release. The RC2 checks remain historical.
 
 ```bash
-git clone --branch main https://github.com/dativo-io/talon.git  # first run only
+if [ ! -d talon/.git ]; then git clone --branch main https://github.com/dativo-io/talon.git; fi
 git -C talon fetch origin main
 git -C talon checkout --detach origin/main
 mkdir -p bin
