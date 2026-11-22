@@ -1,6 +1,6 @@
 # Dativo Talon Full Demo — one coherent ACME journey
 
-*Canonical entry point for customer demos when PRs #45, #46, #51 and #52 integrate. Present status: **coordination and verification guide, not yet a fully runnable unified ACME installation**. Updated November 22, 2026 for merged Talon main PR #589 (exact source commit `156188dea65cb6feab01aa92093a00e7717a6dd6`). The published RC2 tests remain historical release-control evidence, not proof of this architecture.*
+*Canonical entry point for customer demos when PRs #45, #46, #51 and #52 integrate. Present status: **coordination and verification guide, not a fully runnable unified ACME installation**. Updated November 22, 2026 for merged Talon main PR #589 (exact source commit `156188dea65cb6feab01aa92093a00e7717a6dd6`). The published RC2 tests remain historical release-control evidence, not proof of this architecture.*
 
 ## Current adoption path — governed MCP, one canonical Action Gateway
 
