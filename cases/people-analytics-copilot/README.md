@@ -2,6 +2,8 @@
 
 > **Looking to run this demo?** Follow the [complete operator playbook](PLAYBOOK.md): current Talon `main`, setup, GUIDED/LIVE, pairing, evidence, troubleshooting, and safe shutdown. **This document is supplementary architecture, verification, and historical test evidence**, not a step-by-step quickstart.
 
+> **Recovering a running installation?** The [GUIDED/LIVE whole-stack recovery recipe](PLAYBOOK.md#recover-safely-after-a-dockernetwork-restart) checks the dashboard on port 9093, the governed MCP source on 9091, the optional LIVE gateway on 8082 and the Workforce UI on 8501. Recreate the shared namespace as a unit, preserve `.env` / `.state/talon` / named DuckDB volumes, and do not mistake a reachable UI or a healthy MCP policy decision for a healthy chart or model dependency. [Remaining readiness issue #62](https://github.com/dativo-io/talon-full-demo/issues/62).
+
 ## Talon at a glance
 
 ```mermaid
