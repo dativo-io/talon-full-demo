@@ -1,4 +1,6 @@
-# Add Talon to a People Analytics application
+# People Analytics — technical reference
+
+> **Looking to run this demo?** Follow the [complete operator playbook](PLAYBOOK.md): current Talon `main`, setup, GUIDED/LIVE, pairing, evidence, troubleshooting, and safe shutdown. **This document is supplementary architecture, verification, and historical test evidence**, not a step-by-step quickstart.
 
 ## Talon at a glance
 
@@ -29,11 +31,11 @@ This example begins with an ordinary workforce application: **DuckDB** stores 1,
 
 Talon is introduced **between the application and its model/MCP endpoints**. We keep the database and chart API as they are; we do not give the AI application raw DuckDB access.
 
-## Governed MCP integration against merged Talon main (#589)
+## Governed MCP integration on Talon main
 
-**Primary acceptance target:** exact source-built Talon `156188dea65cb6feab01aa92093a00e7717a6dd6` (merged `dativo-io/talon#589`, November 22, 2026), pinned in `TALON_GOVERNED_MCP_COMMIT`. It is **not** the RC2 executable and is **not** a published stable release. The default customer architecture is one `POST /mcp`, with the HR backend declared as the use case's trusted `actions.sources.hr`; there is **no** `--proxy-config` or `/mcp/proxy` in this path.
+**Current demo target:** the current `dativo-io/talon` `main` revision resolved at run time. CI and the [operator playbook](PLAYBOOK.md) build the checked-out source and record the source SHA; neither requires a permanently pinned commit. This is **source-built acceptance**, not verification of a published stable binary. The application calls `POST /mcp`; the HR backend is declared as the trusted `actions.sources.hr`. Removed `--proxy-config` and `/mcp/proxy` interfaces are not used.
 
-The read-only aggregate tools execute in one governed call; `hr_employee_export` is forbidden and must have zero HR dispatches. HR SQL rejected **after dispatch** is `UNKNOWN`, not an invented policy denial. Confirm the positive aggregate, negative export, SQL UNKNOWN, hot reload, independent HR counters and verified signed action lifecycle using `scripts/test-people-analytics-talon.sh`. The browser and isolated Docker Compose gates are separate: they must pass on the same pinned SHA to support an end-to-end customer presentation. `X-Talon-Session-ID` is attribution, not authorization. The model remains synthetic unless the opt-in paid-model path is run.
+The read-only aggregate tools execute in one governed call; `hr_employee_export` is forbidden and must have zero HR dispatches. HR SQL rejected **after dispatch** is `UNKNOWN`, not an invented policy denial. Confirm the positive aggregate, negative export, SQL UNKNOWN, hot reload, independent HR counters and verified signed action lifecycle using `scripts/test-people-analytics-talon.sh`. The browser and isolated Docker Compose gates are separate: each run records the actual source SHA and must pass together to support a demo. `X-Talon-Session-ID` is attribution, not authorization. The model remains synthetic unless the opt-in paid-model path is run.
 
 The published-RC2 evidence below is a **historical control for the former pre-convergence architecture**, not acceptance of this upgraded demo.
 
@@ -114,7 +116,7 @@ This shows the **server-side** boundaries, not direct browser connections to Ope
 
 All employee records are fictional. Run the walkthrough from `cases/people-analytics-copilot` on a Linux host with Docker Compose v2, OpenSSL, Git, and Go.
 
-**Compatibility:** the People Analytics policy requires governed MCP action support, including `read_only`. Talon v1.17.0-rc.2 is not compatible. For now, the demo uses a pinned, tested source build; this is **internal acceptance**, not proof that a published release supports the demo. The pinned source revision is tracked in [`TALON_GOVERNED_MCP_COMMIT`](TALON_GOVERNED_MCP_COMMIT).
+**Compatibility:** the People Analytics policy requires governed MCP action support, including `read_only`. Talon v1.17.0-rc.2 is not compatible. The demo builds Talon from current `main` and validates it each run; no fixed SHA is required.
 
 For a customer-facing demo, use a [published Talon release](https://github.com/dativo-io/talon/releases) **only after** it passes the same governed-MCP and Console acceptance checks. Do not silently substitute an older release or change the agent's permissions to make validation pass.
 
@@ -127,7 +129,7 @@ bash ../../scripts/prepare-people-analytics-talon.sh
 export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
 ```
 
-The helper prepares and checks a compatible Talon executable. It does not reset your existing configuration, secrets, or evidence. This is a source-built demo dependency until a compatible published release is verified; the commit pin and build checks are maintained in the scripts, not in the walkthrough.
+The helper prepares and checks a compatible Talon executable. It does not reset your existing configuration, secrets, or evidence. This is a source-built demo dependency until a compatible published release passes the same acceptance checks; the script resolves current Talon `main` instead of freezing a SHA.
 
 If validation says `read_only: Additional property is not allowed`, Compose is using an incompatible executable. Re-run the helper and check the mounted version with:
 
