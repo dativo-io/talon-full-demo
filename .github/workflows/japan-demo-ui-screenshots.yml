@@ -85,8 +85,10 @@ jobs:
             browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
             context=browser.new_context(viewport={'width':1600,'height':1000},device_scale_factor=1)
             page=context.new_page()
-            page.goto(base+'/workflow/talonShopifySupport01',wait_until='domcontentloaded',timeout=120000)
-            time.sleep(3)
+            # Owner setup is already completed above; sign in explicitly
+            # rather than waiting for delayed route guards to redirect.
+            page.goto(base+'/signin',wait_until='domcontentloaded',timeout=120000)
+            page.wait_for_timeout(2500)
             print('initial url',page.url)
             if 'signin' in page.url or 'login' in page.url:
               page.locator('input[type="email"],input[name="emailOrLdapLoginId"]').first.fill(owner['email'])
@@ -94,7 +96,7 @@ jobs:
               page.locator('button[type="submit"]').first.click()
               page.wait_for_timeout(2500)
               page.goto(base+'/workflow/talonShopifySupport01',wait_until='domcontentloaded',timeout=60000)
-            page.wait_for_timeout(5000)
+            page.wait_for_timeout(8500)
             print('final url',page.url)
             print('title',page.title())
             visible=page.get_by_text('Read Shopify order',exact=False).count()>0 and page.get_by_text('Draft through Talon',exact=False).count()>0
