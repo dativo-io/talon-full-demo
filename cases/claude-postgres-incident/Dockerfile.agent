@@ -1,0 +1,20 @@
+# Separate executable used only by the pinned OpenShell sandbox (#42).
+# No real API key, Talon agent token, reviewer credential or DB password in image.
+FROM node:22.16.0-bookworm-slim
+ARG CLAUDE_CODE_VERSION=2.1.319
+ARG CLAUDE_CODE_SHA256=dabafec82ca1319fa43d8be36a10fc61b1d11821cb98ad5df04ad95e199b8eed
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl -fsSL --retry 3 -o /usr/local/bin/claude \
+      "https://downloads.claude.ai/claude-code-releases/${CLAUDE_CODE_VERSION}/linux-x64/claude" && \
+    echo "${CLAUDE_CODE_SHA256}  /usr/local/bin/claude" | sha256sum -c - && \
+    chmod 0755 /usr/local/bin/claude
+RUN mkdir -p /opt/incident/src && chown -R node:node /opt/incident
+COPY --chown=node:node src/common.ts src/mcp-bridge.ts src/hook.ts /opt/incident/src/
+COPY --chown=node:node config/claude-mcp.json /opt/incident/claude-mcp.json
+RUN mkdir -p /home/node/.claude && chown -R node:node /home/node/.claude
+COPY --chown=node:node config/claude-hook-settings.json /home/node/.claude/settings.json
+USER node
+WORKDIR /home/node
+RUN [ "$(/usr/local/bin/claude --version | cut -d' ' -f1)" = "${CLAUDE_CODE_VERSION}" ]
+ENTRYPOINT ["/bin/sleep", "2147483647"]

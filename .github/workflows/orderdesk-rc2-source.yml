@@ -1,0 +1,61 @@
+name: OrderDesk against exact Talon RC2 tagged source
+
+# Real synthetic PostgreSQL + real tagged Talon binary built from exact source.
+# Not an official release artifact and NOT OpenShell Claude C01–C12 acceptance.
+on:
+  pull_request:
+    paths:
+      - 'cases/claude-postgres-incident/**'
+      - '.github/workflows/orderdesk-rc2-source.yml'
+      - 'scripts/real-openshell.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tagged-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      TALON_RC2_COMMIT: 3f3f20dff910dc2416c8d82467de2d4e2dd8acc5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: full-demo
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: 3f3f20dff910dc2416c8d82467de2d4e2dd8acc5
+          path: talon
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache: true
+          cache-dependency-path: talon/go.sum
+      - name: Validate actual RC2 tag points to the intended commit
+        run: |
+          git -C talon rev-parse HEAD
+          test "$(git -C talon rev-parse HEAD)" = "$TALON_RC2_COMMIT"
+          echo 'TAG-SOURCE TEST, NOT OFFICIAL PUBLISHED RC2 BINARY' >> "$GITHUB_STEP_SUMMARY"
+      - name: Compile tagged source and record executable provenance
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev jq
+          (cd talon && go build -o "$RUNNER_TEMP/talon" ./cmd/talon/)
+          "$RUNNER_TEMP/talon" version
+          sha256sum "$RUNNER_TEMP/talon"
+      - name: Validate actual PostgreSQL outage and staging recovery
+        run: bash full-demo/cases/claude-postgres-incident/validate-fixture.sh
+      - name: Validate native Action Gateway deny, separate reviewer, claim and signed lifecycle
+        env:
+          TALON_CLI: ${{ runner.temp }}/talon
+        run: bash full-demo/cases/claude-postgres-incident/validate-talon-actions.sh
+      - name: Record limits
+        run: |
+          {
+            echo 'PASS if previous jobs are green: independent PostgreSQL synthetic fixture + HOST-key Action Gateway on exact RC2 tagged source.'
+            echo 'NOT RUN: real Claude Code/OpenShell same-hop C01–C12, published RC2 binary, paid model, live production.'
+          } >> "$GITHUB_STEP_SUMMARY"
