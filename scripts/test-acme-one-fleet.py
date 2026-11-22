@@ -9,7 +9,7 @@ The n8n import and actual Claude/OpenShell client are proven (or explicitly
 NOT proven) by their separate consumer gates. This script makes no claim of
 real Shopify payments, external provider inference, or Claude/OpenShell hop.
 """
-import http.cookiejar
+import http.cookiejar as cookiejar
 import json
 import os
 from pathlib import Path
@@ -525,7 +525,7 @@ audit:
         assert_true(code, "native Console did not print private one-time pairing code")
         assert_true(http(base + "/console/v1/use-cases")[0] == 401,
                     "Console served use cases before browser pairing")
-        jar = http.cookiejar.CookieJar()
+        jar = cookiejar.CookieJar()
         opener = build_opener(HTTPCookieProcessor(jar))
         status, _ = http(base + "/console/auth/pair", {"code": code}, opener=opener.open)
         assert_true(status == 200, "Console pairing failed")
