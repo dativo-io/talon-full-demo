@@ -29,6 +29,14 @@ This example begins with an ordinary workforce application: **DuckDB** stores 1,
 
 Talon is introduced **between the application and its model/MCP endpoints**. We keep the database and chart API as they are; we do not give the AI application raw DuckDB access.
 
+## Governed MCP integration against merged Talon main (#589)
+
+**Primary acceptance target:** exact source-built Talon `156188dea65cb6feab01aa92093a00e7717a6dd6` (merged `dativo-io/talon#589`, November 22, 2026), pinned in `TALON_GOVERNED_MCP_COMMIT`. It is **not** the RC2 executable and is **not** a published stable release. The default customer architecture is one `POST /mcp`, with the HR backend declared as the use case's trusted `actions.sources.hr`; there is **no** `--proxy-config` or `/mcp/proxy` in this path.
+
+The read-only aggregate tools execute in one governed call; `hr_employee_export` is forbidden and must have zero HR dispatches. HR SQL rejected **after dispatch** is `UNKNOWN`, not an invented policy denial. Confirm the positive aggregate, negative export, SQL UNKNOWN, hot reload, independent HR counters and verified signed action lifecycle using `scripts/test-people-analytics-talon.sh`. The browser and isolated Docker Compose gates are separate: they must pass on the same pinned SHA to support an end-to-end customer presentation. `X-Talon-Session-ID` is attribution, not authorization. The model remains synthetic unless the opt-in paid-model path is run.
+
+The published-RC2 evidence below is a **historical control for the former pre-convergence architecture**, not acceptance of this upgraded demo.
+
 ## RC2 compatibility and released-artifact evidence
 
 The [published Talon `v1.17.0-rc.2` prerelease](https://github.com/dativo-io/talon/releases/tag/v1.17.0-rc.2) is the immediate Full Demo integration target; tag commit `3f3f20dff910dc2416c8d82467de2d4e2dd8acc5`, Linux/amd64 archive SHA256 `5ba2021a7da0ad704a4c3b21e319e05b96fa0347d7d43318ed30bead357ba47c`. [HR RC2 tagged-source CI](https://github.com/dativo-io/talon-full-demo/actions/runs/44882091277) **passed** MCP model/policy and independent HR guard tests with a source-compiled executable; it is not the official archive. The [Full Demo RC2 published-binary consumer workflow](https://github.com/dativo-io/talon-full-demo/pull/52) must independently run against the verified archived executable. The HR **seven-area paired Console browser** and **shared persistent two-app adoption** are not yet completed in this PR. This distinction is mandatory for demos.
