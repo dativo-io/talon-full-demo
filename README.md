@@ -42,7 +42,7 @@ make live-check                # real source-built Talon MCP denial + session bu
 To reproduce the **single-installation four-use-case control-plane test**, use Talon's current `main` (run from the Full Demo repository root):
 
 ```bash
-git clone --branch main https://github.com/dativo-io/talon.git ../talon  # first run only
+if [ ! -d ../talon/.git ]; then git clone --branch main https://github.com/dativo-io/talon.git ../talon; fi
 git -C ../talon fetch origin main
 git -C ../talon checkout --detach origin/main
 mkdir -p .state
