@@ -199,8 +199,9 @@ class Fleet:
                          reviewer=reviewer)
 
     def prepare(self):
-        assert_true(EXPECTED_SHA == "156188dea65cb6feab01aa92093a00e7717a6dd6",
-                    "test must use the exact verified merged Talon main SHA")
+        actual_sha = run(["git", "-C", str(CORE), "rev-parse", "HEAD"]).strip()
+        assert_true(actual_sha == EXPECTED_SHA,
+                    f"producer checkout {actual_sha} differs from resolved test SHA {EXPECTED_SHA}")
         assert_true(TALON and Path(TALON).is_file(), "source-built Talon binary required")
         assert_true((CORE / "examples/n8n-refund/use-case-action.append.yaml").is_file(),
                     "pinned core checkout missing")
@@ -571,7 +572,7 @@ audit:
 
 def main():
     if not EXPECTED_SHA:
-        raise RuntimeError("TALON_CORE_SHA must identify exact reviewed producer source")
+        raise RuntimeError("TALON_CORE_SHA must be the commit resolved from Talon main for THIS run")
     print("Producer:", EXPECTED_SHA, "binary:", run([TALON, "version"]).splitlines()[0],
           "(source-built, NOT an official released artifact)", flush=True)
     with tempfile.TemporaryDirectory(prefix="acme-four-use-cases-") as folder:
