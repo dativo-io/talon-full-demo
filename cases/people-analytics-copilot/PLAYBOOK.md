@@ -217,6 +217,7 @@ From `cases/people-analytics-copilot` on the **Linux Docker host**:
 ```bash
 # Use the previously built, source-verified Talon executable.
 export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
+export HR_DEMO_AI_MODE=guided
 test -x "$HR_DEMO_TALON_BIN"
 
 # Stop the whole topology together; no -v (keep named DuckDB volume).
