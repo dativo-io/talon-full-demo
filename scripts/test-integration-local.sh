@@ -115,7 +115,8 @@ PYREQ
 # offers the removed initialize/notifications handshake. The direct-source
 # test uses the same standard headers and per-request metadata as an MCP client.
 mcp_source() {
-  local method="$1" name="${2:-}" args="${3:-{}}"
+  local method="$1" name="${2:-}" args="${3:-}"
+  [[ -n "$args" ]] || args='{}'
   local body
   body="$(jq -cn --arg method "$method" --arg name "$name" --argjson args "$args" '
     {jsonrpc:"2.0",id:1,method:$method,
