@@ -90,14 +90,23 @@ class DocumentationContract(unittest.TestCase):
             self.assertIn(node,decisions)
         self.assertIn('O -->|"If model requests a tool, app dispatches it"| T',decisions)
         spec=(CASE/"compose.isolated.yaml").read_text()
-        # HR and talon-mcp share one network namespace; HR listens on
-        # loopback only, so Talon's loopback-only http source rule holds and
-        # nothing on app_net can reach HR.
-        self.assertEqual(spec.count('network_mode: "service:hr-mcp-net"'),2)
+        # HR and BOTH Talon data-plane processes share one network namespace.
+        # Each Talon process loads the trusted HR MCP source at startup.
+        # The HR listener is bound to 127.0.0.1:9091 and cannot be reached
+        # directly over app_net, while both Talon ports have separate aliases.
+        self.assertEqual(spec.count('network_mode: "service:hr-mcp-net"'),3)
         self.assertIn("DEMO_BIND_HOST: 127.0.0.1",spec)
-        self.assertIn("aliases: [talon-mcp]",spec)
-        self.assertIn("condition: service_healthy",spec)
+        self.assertIn("aliases: [talon-mcp, talon-gateway]",spec)
         self.assertIn("volumes: [hr_data:/data:ro]",spec)
+        gateway=re.search(r'(?ms)^  talon-gateway:\n(?P<service>.*?)(?=^  [\\w-]+:|\\Z)',spec)
+        self.assertIsNotNone(gateway)
+        live=gateway.group("service")
+        for term in ('profiles: ["live"]', 'network_mode: "service:hr-mcp-net"',
+                     'hr-server:', 'condition: service_healthy',
+                     '"8082"', '"--gateway"'):
+            self.assertIn(term,live)
+        self.assertNotIn('networks: [app_net]',live)
+        self.assertNotIn('ports:',live)
 
     def test_existing_vault_key_continuity_guard(self):
         """Do not advise regenerating credentials over persisted demo evidence."""
