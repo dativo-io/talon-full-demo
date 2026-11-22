@@ -1,0 +1,151 @@
+name: ACME merged-main #589 cross-consumer acceptance
+
+# Actual PR #45/#46/#52/#51 merge rehearsal AND real component executions,
+# all on one exact Talon main source build. NOT a same-persistent-ACME-fleet run.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/acme-governed-main-acceptance.yml'
+      - 'docs/**'
+      - 'README.md'
+      - 'scripts/check-demo-coherence.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TALON_MAIN_SHA: 156188dea65cb6feab01aa92093a00e7717a6dd6
+  PR45_SHA: 7184acd7c3c86493067599a72dd82bee925c9273
+  PR46_SHA: a3de3c976f73b316f95e225fcfc51cb391a546fa
+  PR52_SHA: 003f0a1b8dd38c68ef3e90d9a7ee388f75f0c9fe
+
+jobs:
+  integrated-consumers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    steps:
+      - name: Check out Full Demo main for an isolated combined tree
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          path: full-demo
+          persist-credentials: false
+      - name: Compose the FOUR actual customer PR heads without merging GitHub PRs
+        working-directory: full-demo
+        env:
+          PR51_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "ACME governed-main acceptance"
+          git config user.email "acme-acceptance@users.noreply.github.com"
+          for sha in "$PR45_SHA" "$PR46_SHA" "$PR52_SHA" "$PR51_SHA"; do
+            git fetch --no-tags origin "$sha"
+            git merge --no-ff --no-edit "$sha"
+          done
+          for sha in "$PR45_SHA" "$PR46_SHA" "$PR52_SHA" "$PR51_SHA"; do
+            git merge-base --is-ancestor "$sha" HEAD
+          done
+          git log -4 --oneline
+          echo "Combined PR tree: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "PR 45 $PR45_SHA / 46 $PR46_SHA / 52 $PR52_SHA / 51 $PR51_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check out EXACT Talon #589 merged main
+        uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: ${{ env.TALON_MAIN_SHA }}
+          path: talon
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build exact Talon source and record executable SHA256
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq libsqlite3-dev
+          test "$(git -C talon rev-parse HEAD)" = "$TALON_MAIN_SHA"
+          mkdir -p "$RUNNER_TEMP/bin"
+          (cd talon && go build -o "$RUNNER_TEMP/bin/talon" ./cmd/talon)
+          "$RUNNER_TEMP/bin/talon" version
+          sha256sum "$RUNNER_TEMP/bin/talon" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Talon source: $TALON_MAIN_SHA (NOT published artifact)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Merged tree consistency, source tests, and no-credential claims
+        working-directory: full-demo
+        run: |
+          python3 scripts/check-acme-proof-contract.py
+          python3 scripts/check-demo-coherence.py
+          node integrations/n8n/shopify-support/workflow.test.cjs
+          bash -n integrations/n8n/shopify-support/test-n8n.sh
+          bash -n cases/claude-postgres-incident/validate-bridge-intents.sh
+      - name: Install People Analytics fixture dependencies
+        run: python3 -m pip install -r full-demo/cases/people-analytics-copilot/requirements.txt
+      - name: Real HR governed MCP aggregates, denied export, UNKNOWN, reload and signed evidence
+        working-directory: full-demo
+        env:
+          PATH: ${{ runner.temp }}/bin:/usr/local/bin:/usr/bin:/bin
+        run: bash scripts/test-people-analytics-talon.sh
+      - name: Real n8n 2.48.5 Shopify read-only workflow + exact refund operations
+        working-directory: full-demo
+        env:
+          TALON_EXTERNAL_BIN: ${{ runner.temp }}/bin/talon
+          TALON_CORE_DIR: ${{ github.workspace }}/talon
+          TALON_CORE_SHA: ${{ env.TALON_MAIN_SHA }}
+          N8N_IMAGE: docker.n8n.io/n8nio/n8n:2.48.5
+        run: bash integrations/n8n/shopify-support/test-n8n.sh
+      - name: Actual PostgreSQL 16 staging outage, repair and production invariants
+        working-directory: full-demo
+        run: bash cases/claude-postgres-incident/validate-fixture.sh
+      - name: Real OrderDesk HTTP Action Gateway reviewer, DENY and signed lifecycle
+        working-directory: full-demo
+        env:
+          TALON_CLI: ${{ runner.temp }}/bin/talon
+        run: bash cases/claude-postgres-incident/validate-talon-actions.sh
+      - name: Durable bridge distinct intent ids, replay, conflict and UNKNOWN
+        working-directory: full-demo
+        env:
+          TALON_CLI: ${{ runner.temp }}/bin/talon
+        run: make incident-bridge-intents
+      - name: Real gateway budget admission (document processing contract)
+        working-directory: full-demo
+        env:
+          TALON_BIN: ${{ runner.temp }}/bin/talon
+          TALON_TOKEN_CONTRACT_MODE: core-main
+        run: make tokeneconomizer-contract
+      - name: Acceptance boundary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo 'All green steps above execute REAL Talon source main, HR trusted MCP, actual n8n 2.48.5 and synthetic finance, PostgreSQL and durable HTTP action gateway.'
+            echo 'NOT RUN: combined persistent four-application ACME fleet, paired native Console browser, real Shopify payments, real model/provider credentials, real Claude/OpenShell C01–C12.'
+            echo 'Each synthetic fixture uses independent downstream counters and signed evidence.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  core-mcp-sdk-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: ${{ env.TALON_MAIN_SHA }}
+          path: talon
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache: false
+      - name: Exact core source + merged MCP SDK and governance interoperability
+        run: |
+          test "$(git -C talon rev-parse HEAD)" = "$TALON_MAIN_SHA"
+          cd talon
+          go test ./internal/mcp/ ./internal/action/ -run 'TestMCP|TestE2E_MCP' -count=1
+          make test-mcp-smoke test-mcp-governance-smoke
+          echo "PASS: exact merged main MCP SDK and governance smoke (source-built $TALON_MAIN_SHA)" >> "$GITHUB_STEP_SUMMARY"
