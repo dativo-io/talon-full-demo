@@ -46,7 +46,7 @@ The planned **10–15 minute First Production Pilot** and **20–25 minute Full 
 
 ## Proposed Claude Code × OpenShell incident demo — contract-first
 
-The [OrderDesk PostgreSQL incident case](cases/claude-postgres-incident/README.md) is under active implementation: a *real synthetic PostgreSQL staging outage and business recovery fixture* plus a separate, real Talon host-key Action Gateway preflight have passed prior CI. Full Claude Code × OpenShell delegated same-session acceptance C01–C12 has **not** passed. OpenShell owns sandbox containment; Talon only governs actions it intercepts.
+The [OrderDesk PostgreSQL incident case (actual PR #45)](https://github.com/dativo-io/talon-full-demo/blob/7184acd7c3c86493067599a72dd82bee925c9273/cases/claude-postgres-incident/README.md) is under active implementation: a *real synthetic PostgreSQL staging outage and business recovery fixture* plus a separate, real Talon host-key Action Gateway preflight have passed prior CI. Full Claude Code × OpenShell delegated same-session acceptance C01–C12 has **not** passed. OpenShell owns sandbox containment; Talon only governs actions it intercepts.
 
 For developers with the required local Docker environment:
 
