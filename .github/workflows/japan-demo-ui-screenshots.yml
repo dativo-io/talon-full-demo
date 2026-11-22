@@ -1,0 +1,114 @@
+name: Japan demo actual UI capture (validation only)
+
+on:
+  push:
+    branches: [validation/japan-demo-ui-captures-2026-11-22]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: 156188dea65cb6feab01aa92093a00e7717a6dd6
+          path: talon
+          persist-credentials: false
+      - name: Copy genuine Talon Console screenshots, pinned to core revision
+        run: |
+          mkdir -p screenshots
+          cp talon/docs/assets/console/overview-attention.webp screenshots/01-talon-overview.webp
+          cp talon/docs/assets/console/use-case-summary.webp screenshots/02-talon-ai-use-case.webp
+          cp talon/docs/assets/console/approvals.webp screenshots/03-talon-approvals.webp
+          cp talon/docs/assets/console/approval-detail.webp screenshots/04-talon-approval-detail.webp
+          cp talon/docs/assets/console/session-investigation.webp screenshots/05-talon-session-investigation.webp
+          echo "These are product repository Console screenshots; they are not screenshots of the Shopify CI session." >screenshots/README.txt
+      - name: Render source-accurate Shopify n8n workflow graph (diagram, NOT n8n UI)
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          w=json.loads(Path('integrations/n8n/shopify-support/shopify-support.workflow.json').read_text())
+          nodes={n['name']:n for n in w['nodes']}
+          lines=['digraph n8n {', 'graph [rankdir=LR, bgcolor="#F7F9FC", pad="0.4", nodesep="0.35", ranksep="0.65"];', 'node [fontname="Arial", fontsize=14, shape=box, style="rounded,filled", color="#B6C5D5", fillcolor="#FFFFFF", fontcolor="#172338", penwidth=1.2, margin="0.18,0.16"];', 'edge [color="#64748B", penwidth=1.6, arrowsize=0.7];']
+          for name,node in nodes.items():
+            kind=node['type'].rsplit('.',1)[-1]
+            color='#E7F5EC' if 'httpRequest' in kind else ('#F2EAFE' if 'if' in kind else '#FFFFFF')
+            safe=name.replace('\\','\\\\').replace('"','\\"')
+            lines.append(f'"{safe}" [label="{safe}", fillcolor="{color}"];')
+          for frm,c in w.get('connections',{}).items():
+            for branch in c.get('main',[]):
+              for item in branch:
+                to=item.get('node')
+                if to in nodes:
+                  lines.append('"'+frm.replace('"','\\"')+'" -> "'+to.replace('"','\\"')+'";')
+          lines.append('}')
+          Path('screenshots/n8n-workflow.dot').write_text('\n'.join(lines))
+          PY
+          dot -Tpng screenshots/n8n-workflow.dot -o screenshots/06-source-workflow-diagram.png
+      - name: Boot actual n8n editor with committed Shopify workflow
+        env:
+          N8N_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/japan-n8n-state
+          sudo chown -R 1000:1000 /tmp/japan-n8n-state
+          docker pull docker.n8n.io/n8nio/n8n:2.48.5
+          docker run --rm --network host -v /tmp/japan-n8n-state:/home/node/.n8n -v "$PWD/integrations/n8n/shopify-support:/demo:ro" -e N8N_ENCRYPTION_KEY -e N8N_USER_FOLDER=/home/node/.n8n -e N8N_DIAGNOSTICS_ENABLED=false docker.n8n.io/n8nio/n8n:2.48.5 import:workflow --input=/demo/shopify-support.workflow.json
+          docker run -d --name japan-n8n-ui --network host -v /tmp/japan-n8n-state:/home/node/.n8n -e N8N_ENCRYPTION_KEY -e N8N_USER_FOLDER=/home/node/.n8n -e N8N_DIAGNOSTICS_ENABLED=false -e N8N_PERSONALIZATION_ENABLED=false -e N8N_TEMPLATES_ENABLED=false -e N8N_VERSION_NOTIFICATIONS_ENABLED=false docker.n8n.io/n8nio/n8n:2.48.5 start
+          for i in $(seq 1 90); do if curl --silent --fail http://127.0.0.1:5678/healthz >/dev/null; then break; fi; sleep 2; done
+          curl --fail http://127.0.0.1:5678/healthz
+          echo 'PASS: actual n8n server started with imported real workflow'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Capture authenticated actual n8n Editor UI with Chromium
+        continue-on-error: true
+        run: |
+          python3 -m pip install --quiet playwright requests
+          python3 -m playwright install chromium
+          python3 - <<'PY'
+          import requests,time
+          from playwright.sync_api import sync_playwright
+          base='http://127.0.0.1:5678'
+          owner={'email':'presenter@example.test','firstName':'Talon','lastName':'Presenter','password':'TmpDemoPassword123!'}
+          r=requests.post(base+'/rest/owner/setup',json=owner,timeout=30)
+          print('owner setup',r.status_code,r.text[:300])
+          with sync_playwright() as p:
+            browser=p.chromium.launch(headless=True,args=['--no-sandbox'])
+            context=browser.new_context(viewport={'width':1600,'height':1000},device_scale_factor=1)
+            page=context.new_page()
+            page.goto(base+'/workflow/talonShopifySupport01',wait_until='domcontentloaded',timeout=120000)
+            time.sleep(3)
+            print('initial url',page.url)
+            if 'signin' in page.url or 'login' in page.url:
+              page.locator('input[type="email"],input[name="emailOrLdapLoginId"]').first.fill(owner['email'])
+              page.locator('input[type="password"]').first.fill(owner['password'])
+              page.locator('button[type="submit"]').first.click()
+              page.wait_for_timeout(2500)
+              page.goto(base+'/workflow/talonShopifySupport01',wait_until='domcontentloaded',timeout=60000)
+            page.wait_for_timeout(5000)
+            print('final url',page.url)
+            print('title',page.title())
+            visible=page.get_by_text('Read Shopify order',exact=False).count()>0 and page.get_by_text('Draft through Talon',exact=False).count()>0
+            if visible:
+              page.screenshot(path='screenshots/07-actual-n8n-shopify-workflow.png',full_page=True)
+              print('PASS: captured genuine n8n editor workflow with both expected nodes')
+            else:
+              page.screenshot(path='screenshots/07-n8n-editor-diagnostic-not-validated.png',full_page=True)
+              print('NOT VALIDATED: n8n editor loaded but could not confirm graph nodes')
+            browser.close()
+          PY
+      - name: Upload screenshots and source proof
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: talon-japan-demo-actual-ui-and-workflow
+          path: screenshots/
+          retention-days: 14
