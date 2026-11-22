@@ -111,35 +111,45 @@ assert rows[1]['headers']['x-talon-session-id'] == 'zendesk-ticket-1042'
 assert rows[1]['body']['model'] == 'llama3.2:1b'
 PYREQ
 
-curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$MCP_PORT/mcp" \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}' \
-  | jq -e '.result.serverInfo.name=="talon-demo-release"' >/dev/null
-curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$MCP_PORT/mcp" \
-  -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-  | jq -e '.result.tools|length==3' >/dev/null
+# MCP 2026-07-28 trusted upstream: the migrated synthetic source never
+# offers the removed initialize/notifications handshake. The direct-source
+# test uses the same standard headers and per-request metadata as an MCP client.
+mcp_source() {
+  local method="$1" name="${2:-}" args="${3:-{}}"
+  local body
+  body="$(jq -cn --arg method "$method" --arg name "$name" --argjson args "$args" '
+    {jsonrpc:"2.0",id:1,method:$method,
+     params:{_meta:{"io.modelcontextprotocol/protocolVersion":"2026-07-28",
+                     "io.modelcontextprotocol/clientInfo":{name:"local-test",version:"1"},
+                     "io.modelcontextprotocol/clientCapabilities":{}}}}
+    | if $method=="tools/call" then .params.name=$name | .params.arguments=$args else . end
+  ')"
+  local -a headers=(
+    -H 'Content-Type: application/json'
+    -H 'Accept: application/json, text/event-stream'
+    -H 'MCP-Protocol-Version: 2026-07-28'
+    -H "Mcp-Method: $method"
+  )
+  [[ -z "$name" ]] || headers+=( -H "Mcp-Name: $name" )
+  curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$MCP_PORT/mcp" "${headers[@]}" -d "$body"
+}
+
+mcp_source server/discover | jq -e '.result.resultType=="complete" and (.result.supportedVersions|index("2026-07-28") != null)' >/dev/null
+mcp_source tools/list | jq -e '.result.resultType=="complete" and (.result.tools|length)==3' >/dev/null
 RUN_NONCE="$(python3 -c 'import secrets;print(secrets.token_hex(16))')"
 for tool in release_status release_prepare; do
-  curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$MCP_PORT/mcp" \
-    -H 'Content-Type: application/json' \
-    -d "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":{\"version\":\"demo\",\"run_nonce\":\"$RUN_NONCE\"}}}" \
-    | jq -e '.result.isError==false' >/dev/null
+  mcp_source tools/call "$tool" "{\"version\":\"demo\",\"run_nonce\":\"$RUN_NONCE\"}" \
+    | jq -e '.result.resultType=="complete" and .result.isError==false' >/dev/null
 done
-# Nonce-correlated denial proof (finding H1): passes for the current run...
+# Current-run upstream receipt counts must be authoritative.
 RELEASE_RUN_NONCE="$RUN_NONCE" RELEASE_MCP_RECEIPTS="$TMP/receipts.jsonl" \
   "$ROOT/scripts/assert-release-blocked.sh" >/dev/null
-# ...fails for a different nonce even though the same receipts file exists
-# (a stale file from an earlier run can no longer fake success)...
 if RELEASE_RUN_NONCE="stale-run" RELEASE_MCP_RECEIPTS="$TMP/receipts.jsonl" \
   "$ROOT/scripts/assert-release-blocked.sh" >/dev/null 2>&1; then
   echo 'assert-release-blocked accepted receipts from a different run' >&2
   exit 1
 fi
-# ...and fails when release_publish reached the upstream.
-curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:$MCP_PORT/mcp" \
-  -H 'Content-Type: application/json' \
-  -d "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"release_publish\",\"arguments\":{\"version\":\"demo\",\"run_nonce\":\"$RUN_NONCE\"}}}" \
-  >/dev/null
+mcp_source tools/call release_publish "{\"version\":\"demo\",\"run_nonce\":\"$RUN_NONCE\"}" >/dev/null
 if RELEASE_RUN_NONCE="$RUN_NONCE" RELEASE_MCP_RECEIPTS="$TMP/receipts.jsonl" \
   "$ROOT/scripts/assert-release-blocked.sh" >/dev/null 2>&1; then
   echo 'assert-release-blocked missed a release_publish receipt' >&2
