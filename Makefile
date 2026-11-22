@@ -315,6 +315,7 @@ incident-bridge-intents:
 	@bash cases/claude-postgres-incident/validate-bridge-intents.sh
 
 ci: validate-local incident-contract-test
+	python3 scripts/check-repo-navigation.py
 	git diff --check
 
 clean:
