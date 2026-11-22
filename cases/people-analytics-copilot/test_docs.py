@@ -194,7 +194,7 @@ class DocumentationContract(unittest.TestCase):
         self.assertNotIn("TALON_GOVERNED_MCP_COMMIT", prepare + check)
         playbook = (CASE / "PLAYBOOK.md").read_text(encoding="utf-8")
         self.assertIn("current", playbook)
-        self.assertIn("Talon main", playbook)
+        self.assertIn("[dativo-io/talon main](https://github.com/dativo-io/talon/tree/main)", playbook)
         self.assertNotRegex(playbook, r"(?m)^\s*git(?:\s+-C\s+\S+)?\s+checkout\s+[0-9a-f]{40}\b")
         for script in ("scripts/prepare-people-analytics-talon.sh",
                        "scripts/check-people-analytics-talon-binary.sh"):
