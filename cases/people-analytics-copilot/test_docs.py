@@ -7,7 +7,7 @@ import unittest
 
 CASE=Path(__file__).resolve().parent
 ROOT=CASE.parents[1]
-DOCS=[CASE/"README.md",CASE/"CI_COVERAGE.md",CASE/"screenshots"/"README.md",ROOT/"README.md",ROOT/"docs"/"AUDIENCE_DEMOS.md"]
+DOCS=[CASE/"README.md",CASE/"PLAYBOOK.md",CASE/"CI_COVERAGE.md",CASE/"screenshots"/"README.md",ROOT/"README.md",ROOT/"docs"/"AUDIENCE_DEMOS.md"]
 
 class DocumentationContract(unittest.TestCase):
     def test_links_and_fences(self):
@@ -187,10 +187,15 @@ class DocumentationContract(unittest.TestCase):
         self.assertNotIn('export HR_DEMO_TALON_BIN="$(command -v talon)"', body)
         self.assertIn('if [ ! -f .state/talon/agent.talon.yaml ]; then', body)
         self.assertIn('if [ ! -f .state/policy/gateway.talon.yaml ]; then', body)
-        for term in ("TALON_GOVERNED_MCP_COMMIT", "go -C", "git clone", ".state/talon-bin"):
+        for term in ("origin main", "go -C", "git clone", ".state/talon-bin", "git -C"):
             self.assertIn(term, prepare)
-        for term in ("go version -m", "vcs.revision=", "TALON_GOVERNED_MCP_COMMIT", "FAIL"):
+        for term in ("go version -m", "vcs.revision=", "git -C", "FAIL"):
             self.assertIn(term, check)
+        self.assertNotIn("TALON_GOVERNED_MCP_COMMIT", prepare + check)
+        playbook = (CASE / "PLAYBOOK.md").read_text(encoding="utf-8")
+        self.assertIn("current", playbook)
+        self.assertIn("Talon main", playbook)
+        self.assertNotIn("git checkout 156188", playbook)
         for script in ("scripts/prepare-people-analytics-talon.sh",
                        "scripts/check-people-analytics-talon-binary.sh"):
             proc = subprocess.run(["bash", "-n", str(ROOT / script)], capture_output=True, text=True)
@@ -204,8 +209,8 @@ class DocumentationContract(unittest.TestCase):
                 capture_output=True, text=True,
             )
             self.assertNotEqual(proc.returncode, 0)
-            self.assertIn("Expected:", proc.stderr)
-            self.assertIn("prepare-people-analytics-talon.sh", proc.stderr)
+            self.assertIn("FAIL:", proc.stderr)
+            self.assertIn("source checkout", proc.stderr)
 
     def test_governed_mcp_only_no_proxy_shim(self):
         """The case uses Talon's governed /mcp; the removed MCP proxy has no shim."""
@@ -223,7 +228,7 @@ class DocumentationContract(unittest.TestCase):
         for term in ("actions:","sources:","type: mcp","definitions:","read_only: true",
                      "forbidden_tools:","- hr_employee_export"):
             self.assertIn(term,agent)
-        self.assertRegex((CASE/"TALON_GOVERNED_MCP_COMMIT").read_text().strip(),r"^[0-9a-f]{40}$")
+        self.assertTrue((CASE/"PLAYBOOK.md").is_file())
         app=(CASE/"demo.py").read_text(encoding="utf-8")
         self.assertIn("'/mcp'",app)
         self.assertIn("server/discover",app)
