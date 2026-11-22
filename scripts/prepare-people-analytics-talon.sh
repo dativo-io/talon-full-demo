@@ -1,28 +1,27 @@
 #!/usr/bin/env bash
-# Build the exact governed-MCP Talon source used by the People Analytics case.
-# Does not touch the demo's .env, vault, agent policy, or signed evidence.
+# Build the current Talon main for the local People Analytics demo.
+# Keep all source/build artifacts outside the case's vault and evidence state.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-EXPECTED="$(tr -d '[:space:]' < "$ROOT/cases/people-analytics-copilot/TALON_GOVERNED_MCP_COMMIT")"
-[[ "$EXPECTED" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid pinned Talon source SHA" >&2; exit 1; }
-command -v go >/dev/null || { echo "Go is required to compile the unreleased governed-MCP Talon version" >&2; exit 1; }
-command -v git >/dev/null || { echo "git is required" >&2; exit 1; }
-[[ "$(uname -s)" == Linux ]] || { echo "Build this binary on the Linux Docker host (not macOS)" >&2; exit 1; }
-
 SOURCE="$ROOT/.state/talon-source"
 BINDIR="$ROOT/.state/talon-bin"
+command -v git >/dev/null || { echo "git is required" >&2; exit 1; }
+command -v go >/dev/null || { echo "Go is required to build Talon main" >&2; exit 1; }
+[[ "$(uname -s)" == Linux ]] || { echo "Build on the Linux Docker host, not macOS" >&2; exit 1; }
+
 mkdir -p "$BINDIR"
 if [[ -d "$SOURCE/.git" ]]; then
-  # Reuse only our own demo source checkout, not an arbitrary user's Talon tree.
-  git -C "$SOURCE" fetch --no-tags origin "$EXPECTED"
+  # Keep demo source independent of the developer's main Talon worktree.
+  git -C "$SOURCE" fetch --no-tags origin main
 else
-  [[ ! -e "$SOURCE" ]] || { echo "Source path exists but is not a Git checkout: $SOURCE" >&2; exit 1; }
-  git clone https://github.com/dativo-io/talon.git "$SOURCE"
+  [[ ! -e "$SOURCE" ]] || { echo "Not a Git checkout: $SOURCE" >&2; exit 1; }
+  git clone --branch main --single-branch https://github.com/dativo-io/talon.git "$SOURCE"
 fi
-git -C "$SOURCE" checkout --detach "$EXPECTED"
-ACTUAL="$(git -C "$SOURCE" rev-parse HEAD)"
-[[ "$ACTUAL" == "$EXPECTED" ]] || { echo "Source SHA does not match pinned candidate" >&2; exit 1; }
+# Detached snapshot of main fetched for THIS run, not a fixed commit.
+git -C "$SOURCE" checkout --detach "$(git -C "$SOURCE" rev-parse refs/remotes/origin/main)"
+RESOLVED_SHA="$(git -C "$SOURCE" rev-parse HEAD)"
+echo "Building current dativo-io/talon main: $RESOLVED_SHA"
 go -C "$SOURCE" build -o "$BINDIR/talon" ./cmd/talon
-bash "$ROOT/scripts/check-people-analytics-talon-binary.sh" "$BINDIR/talon"
-printf '\nUse this binary in your current shell (do not reset existing keys/state):\n'
+HR_DEMO_TALON_SOURCE_DIR="$SOURCE" bash "$ROOT/scripts/check-people-analytics-talon-binary.sh" "$BINDIR/talon"
+printf '\nUse this binary in your current shell (no state reset):\n'
 printf 'export HR_DEMO_TALON_BIN=%q\n' "$BINDIR/talon"
