@@ -13,7 +13,7 @@ if ! command -v go >/dev/null; then
   echo "FAIL: Go is required to inspect this source-built candidate's VCS provenance." >&2
   exit 1
 fi
-VCS="$(go version -m "$BIN" | sed -n 's/^[[:space:]]*build[[:space:]]*vcs.revision=//p' | head -1)"
+VCS="$(go version -m "$BIN" 2>/dev/null | sed -n 's/^[[:space:]]*build[[:space:]]*vcs.revision=//p' | head -1 || true)"
 if [[ "$VCS" != "$EXPECTED" ]]; then
   echo "FAIL: Talon binary source does not match the governed-MCP acceptance pin." >&2
   echo "Expected: $EXPECTED" >&2
