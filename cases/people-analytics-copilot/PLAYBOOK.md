@@ -18,7 +18,9 @@ From an Ubuntu terminal:
 ```bash
 mkdir -p ~/src
 cd ~/src
-git clone https://github.com/dativo-io/talon-full-demo.git  # skip if already cloned
+if [ ! -d talon-full-demo/.git ]; then
+  git clone https://github.com/dativo-io/talon-full-demo.git
+fi
 cd talon-full-demo
 git pull --ff-only origin main
 cd cases/people-analytics-copilot
@@ -26,7 +28,7 @@ bash ../../scripts/prepare-people-analytics-talon.sh
 export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
 ```
 
-**Already cloned?** Start at `cd ~/src/talon-full-demo` instead.
+**Already cloned?** The clone step is skipped automatically.
 **Already running the demo?** Keep `.env` and `.state/talon/` untouched.
 The build helper fetches Talon `main`, compiles it and confirms the executable
 matches that checkout. Run it again when you want to update Talon. The
@@ -213,7 +215,7 @@ you explicitly want a reset and have backed up the demo state.
 
 ## Automated verification (optional)
 
-From the **Full Demo root**, after installing the case's Python requirements:
+From the **Full Demo root**, after stopping the demo in step 7 and installing the case's Python requirements:
 
 ```bash
 python3 -m pip install -r cases/people-analytics-copilot/requirements.txt
