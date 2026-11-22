@@ -103,6 +103,7 @@ class Fleet:
         self.work = work
         self.install = work / "install"
         self.install.mkdir()
+        (work / "state").mkdir()
         self.env = os.environ.copy()
         self.env.update({
             "TALON_DATA_DIR": str(work / "state"),
