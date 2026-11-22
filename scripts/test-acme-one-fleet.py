@@ -69,7 +69,13 @@ def http(url, payload=None, *, key=None, headers=None, opener=None):
     try:
         with (opener or urlopen)(req, timeout=20) as response:
             raw = response.read()
-            return response.status, json.loads(raw) if raw else {}
+            if not raw:
+                return response.status, {}
+            try:
+                return response.status, json.loads(raw)
+            except ValueError:
+                # /health and /healthz are allowed to return plain text.
+                return response.status, {"body": raw[:200].decode(errors="replace")}
     except HTTPError as error:
         raw = error.read()
         try:
