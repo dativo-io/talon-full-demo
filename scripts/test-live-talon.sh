@@ -53,7 +53,21 @@ cleanup() {
   for pid in "${PIDS[@]:-}"; do
     [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
   done
-  rm -rf "$WORK"
+  # A killed Talon may still be flushing runtime/evidence state. Wait for the
+  # owned child processes to exit before deleting the test-only temp store;
+  # a concurrent runtime-file write must not turn PASS into a teardown race.
+  for pid in "${PIDS[@]:-}"; do
+    [[ -n "$pid" ]] && wait "$pid" 2>/dev/null || true
+  done
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    if rm -rf "$WORK" 2>/dev/null; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  echo "ERROR: Talon live-check temp store could not be cleaned: $WORK" >&2
+  return 1
 }
 trap cleanup EXIT
 
