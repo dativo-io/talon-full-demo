@@ -39,7 +39,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Record the current Talon main commit used in this run
-        run: echo "Talon main source: $(git -C talon rev-parse HEAD) (source-built, not a release)" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Talon main source: $(git -C talon rev-parse HEAD) (source-built, not a release)" >> "$GITHUB_STEP_SUMMARY"
       - name: Compile checked-out current main and record checksum
         run: |
           sudo apt-get update
