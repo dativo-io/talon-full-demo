@@ -168,6 +168,23 @@ jobs:
             sleep 1
           done
           docker compose -f compose.isolated.yaml exec -T ui python3 -c "from urllib.request import urlopen; urlopen('http://talon-mcp:8080/health', timeout=2)"
+      - name: LIVE gateway Compose startup — same private HR source, independent app-facing port (mock key, no model requests)
+        run: |
+          set -euo pipefail
+          cd cases/people-analytics-copilot
+          # The gateway also compiles /state/agent.talon.yaml and must discover
+          # HR at 127.0.0.1:9091. A previous app_net-only Compose placement
+          # made it restart forever even while talon-mcp worked.
+          docker compose -f compose.isolated.yaml run --rm talon-cli talon secrets set openai-api-key sk-hr-ci-fake-provider-no-network-requests
+          docker compose -f compose.isolated.yaml --profile live up --no-deps -d talon-gateway
+          for i in {1..40}; do
+            if docker compose -f compose.isolated.yaml exec -T ui python3 -c "from urllib.request import urlopen; urlopen('http://talon-gateway:8082/health', timeout=2)" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          docker compose -f compose.isolated.yaml exec -T ui python3 -c "from urllib.request import urlopen; print('PASS: Talon LIVE gateway health via app_net alias:', urlopen('http://talon-gateway:8082/health', timeout=2).status)"
+          docker compose -f compose.isolated.yaml --profile live ps talon-gateway
       - name: Verify existing HR boundary and Talon enforcement
         run: |
           cd cases/people-analytics-copilot

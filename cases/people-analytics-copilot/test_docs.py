@@ -90,14 +90,21 @@ class DocumentationContract(unittest.TestCase):
             self.assertIn(node,decisions)
         self.assertIn('O -->|"If model requests a tool, app dispatches it"| T',decisions)
         spec=(CASE/"compose.isolated.yaml").read_text()
-        # HR and talon-mcp share one network namespace; HR listens on
-        # loopback only, so Talon's loopback-only http source rule holds and
-        # nothing on app_net can reach HR.
-        self.assertEqual(spec.count('network_mode: "service:hr-mcp-net"'),2)
+        # HR and BOTH Talon data-plane processes share one network namespace.
+        # Each Talon process loads the trusted HR MCP source at startup.
+        # The HR listener is bound to 127.0.0.1:9091 and cannot be reached
+        # directly over app_net, while both Talon ports have separate aliases.
+        self.assertEqual(spec.count('network_mode: "service:hr-mcp-net"'),3)
         self.assertIn("DEMO_BIND_HOST: 127.0.0.1",spec)
-        self.assertIn("aliases: [talon-mcp]",spec)
-        self.assertIn("condition: service_healthy",spec)
+        self.assertIn("aliases: [talon-mcp, talon-gateway]",spec)
         self.assertIn("volumes: [hr_data:/data:ro]",spec)
+        live=spec.split("  talon-gateway:\n",1)[1].split("\n  talon-ui:",1)[0]
+        for term in ('profiles: ["live"]', 'network_mode: "service:hr-mcp-net"',
+                     'hr-server:', 'condition: service_healthy',
+                     '"8082"', '"--gateway"'):
+            self.assertIn(term,live)
+        self.assertNotIn('networks: [app_net]',live)
+        self.assertNotIn('ports:',live)
 
     def test_existing_vault_key_continuity_guard(self):
         """Do not advise regenerating credentials over persisted demo evidence."""
@@ -130,6 +137,13 @@ class DocumentationContract(unittest.TestCase):
                          "volumes: *talon-volumes", "./:/case:ro", "env_file:"):
             self.assertNotIn(excluded,service,"Read-only console must not gain HR network or privileged credentials")
         self.assertIn("docker compose -f compose.isolated.yaml --profile operator exec -T talon-ui talon ui pair",body)
+        # Pair prints only an acknowledgement. The generated code appears on
+        # the running Console's stdout, not in the CLI command's output.
+        for item in ("Talon console pairing code: XXXXX-XXXXX-XXXXX-XXXXX",
+                     "--profile operator logs --no-color --tail=30 talon-ui",
+                     "NOT the pairing code", "Generating a new code invalidates",
+                     "--profile operator ps -a talon-ui", "ssh -L 8787:127.0.0.1:8787"):
+            self.assertIn(item, body)
         self.assertIn("talon ui serve --help",body)
         self.assertIn("http://127.0.0.1:8787/",body)
         self.assertIn("read-only",body.lower())

@@ -79,11 +79,11 @@ flowchart LR
     subgraph AppNet["Application network"]
         W["Workforce application server"]
         A["Read-only chart / aggregate API"]
-        G["Talon LLM gateway (LIVE only)"]
         OC["Talon operations console (read-only)"]
     end
-    subgraph TalonNS["Network namespace shared only by talon-mcp and HR"]
+    subgraph TalonNS["Shared HR namespace: HR loopback, Talon MCP and LIVE gateway"]
         M["Talon governed MCP endpoint /mcp"]
+        G["Talon LLM gateway (LIVE only)"]
         H["HR MCP service (127.0.0.1 only)"]
     end
     subgraph HRNet["Private seed network"]
@@ -110,7 +110,7 @@ flowchart LR
     C -->|"Session summaries and signature checks"| E
 ```
 
-This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The **Workforce browser** reaches only the Workforce application on port 8501; a separate **operator browser** can pair with the read-only Talon operations console on host-loopback port 8787. Neither browser directly reaches the private HR service. The fixed chart API reads the DuckDB **file** via a read-only Docker volume without Talon. DuckDB is embedded, not a network database; the private HR service reads the same volume. The HR MCP service is the AI use case's **trusted MCP action source**: it listens on `127.0.0.1` inside a network namespace it shares only with `talon-mcp`, so Talon reaches it at `http://127.0.0.1:9091/mcp` and nothing on the application network can. Every tool call from the application goes to Talon's **governed MCP endpoint** (`POST /mcp`, talon#431) and is an Action Gateway operation: policy, at most one dispatch, signed lifecycle evidence. Talon governs intercepted model requests and these MCP actions, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
+This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The **Workforce browser** reaches only the Workforce application on port 8501; a separate **operator browser** can pair with the read-only Talon operations console on host-loopback port 8787. Neither browser directly reaches the private HR service. The fixed chart API reads the DuckDB **file** via a read-only Docker volume without Talon. DuckDB is embedded, not a network database; the private HR service reads the same volume. The HR MCP service is the AI use case's **trusted MCP action source**: it listens on `127.0.0.1` inside a namespace shared by `talon-mcp` and the LIVE-only `talon-gateway`, because both Talon processes independently discover the HR action catalog at startup. Both reach the HR backend at `http://127.0.0.1:9091/mcp`; nothing else on the application network can call HR directly. Every tool call from the application goes to Talon's **governed MCP endpoint** (`POST /mcp`, talon#431) and is an Action Gateway operation: policy, at most one dispatch, signed lifecycle evidence. Talon governs intercepted model requests and these MCP actions, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
 
 All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2, OpenSSL, Git and Go (for this **source-pinned, unreleased** governed-MCP demo). The customer-ready published-release path remains a separate acceptance gate.
 
@@ -279,6 +279,18 @@ For real model calls, start Talon's governed MCP endpoint and the LLM gateway **
 docker compose -f compose.isolated.yaml --profile live up --build --force-recreate talon-mcp talon-gateway
 ```
 
+**Why the LIVE gateway must join the HR namespace:** both `talon-mcp` and `talon-gateway` compile the same use-case agent policy and discover its trusted HR MCP source at `http://127.0.0.1:9091/mcp` on startup. In older Compose definitions the gateway was attached directly to `app_net` instead. Its loopback address then pointed to an empty gateway namespace, causing `server/discover: dial tcp 127.0.0.1:9091: connect: connection refused`, despite `talon-mcp` working. Both Talon services now share the `hr-mcp-net` network namespace, have separate app-facing DNS names `talon-mcp:8080` and `talon-gateway:8082`, and wait for the private HR server's health check. **The HR MCP port 9091 stays loopback-only.** No HR database or MCP endpoint is exposed to `app_net`.
+
+To repair an already-running LIVE installation after pulling the fix, **keep `.env` and `.state/talon` unchanged**; ensure `HR_DEMO_TALON_BIN` still points to the verified pinned executable, then from this directory run:
+
+```bash
+docker compose -f compose.isolated.yaml --profile live up -d --force-recreate \
+  hr-mcp-net hr-server talon-mcp talon-gateway ui
+docker compose -f compose.isolated.yaml --profile live logs --tail=30 talon-gateway
+```
+
+This requires the LIVE model provider secret and `gateway.talon.yaml` setup above; it does not provision real OpenAI access by itself. **GUIDED mode needs no model provider and no LIVE gateway:** omit `--profile live` and start `talon-mcp talon-ui ui` with `--profile operator` instead. To stop an old failing LIVE gateway while keeping the governed MCP and Console, run `docker compose -f compose.isolated.yaml stop talon-gateway`.
+
 In another terminal, from this same directory and with `HR_DEMO_TALON_BIN` exported:
 
 ```bash
@@ -301,16 +313,29 @@ No OpenAI key? Run `docker compose -f compose.isolated.yaml --profile operator u
 The two UIs have different jobs. **Workforce app** at [127.0.0.1:8501](http://127.0.0.1:8501/) makes AI/HR requests and shows the synthetic workforce charts. **Talon operations console** at [127.0.0.1:8787](http://127.0.0.1:8787/) explains what Talon saw: runtime status, current versus loaded policy, session evidence, denials, and costs. The console never sends requests to the HR backend or changes policy.
 
 ```bash
-# From cases/people-analytics-copilot: start the operator console, then read its code.
+# Run from cases/people-analytics-copilot, with HR_DEMO_TALON_BIN set.
+# Start the read-only Console without exposing it beyond host localhost.
 docker compose -f compose.isolated.yaml --profile operator up -d talon-ui
-docker compose -f compose.isolated.yaml --profile operator logs --tail=40 talon-ui
 
-# If the code expired or was used, reissue it inside the console container:
+# Check that it is running. If not, see "Troubleshooting" below.
+docker compose -f compose.isolated.yaml --profile operator ps talon-ui
+
+# Request a NEW code. IMPORTANT: this command prints a confirmation,
+# NOT the pairing code; the running Console prints the code to its own stdout.
 docker compose -f compose.isolated.yaml --profile operator exec -T talon-ui talon ui pair
-docker compose -f compose.isolated.yaml --profile operator logs --tail=20 talon-ui
+
+# Read the code locally from the Console container's log.
+# Run promptly; the most recent "Talon console pairing code:" is the valid one.
+docker compose -f compose.isolated.yaml --profile operator logs --no-color --tail=30 talon-ui
 ```
 
+**Expected log line:** `Talon console pairing code: XXXXX-XXXXX-XXXXX-XXXXX` (the X characters illustrate the *format*, not a working code). Enter the **most recent actual code**, not the command's `Asked console process ...` confirmation. Generating a new code invalidates the previous unredeemed code. `up -d` only reports container startup; it **never prints pairing credentials in your terminal**.
+
+**Troubleshooting — no pairing code in the logs:** check `docker compose -f compose.isolated.yaml --profile operator ps -a talon-ui` and `docker compose -f compose.isolated.yaml --profile operator logs --tail=100 talon-ui`. If the Console exited, fix the logged startup error (such as missing `/state/evidence.db`), make sure `talon-mcp` has started, and recreate `talon-ui`. If `talon ui pair` says `no running console found` or `console process ... not reachable`, inspect/restart the `talon-ui` container; do not try `talon ui pair` from the host or from `talon-cli` because it must signal the **running Console process inside `talon-ui`**. The pair command itself never outputs the code.
+
 Open **http://127.0.0.1:8787/** and enter the fresh, single-use pairing code. The browser gets a **read-only session cookie**, not an admin, provider, vault or agent key. Do not expose this port beyond localhost or publish pairing codes in screenshots or shared logs. The **`operator` Compose profile** keeps the console opt-in. The Compose service mounts the **same Talon state and policy files**, but runs on `app_net` only (no `private_hr` network); only the evidence **signing** key is passed to it for HMAC verification.
+
+**Remote Ubuntu host:** port `8787` is intentionally bound to **the server's loopback**, so the Console isn't directly reachable from a laptop. Start `ssh -L 8787:127.0.0.1:8787 <user>@<server-ip>` in your laptop's terminal, then visit `http://127.0.0.1:8787/` **on the laptop**. Keep the one-time code private; do not add it to the README, screenshots, tickets or GitHub Actions logs.
 
 **First operator check — Overview:** distinguish installation readiness from use-case attention. Select **AI Use Cases → hr-analytics-assistant → Summary** to show its actual identity, policy and available activity. Fresh traffic history is not proof of health. In **Configuration**, inspect the organization/use-case settings and the current versus loaded generation (only claim activation when proven).
 
