@@ -3,6 +3,9 @@
 This is *synthetic* HR data. Baseline runs inside the privileged backend
 container; governed proof runs inside the separated app container. Docker
 network isolation and read-only volumes are deployment controls, NOT Talon.
+The HR server listens on 127.0.0.1 inside a network namespace it shares only
+with talon-mcp (Talon's trusted MCP action source); the app reaches Talon's
+governed MCP endpoint at talon-mcp:8080/mcp.
 """
 import json
 import os
@@ -10,7 +13,7 @@ import socket
 import sys
 from urllib.request import Request, urlopen
 
-from demo import META, governance, json_request, mcp_call
+from demo import GOVERNED_TOOLS, META, governance, json_request, mcp_call
 
 BACKEND = "http://127.0.0.1:9091"
 MCP = "http://talon-mcp:8080"
@@ -51,6 +54,14 @@ def app():
         print("PASS: UI/AI cannot reach the privileged HR server on the private network")
     else:
         raise AssertionError("UI can bypass Talon and reach HR server directly")
+    # HR shares talon-mcp's network namespace but listens on 127.0.0.1 only:
+    # even the Talon host name does not expose it to the app network.
+    try:
+        socket.create_connection(("talon-mcp", 9091), timeout=2)
+    except (OSError, TimeoutError):
+        print("PASS: HR listens on loopback inside Talon's namespace; talon-mcp:9091 is unreachable from the app")
+    else:
+        raise AssertionError("UI can reach the HR MCP server through talon-mcp:9091")
 
     # Assert the actual browser route works *without* mounting DuckDB into UI.
     browser_dashboard = get("http://127.0.0.1:8501/api/dashboard")
@@ -67,9 +78,7 @@ def app():
     session = "hr-demo-isolated-boundary"
     code, tools = mcp_call(MCP, "talon-hr-demo-key-0001", "tools/list", session=session)
     assert code == 200 and "result" in tools, tools
-    assert {t["name"] for t in tools["result"]["tools"]} == {
-        "hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary", "hr_aggregate_sql"
-    }, tools
+    assert {t["name"] for t in tools["result"]["tools"]} == GOVERNED_TOOLS, tools
     code, permitted = mcp_call(MCP, "talon-hr-demo-key-0001", "tools/call",
                                "hr_attrition_summary", {"months": 6}, session)
     allowed = governance(permitted)
@@ -156,9 +165,7 @@ def check_discover():
                          session=CHECK_SESSION)
     assert code == 200 and "result" in out, out
     offered = [tool["name"] for tool in out["result"]["tools"]]
-    assert set(offered) == {
-        "hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary", "hr_aggregate_sql"
-    }, offered
+    assert set(offered) == GOVERNED_TOOLS, offered
     print("TALON TOOL DISCOVERY (same agent/session):")
     print(json.dumps(offered, indent=2))
     print("Employee-level export is absent from discovery.")

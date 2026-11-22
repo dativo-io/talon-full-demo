@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from urllib.request import urlopen
 
-from demo import mcp_call
+from demo import GOVERNED_TOOLS, mcp_call
 from agent_runtime import run_live_chat
 
 
@@ -31,7 +31,8 @@ def main():
     assert status == 200 and "result" in listing, listing
     tools = listing["result"]["tools"]
     safe = {"hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary", "hr_aggregate_sql"}
-    assert {t["name"] for t in tools} == safe, tools
+    # Talon's governed list also carries its own execute tool.
+    assert {t["name"] for t in tools} == GOVERNED_TOOLS, tools
     before = get("http://127.0.0.1:9091/debug/counters")
     result = run_live_chat(
         "Which department has the highest monthly attrition for September 2026? "

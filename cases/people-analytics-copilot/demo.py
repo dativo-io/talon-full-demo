@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """People Analytics Copilot: fictional HR MCP server and a thin Talon-routed UI.
 Guided UI is deterministic; live AI runs through Talon. HR analytics use DuckDB.
+
+The HR server is an MCP 2026-07-28 server (server/discover, cacheable
+tools/list, tools/call). Talon reaches it as the AI use case's trusted MCP
+action source; the app reaches Talon only at its governed MCP endpoint, /mcp.
 """
 import argparse
 import json
@@ -17,6 +21,8 @@ from urllib.request import Request, urlopen
 
 VERSION = '2026-07-28'
 EXT = 'io.dativo.talon/governance'
+EXECUTE_TOOL = 'talon_execute_operation'
+SERVER_INFO = {'io.modelcontextprotocol/serverInfo': {'name': 'fictional-hr-warehouse', 'version': '1.0'}}
 META = {'io.modelcontextprotocol/protocolVersion': VERSION,
         'io.modelcontextprotocol/clientInfo': {'name': 'hr-demo', 'version': '1.0'},
         'io.modelcontextprotocol/clientCapabilities': {}}
@@ -34,6 +40,11 @@ TOOLS = [
   'inputSchema':{'type':'object','properties':{'scope':{'type':'string'}},'required':['scope'],'additionalProperties':False}},
 ]
 COUNTS = {tool['name']:0 for tool in TOOLS}
+# What Talon's governed MCP endpoint lists for this use case: the declared
+# actions minus the forbidden export, plus Talon's own execute tool.
+GOVERNED_TOOLS = {'hr_attrition_summary', 'hr_headcount_summary', 'hr_tenure_summary',
+                  'hr_aggregate_sql', EXECUTE_TOOL}
+OPERATION_ID_META = 'io.dativo.talon/operationId'
 LOCK = threading.Lock()
 
 
@@ -47,8 +58,16 @@ def json_request(url, data, headers=None):
         return exc.code, json.loads(exc.read())
 
 
-def mcp_call(base, key, method, tool=None, args=None, session='hr-demo-v1'):
-    params = {'_meta': META}
+def mcp_call(base, key, method, tool=None, args=None, session='hr-demo-v1', operation_id=None):
+    """One JSON-RPC request to Talon's governed MCP endpoint.
+
+    operation_id is optional: a client-chosen stable id (advanced clients) so
+    a retry resolves the same Talon operation instead of creating a new one.
+    """
+    meta = dict(META)
+    if operation_id:
+        meta[OPERATION_ID_META] = operation_id
+    params = {'_meta': meta}
     if tool is not None:
         params.update(name=tool, arguments=args or {})
     headers = {'MCP-Protocol-Version': VERSION, 'Mcp-Method': method, 'X-Talon-Session-ID': session}
@@ -56,9 +75,9 @@ def mcp_call(base, key, method, tool=None, args=None, session='hr-demo-v1'):
         headers['Mcp-Name'] = tool
     if key:
         headers['Authorization'] = 'Bearer ' + key
-    trace("mcp.request", session, target="Talon MCP proxy", method=method, tool=tool,
+    trace("mcp.request", session, target="Talon governed MCP endpoint", method=method, tool=tool,
           arguments=args if previews_enabled() else "[metadata only]")
-    status, response = json_request(base.rstrip('/') + '/mcp/proxy',
+    status, response = json_request(base.rstrip('/') + '/mcp',
                         {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params}, headers)
     g = governance(response)
     trace("mcp.response", session, method=method, tool=tool, http_status=status,
@@ -71,8 +90,42 @@ def mcp_call(base, key, method, tool=None, args=None, session='hr-demo-v1'):
 
 
 def governance(out):
-    return (out.get('result', {}).get('_meta', {}).get(EXT) or
-            out.get('error', {}).get('data', {}).get(EXT))
+    """The Talon governance extension of a JSON-RPC answer, or None.
+
+    An HTTP-level refusal (401, 400) is not JSON-RPC and carries none.
+    """
+    if not isinstance(out, dict):
+        return None
+    result, error = out.get('result'), out.get('error')
+    if isinstance(result, dict) and isinstance(result.get('_meta'), dict):
+        return result['_meta'].get(EXT)
+    if isinstance(error, dict) and isinstance(error.get('data'), dict):
+        return error['data'].get(EXT)
+    return None
+
+
+def prepared(g):
+    """A consequential action Talon established but did not execute yet."""
+    return bool(g) and g.get('code') in ('operation_prepared', 'approval_pending') \
+        and g.get('provenance') == 'not_dispatched' and bool(g.get('operationId'))
+
+
+def governed_call(base, key, tool, args, session):
+    """Call a governed tool the way Talon's two-call flow defines it.
+
+    A read-only action, a denial or a failure answers on the first call. A
+    consequential action is first PREPARED (nothing is sent to HR); this app
+    then executes exactly that operation by its Talon-generated id. Returns
+    (status, response, receipts) with every governance receipt in order.
+    """
+    status, response = mcp_call(base, key, 'tools/call', tool, args, session)
+    receipts = [governance(response)]
+    g = receipts[0]
+    if status == 200 and prepared(g) and g.get('code') == 'operation_prepared':
+        status, response = mcp_call(base, key, 'tools/call', EXECUTE_TOOL,
+                                    {'operation_id': g['operationId']}, session)
+        receipts.append(governance(response))
+    return status, response, receipts
 
 
 class HTTPBase(BaseHTTPRequestHandler):
@@ -111,7 +164,11 @@ class HRService(HTTPBase):
             request = self.payload()
             method = request.get('method')
             rid = request.get('id')
-            if method == 'tools/list':
+            if method == 'server/discover':
+                result = {'resultType': 'complete', 'supportedVersions': [VERSION],
+                          'capabilities': {'tools': {}}, 'ttlMs': 30000, 'cacheScope': 'public',
+                          '_meta': SERVER_INFO}
+            elif method == 'tools/list':
                 result = {'resultType': 'complete', 'tools': TOOLS, 'ttlMs': 30000, 'cacheScope': 'public'}
             elif method == 'tools/call':
                 name = request.get('params', {}).get('name')
@@ -225,16 +282,18 @@ class Browser(HTTPBase):
                 raise RuntimeError('Talon MCP discovery failed')
             names = [x['name'] for x in listing['result']['tools']]
             if self.path == '/api/probe':
-                code, result = mcp_call(self.talon, self.key, 'tools/call', 'hr_employee_export', {'scope': 'all'}, session)
-                g = governance(result)
+                code, result, receipts = governed_call(self.talon, self.key, 'hr_employee_export', {'scope': 'all'}, session)
+                g = receipts[-1]
                 if code != 200 or not g or g.get('evidence', {}).get('committed') is not True:
                     raise RuntimeError('Missing committed Talon export decision')
                 denied = g.get('decision') == 'deny' and g.get('provenance') == 'not_dispatched'
                 allowed = g.get('decision') == 'allow' and 'result' in result
+                if g.get('decision') == 'unknown':
+                    return self.reply(200, {'status': 'outcome_unknown', 'denied': False, 'data': None,
+                                            'tools': names,
+                                            'tool': {'name': 'hr_employee_export', 'governance': g}})
                 if not (denied or allowed):
                     raise RuntimeError('Unexpected Talon export decision')
-                if allowed and result['result'].get('isError'):
-                    raise RuntimeError('HR export failed after Talon authorization')
                 data = json.loads(result['result']['content'][0]['text']) if allowed else None
                 return self.reply(200, {'status': 'allowed' if allowed else 'denied',
                                         'denied': denied, 'data': data, 'tools': names,
@@ -250,11 +309,15 @@ class Browser(HTTPBase):
                     raise RuntimeError('Missing committed Talon SQL tool receipt')
                 if g.get('decision') == 'deny':
                     return self.reply(200, {'status':'talon_denied', 'receipt':g})
+                if g.get('decision') == 'unknown':
+                    # Talon authorized and dispatched the query; the HR service
+                    # did not return a successful result (its SQL validator
+                    # rejects anything but approved aggregates). Talon never
+                    # relays the vendor text and never retries this operation.
+                    return self.reply(200, {'status':'outcome_unknown', 'receipt':g,
+                                             'message':'Talon allowed and dispatched the query; the HR service returned no successful result, so the outcome is unknown and Talon does not retry it. HR SQL accepts only approved department COUNT aggregates (and a bounded department LIKE filter). SQL string literals need single quotes.'})
                 if code != 200 or g.get('decision') != 'allow' or 'result' not in result:
                     raise RuntimeError('SQL tool returned no authorized result')
-                if result['result'].get('isError'):
-                    return self.reply(200, {'status':'hr_sql_rejected', 'receipt':g,
-                                             'message':'HR SQL accepts only approved department COUNT aggregates (and a bounded department LIKE filter). SQL string literals need single quotes.'})
                 value = json.loads(result['result']['content'][0]['text'])
                 return self.reply(200, {'status':'executed', 'data':value, 'receipt':g})
             query = payload.get('query', '')
@@ -281,8 +344,8 @@ class Browser(HTTPBase):
                 name, arguments = 'hr_headcount_summary', {}
             else:
                 name, arguments = 'hr_attrition_summary', {'months': 6}
-            code, result = mcp_call(self.talon, self.key, 'tools/call', name, arguments, session)
-            g = governance(result)
+            code, result, receipts = governed_call(self.talon, self.key, name, arguments, session)
+            g = receipts[-1]
             if code != 200 or not g or g.get('evidence', {}).get('committed') is not True:
                 raise RuntimeError('Missing committed Talon guided tool decision')
             if g.get('decision') == 'deny' and g.get('provenance') == 'not_dispatched':
@@ -291,10 +354,14 @@ class Browser(HTTPBase):
                               'GUIDED mode: this is a real Talon policy decision, not a model response.',
                     'tools': names, 'mode': 'guided', 'status': 'talon_denied',
                     'tool': {'name': name, 'governance': g}})
+            if g.get('decision') == 'unknown':
+                return self.reply(200, {
+                    'answer': f'Talon allowed and dispatched {name}; the HR service returned no successful '
+                              'result, so the outcome is unknown. Talon does not retry it automatically.',
+                    'tools': names, 'mode': 'guided', 'status': 'outcome_unknown',
+                    'tool': {'name': name, 'governance': g}})
             if 'result' not in result or g.get('decision') != 'allow':
                 raise RuntimeError('Talon did not authorize the guided tool operation')
-            if result['result'].get('isError'):
-                raise RuntimeError('HR rejected the governed tool operation')
             data = json.loads(result['result']['content'][0]['text'])
             if name == 'hr_employee_export':
                 answer = ('Talon allowed hr_employee_export. Fictional employee records:\n'

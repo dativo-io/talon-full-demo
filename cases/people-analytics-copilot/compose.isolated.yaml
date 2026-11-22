@@ -1,5 +1,11 @@
 # Existing workforce stack, with Talon introduced as a separate policy boundary.
 # UI cannot mount DuckDB or connect directly to the privileged HR service.
+#
+# The HR MCP server is the AI use case's trusted MCP action source. It listens
+# on 127.0.0.1 inside a network namespace (hr-mcp-net) that it shares ONLY with
+# talon-mcp, so Talon reaches it at http://127.0.0.1:9091/mcp (Talon accepts
+# plaintext http for loopback sources only) and nothing on app_net can reach
+# it. The app reaches Talon's governed MCP endpoint at http://talon-mcp:8080/mcp.
 name: hr-copilot-isolated
 
 x-case-image: &case-image
@@ -37,17 +43,37 @@ services:
     networks: [private_hr]
     restart: "no"
 
+  # Owns the network namespace shared by hr-server and talon-mcp. Its app_net
+  # alias is the only name the app resolves: talon-mcp.
+  hr-mcp-net:
+    <<: *case-image
+    command: ["sleep", "infinity"]
+    networks:
+      app_net:
+        aliases: [talon-mcp]
+    restart: unless-stopped
+
   hr-server:
     <<: *case-image
     command: ["python", "demo.py", "hr"]
     depends_on:
       seed:
         condition: service_completed_successfully
+      hr-mcp-net:
+        condition: service_started
     environment:
       HR_DEMO_DB_PATH: /data/hr.duckdb
-      DEMO_BIND_HOST: 0.0.0.0
+      # Loopback only: reachable from talon-mcp (same namespace), not app_net.
+      DEMO_BIND_HOST: 127.0.0.1
     volumes: [hr_data:/data:ro]
-    networks: [private_hr]
+    network_mode: "service:hr-mcp-net"
+    # talon serve discovers its MCP action source at startup and refuses to
+    # start if it cannot; talon-mcp waits for this check.
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:9091/debug/counters', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
     restart: unless-stopped
 
   dashboard:
@@ -75,17 +101,19 @@ services:
     networks: [app_net]
     restart: "no"
 
+  # Native talon serve: the governed MCP endpoint POST /mcp for the AI use
+  # case in /state/agent.talon.yaml (its actions.sources and definitions).
   talon-mcp:
     <<: *talon-image
     user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
     depends_on:
       hr-server:
-        condition: service_started
+        condition: service_healthy
     environment: *talon-environment
     volumes: *talon-volumes
     working_dir: /state
-    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8080", "--proxy-config", "/policies/proxy.isolated.talon.yaml"]
-    networks: [app_net, private_hr]
+    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8080"]
+    network_mode: "service:hr-mcp-net"
     restart: unless-stopped
 
   talon-gateway:
@@ -97,6 +125,40 @@ services:
     working_dir: /state
     command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8082", "--gateway", "--gateway-config", "/policies/gateway.talon.yaml"]
     networks: [app_net]
+    restart: unless-stopped
+
+  # Talon operator console: separate read-only process, NOT the Workforce UI.
+  # It sees the same signed evidence and policy files as MCP/gateway, but has
+  # no route to the private HR network and receives no admin/vault credentials.
+  talon-ui:
+    <<: *talon-image
+    profiles: ["operator"]
+    user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
+    depends_on:
+      talon-mcp:
+        condition: service_started
+    environment:
+      TALON_DATA_DIR: /state
+      HOME: /state
+      TALON_SIGNING_KEY: ${HR_DEMO_SIGNING_KEY:?Set the evidence signing key in .env}
+    # SQLite WAL readers can need writable directory access; Talon opens the
+    # database read-only. Never mount /case: it contains the secret-bearing .env.
+    volumes:
+      - ./.state/talon:/state
+      - ./.state/policy:/policies:ro
+      - ${HR_DEMO_TALON_BIN:?Supply absolute Talon binary path}:/usr/local/bin/talon:ro
+    working_dir: /state
+    command:
+      - talon
+      - ui
+      - serve
+      - --listen
+      - 0.0.0.0:8787
+      - --allow-non-loopback
+      - --gateway-config
+      - /policies/gateway.talon.yaml
+    networks: [app_net]
+    ports: ["127.0.0.1:8787:8787"]
     restart: unless-stopped
 
   ui:
@@ -128,6 +190,7 @@ volumes:
 networks:
   app_net:
     driver: bridge
+  # Only the one-shot seed job uses it; it has no route anywhere.
   private_hr:
     driver: bridge
     internal: true

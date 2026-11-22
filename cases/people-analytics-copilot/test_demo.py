@@ -51,6 +51,100 @@ class DemoSmoke(unittest.TestCase):
                          {'hr_attrition_summary', 'hr_headcount_summary',
                           'hr_tenure_summary', 'hr_aggregate_sql', 'hr_employee_export'})
 
+    def test_hr_server_speaks_mcp_2026_07_28(self):
+        # Talon discovers its trusted MCP action source with server/discover
+        # and a cacheable tools/list before compiling the catalog.
+        status, out = demo.json_request(self.base + '/mcp',
+            {'jsonrpc':'2.0', 'id':1, 'method':'server/discover', 'params':{'_meta':demo.META}})
+        self.assertEqual(status, 200)
+        result = out['result']
+        self.assertEqual(result['resultType'], 'complete')
+        self.assertEqual(result['supportedVersions'], ['2026-07-28'])
+        self.assertIn('tools', result['capabilities'])
+        self.assertGreaterEqual(result['ttlMs'], 0)
+        self.assertIn(result['cacheScope'], ('public', 'private'))
+        status, out = demo.json_request(self.base + '/mcp',
+            {'jsonrpc':'2.0', 'id':2, 'method':'tools/list', 'params':{'_meta':demo.META}})
+        listing = out['result']
+        self.assertEqual(listing['resultType'], 'complete')
+        self.assertGreaterEqual(listing['ttlMs'], 0)
+        self.assertIn(listing['cacheScope'], ('public', 'private'))
+        for tool in listing['tools']:
+            self.assertEqual(tool['inputSchema']['type'], 'object')
+            self.assertIs(tool['inputSchema']['additionalProperties'], False)
+        status, out = demo.json_request(self.base + '/mcp',
+            {'jsonrpc':'2.0', 'id':3, 'method':'tools/call',
+             'params':{'_meta':demo.META, 'name':'hr_headcount_summary', 'arguments':{}}})
+        call = out['result']
+        self.assertEqual(call['resultType'], 'complete')
+        self.assertIsInstance(call['content'], list)
+        self.assertEqual(call['content'][0]['type'], 'text')
+        self.assertIsInstance(call['content'][0]['text'], str)
+        self.assertNotIn('isError', call)
+
+    def test_rejected_sql_is_a_boolean_tool_error(self):
+        status, out = demo.json_request(self.base + '/mcp',
+            {'jsonrpc':'2.0', 'id':1, 'method':'tools/call',
+             'params':{'_meta':demo.META, 'name':'hr_aggregate_sql', 'arguments':{'sql':'SELECT * FROM employees'}}})
+        self.assertEqual(status, 200)
+        self.assertIs(out['result']['isError'], True)
+        self.assertEqual(out['result']['resultType'], 'complete')
+
+    def test_governed_call_executes_a_prepared_operation_exactly_once(self):
+        prepared = (200, {'result': {'content': [{'type': 'text', 'text': 'prepared'}],
+            '_meta': {demo.EXT: {'code': 'operation_prepared', 'decision': 'pending',
+                                 'provenance': 'not_dispatched', 'operationId': 'mcp-op-1',
+                                 'evidence': {'id': 'act_1', 'committed': True}}}}})
+        executed = (200, {'result': {'content': [{'type': 'text', 'text': '{}'}],
+            '_meta': {demo.EXT: {'code': 'allowed', 'decision': 'allow', 'provenance': 'observed',
+                                 'operationId': 'mcp-op-1', 'evidence': {'id': 'act_2', 'committed': True}}}}})
+        with patch.object(demo, 'mcp_call', side_effect=[prepared, executed]) as call:
+            status, out, receipts = demo.governed_call('http://talon', 'k', 'hr_employee_export', {'scope': 'all'}, 'hr-demo-x')
+        self.assertEqual(call.call_count, 2)
+        self.assertEqual(call.call_args_list[1].args[3], demo.EXECUTE_TOOL)
+        self.assertEqual(call.call_args_list[1].args[4], {'operation_id': 'mcp-op-1'})
+        self.assertEqual([r['code'] for r in receipts], ['operation_prepared', 'allowed'])
+        # A read-only answer or a denial is final: no second request.
+        for final in (executed, (200, {'error': {'code': -32000, 'data': {demo.EXT: {
+                'code': 'policy_denied', 'decision': 'deny', 'provenance': 'not_dispatched',
+                'evidence': {'id': 'act_3', 'committed': True}}}}})):
+            with patch.object(demo, 'mcp_call', side_effect=[final]) as call:
+                demo.governed_call('http://talon', 'k', 'hr_attrition_summary', {'months': 6}, 'hr-demo-x')
+            self.assertEqual(call.call_count, 1)
+        # An approval-pending operation is not executed by the app.
+        pending = (200, {'result': {'content': [{'type': 'text', 'text': 'pending'}],
+            '_meta': {demo.EXT: {'code': 'approval_pending', 'decision': 'pending',
+                                 'provenance': 'not_dispatched', 'operationId': 'mcp-op-2',
+                                 'evidence': {'id': 'act_4', 'committed': True}}}}})
+        with patch.object(demo, 'mcp_call', side_effect=[pending]) as call:
+            demo.governed_call('http://talon', 'k', 'hr_employee_export', {'scope': 'all'}, 'hr-demo-x')
+        self.assertEqual(call.call_count, 1)
+
+    def test_sql_rejected_after_dispatch_is_reported_as_unknown_not_denied(self):
+        class TestBrowser(demo.Browser):
+            pass
+        app = ThreadingHTTPServer(('127.0.0.1', 0), TestBrowser)
+        thread = threading.Thread(target=app.serve_forever, daemon=True)
+        thread.start()
+        try:
+            listing = (200, {'result': {'tools': [{'name': 'hr_aggregate_sql'}]}})
+            unknown = (200, {'error': {'code': -32000, 'message': 'unknown', 'data': {demo.EXT: {
+                'code': 'upstream_outcome_unknown', 'decision': 'unknown', 'provenance': 'unknown',
+                'retryable': False, 'evidence': {'id': 'act_9', 'committed': True}}}}})
+            with patch.object(demo, 'mcp_call', side_effect=[listing, unknown]):
+                req = Request(f'http://127.0.0.1:{app.server_port}/api/sql',
+                              data=json.dumps({'session': 'hr-demo-test', 'sql': 'SELECT * FROM employees'}).encode(),
+                              headers={'Content-Type': 'application/json'}, method='POST')
+                with urlopen(req, timeout=5) as resp:
+                    outcome = json.load(resp)
+            self.assertEqual(outcome['status'], 'outcome_unknown')
+            self.assertEqual(outcome['receipt']['decision'], 'unknown')
+            self.assertNotEqual(outcome['status'], 'talon_denied')
+        finally:
+            app.shutdown()
+            app.server_close()
+            thread.join()
+
     def test_aggregate_tools_compute_real_synthetic_metrics(self):
         for name, arguments, field in [
             ('hr_attrition_summary', {'months':6}, 'cohorts'),

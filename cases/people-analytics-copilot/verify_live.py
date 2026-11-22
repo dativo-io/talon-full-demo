@@ -1,4 +1,4 @@
-"""End-to-end LIVE AI contract: real Talon LLM gateway + real Talon MCP proxy.
+"""End-to-end LIVE AI contract: real Talon LLM gateway + Talon's governed MCP endpoint.
 
 The provider is an explicitly labelled synthetic OpenAI-compatible model
 fixture. No external vendor key or paid model is used by this acceptance test.
@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.request import urlopen
 
 from agent_runtime import run_live_chat
-from demo import mcp_call
+from demo import GOVERNED_TOOLS, mcp_call
 
 
 def get(url):
@@ -35,9 +35,7 @@ def main():
     http_code, listed = mcp_call(args.mcp, args.agent_key, "tools/list", session=session)
     assert http_code == 200 and "result" in listed, listed
     offered = listed["result"]["tools"]
-    assert {t["name"] for t in offered} == {
-        "hr_attrition_summary", "hr_headcount_summary", "hr_tenure_summary", "hr_aggregate_sql"
-    }, offered
+    assert {t["name"] for t in offered} == GOVERNED_TOOLS, offered
 
     def tool_call(name, arguments, session_id):
         return mcp_call(args.mcp, args.agent_key, "tools/call",
@@ -118,7 +116,7 @@ def main():
 
     print("PASS: real Talon LLM gateway forwarded two turns to isolated synthetic provider")
     print("PASS: synthetic model selected Talon-advertised aggregate tool")
-    print("PASS: real Talon MCP proxy executed one permitted DuckDB aggregate")
+    print("PASS: Talon's governed MCP endpoint executed one permitted DuckDB aggregate")
     print("PASS: no privileged employee export dispatched to upstream")
     print("PASS: same session on LLM and MCP client paths:", session)
     print("PASS: Talon MCP evidence verified:", evidence_id)
