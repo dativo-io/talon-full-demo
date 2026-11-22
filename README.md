@@ -4,9 +4,9 @@
 
 This repository contains *customer-facing reference applications and independently executable proof* for [Dativo Talon](https://github.com/dativo-io/talon). The applications remain separate. Talon supplies shared company policy, operational identity, model/MCP/action controls, independent approvals, cost admission, read-only Operations Console and verifiable signed evidence **only for requests routed through it**.
 
-**Start here:** [People Analytics: complete operator playbook](cases/people-analytics-copilot/PLAYBOOK.md) · [Demo catalog](docs/DEMO_CATALOG.md) · [Guided ACME journey](docs/DEMO_EXPERIENCE_INDEX.md) · [Test and release matrix](docs/TEST_MATRIX.md) · [Documentation index](docs/README.md)
+**Start here (no setup):** [5-minute external-reader guide](docs/START_HERE.md) · [Four-case catalog](docs/DEMO_CATALOG.md) · [What CI proves](docs/TEST_MATRIX.md) · [Documentation index](docs/README.md). **Want to run something?** Choose a case below; People Analytics has the most complete [Linux/Compose operator playbook](cases/people-analytics-copilot/PLAYBOOK.md).
 
-**Source policy for active demos:** use the current `dativo-io/talon` `main` branch at run time, not a hardcoded core SHA. Each run records the resolved Talon revision and tests compatibility. Historical release checks remain historical; a source-built run is not a verified stable release.
+**Source policy for active demos:** resolve the current `dativo-io/talon` `main` at run time, not a hardcoded core SHA. Each run records the resolved Talon revision and tests compatibility. Historical release checks remain historical; a source-built run is not a verified stable release.
 
 ## The four ACME use cases
 
@@ -17,15 +17,15 @@ This repository contains *customer-facing reference applications and independent
 | **OrderDesk / Engineering** | Real local PostgreSQL staging outage repaired; production preserved | HTTP Action Gateway company DENY, separate on-call reviewer, durable operation | [OrderDesk incident](cases/claude-postgres-incident/README.md) |
 | **Document Processing** | Useful synthetic document responses before budget exhaustion | Real Talon per-session cost admission; next provider call denied | [Document/n8n reference](integrations/n8n/README.md) |
 
-Each case has its own operator instructions. Start with the [People Analytics playbook](cases/people-analytics-copilot/PLAYBOOK.md) for a complete beginner-to-finish Docker example. The shared-fleet acceptance below is an advanced cross-case check.
+**Choose by your own use case; no single feature is prerequisite.** Each case has its own operator instructions. The [People Analytics playbook](cases/people-analytics-copilot/PLAYBOOK.md) is one complete beginner-to-finish Docker example. The shared-fleet acceptance below is an advanced cross-case check; start with the [reader guide](docs/START_HERE.md) if you only want to understand or share the product.
 
 **n8n is an orchestrator inside Support and Documents, not a fifth AI use case.** Use one use-case identity/key each and configure the organization baseline once. HR uses canonical governed MCP; OrderDesk's HTTP Action Gateway is intentional. New adopters must **not** use the removed `/mcp/proxy` or `--proxy-config` interfaces.
 
 ## What we have actually proven
 
-The [source-pinned four-use-case acceptance](https://github.com/dativo-io/talon-full-demo/actions/runs/45014911307) PASSED against exact Talon main `156188dea65cb6feab01aa92093a00e7717a6dd6` (source-built; **not a published stable release**). One running Talon process, company policy, data directory and signing store governed four distinct native keys. The run independently counted real local DuckDB/PostgreSQL and synthetic Shopify/document effects; produced **41 signed records, eight valid action lifecycles**, and showed all four in the paired native read-only Console (Overview, AI Use Cases, Approvals, Sessions, Costs, Configuration, System).
+A [historical four-use-case acceptance run](https://github.com/dativo-io/talon-full-demo/actions/runs/45014911307) PASSED against Talon source commit `156188dea65cb6feab01aa92093a00e7717a6dd6` (source-built; **not a published stable release**). One running Talon process, company policy, data directory and signing store governed four distinct native keys. The run independently counted real local DuckDB/PostgreSQL and synthetic Shopify/document effects; produced **41 signed records, eight valid action lifecycles**, and showed all four in the paired native read-only Console (Overview, AI Use Cases, Approvals, Sessions, Costs, Configuration, System).
 
-Additional consumer CI executes real n8n **2.48.5** and a synthetic merchant refund adapter. It proves €25 allow, €249 review-then-claim, €750 deny and replay refusal. Approval itself causes zero effects. The independent HR browser/Compose gate also passed. Consult the [test matrix](docs/TEST_MATRIX.md) for sources and precise claims.
+The [current-main CI acceptance on PR #59](https://github.com/dativo-io/talon-full-demo/pull/59/checks) subsequently passed all 19 checks without a permanent core SHA. Consumer CI executes real n8n **2.48.5** and a synthetic merchant refund adapter. It proves €25 allow, €249 review-then-claim, €750 deny and replay refusal. Approval itself causes zero effects. The independent HR browser/Compose gate also passed. Consult the [test matrix](docs/TEST_MATRIX.md) for sources and precise claims.
 
 **Not proven / not customer-live:** four complete application UIs simultaneously in one persistent **published v1.17.0 stable** installation; genuine Claude Code × OpenShell same-hop C01–C12; live Shopify payments; paid model/provider calls; Zendesk installation; or recovery of that full customer fleet. A historical published **v1.17.0-rc.2** consumer test is separately recorded in [RC2 acceptance](docs/RC2_CONSUMER_ACCEPTANCE.md). Do not substitute source-built results for released-artifact acceptance.
 
@@ -36,7 +36,7 @@ From a fresh checkout, with Go, Python 3, Docker/Compose, Node and `jq` installe
 ```bash
 python3 -m pip install -r cases/people-analytics-copilot/requirements.txt
 make validate-local            # offline app contracts, source tests and native fixtures
-make live-check                # real source-built Talon MCP denial + session budget
+make live-check                # real source-built Talon MCP denial + session budget (needs Talon checkout; see below)
 ```
 
 To reproduce the **single-installation four-use-case control-plane test**, use Talon's current `main` (run from the Full Demo repository root):

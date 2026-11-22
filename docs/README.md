@@ -1,5 +1,7 @@
 # Full Demo documentation
 
+**Sharing Talon with someone new?** Send the [short, feature-neutral Start Here guide](START_HERE.md). It explains the company-wide story without requiring Linux, a specific application or a model key.
+
 The **source of truth for current demonstrations** is [the repository README](../README.md), followed by the [four-use-case catalog](DEMO_CATALOG.md) and [runtime acceptance matrix](TEST_MATRIX.md). Historical component instructions remain accessible but are never promoted to current release acceptance by implication.
 
 ## Start with a buyer
@@ -23,7 +25,7 @@ The **source of truth for current demonstrations** is [the repository README](..
 
 ## Application-owned sources
 
-**Active current-main governance cases:** [People Analytics / DuckDB playbook](../cases/people-analytics-copilot/PLAYBOOK.md) · [Shopify/n8n support](../integrations/n8n/shopify-support/README.md) · [OrderDesk/PostgreSQL](../cases/claude-postgres-incident/README.md) · [n8n document-processing workflows](../integrations/n8n/README.md). The documentary budget is proven in the shared fleet with a deterministic synthetic provider; the original n8n document client runs a separate clean-import fixture.
+**Active current-main governance cases:** [People Analytics / DuckDB playbook](../cases/people-analytics-copilot/PLAYBOOK.md) · [Shopify/n8n support](../integrations/n8n/shopify-support/README.md) · [OrderDesk/PostgreSQL](../cases/claude-postgres-incident/README.md) · [n8n document-processing workflows](../integrations/n8n/README.md). The document-processing budget is proven in the shared fleet with a deterministic synthetic provider; the original n8n document client runs a separate clean-import fixture.
 
 **Other integrations / historical gallery:** [Zendesk](../integrations/zendesk-app/README.md), [legacy Copilot](../integrations/copilot/README.md), [n8n historical library](../integrations/n8n/README.md), and the [unabridged previous README](../README_LEGACY.md).
 

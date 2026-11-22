@@ -1,5 +1,7 @@
 # Dativo Talon Full Demo — one coherent ACME journey
 
+**First-time reviewer?** Read [Start Here](START_HERE.md) before this detailed operator narrative. The four applications are independent examples of one company operating layer; no single feature or integration is required to understand the product.
+
 *Canonical customer journey for the **merged** four-use-case Full Demo main (PRs #45, #46, #52 and #51). **PASS:** source-built one-process company governance and signed proof. **NOT RUN:** all four complete app UIs concurrently on a persistent official stable release. Historical acceptance on November 22, 2026 used Talon core main `156188dea65cb6feab01aa92093a00e7717a6dd6`; current runs follow `main` at execution time. The published RC2 remains historical release evidence, not this architecture.*
 
 **New-customer, current-main adoption recipe:** [ACME First Production Pilot — governed MCP and HTTP Action Gateway](GOVERNED_MCP_FIRST_PILOT.md). Component instructions plus a separate **passing shared, single-process governance run** ([real one-installation ACME acceptance (all three CI jobs passed)](https://github.com/dativo-io/talon-full-demo/actions/runs/45014911307)), but not an accepted official-release, full customer-UI deployment.

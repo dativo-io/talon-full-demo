@@ -1,8 +1,8 @@
 # ACME demo catalog — the executable cases
 
-*Status verified November 22, 2026, at Talon producer commit `156188dea65cb6feab01aa92093a00e7717a6dd6`, built from source. The four customer PRs #45, #46, #52 and #51 are **merged into Full Demo main**. This catalog distinguishes a real consumer from a proposal or mocked provider.*
+*Scope: four independent business applications governed by one Talon operating layer. [Start here](START_HERE.md) for a first-time reader; [test matrix](TEST_MATRIX.md) for current acceptance. The November 22 historical source-built run used producer commit `156188dea65cb6feab01aa92093a00e7717a6dd6`; current CI resolves Talon `main` anew per run and records the SHA. The original customer PRs #45, #46, #52 and #51 are merged. This catalog distinguishes real Talon execution from mocks, proposals and released-artifact claims.*
 
-The business promise is to take **four existing applications** and adopt one shared Talon policy/identity/evidence layer without replacing their business logic. Source-pinned single-installation acceptance: [PASS 45014911307](https://github.com/dativo-io/talon-full-demo/actions/runs/45014911307) (one Talon process, four native use-case keys, real local DuckDB and PostgreSQL, separately counted synthetic merchant and document providers, 41 signed records, eight action lifecycles, paired native Console). Current repo automation re-tests this contract.
+The business promise is to take **four existing applications** and adopt one shared Talon policy/identity/evidence layer without replacing their business logic. Historical single-installation acceptance: [PASS 45014911307](https://github.com/dativo-io/talon-full-demo/actions/runs/45014911307) (one Talon process, four native use-case keys, real local DuckDB and PostgreSQL, separately counted synthetic merchant and document providers, 41 signed records, eight action lifecycles, paired native Console). Current repo automation re-tests this contract.
 
 ## Four production-shaped, synthetic applications
 

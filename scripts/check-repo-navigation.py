@@ -13,6 +13,7 @@ PAGES = [
     Path("README.md"),
     Path("README_LEGACY.md"),
     Path("docs/README.md"),
+    Path("docs/START_HERE.md"),
     Path("docs/DEMO_CATALOG.md"),
     Path("docs/TEST_MATRIX.md"),
     Path("docs/DEMO_EXPERIENCE_INDEX.md"),
@@ -27,6 +28,7 @@ DESTINATIONS = [
     "scripts/acme-fleet-provider.py",
     ".github/workflows/acme-governed-main-acceptance.yml",
     "docs/DEMO_CATALOG.md",
+    "docs/START_HERE.md",
     "docs/TEST_MATRIX.md",
 ]
 for item in PAGES + list(map(Path, DESTINATIONS)):
@@ -47,11 +49,12 @@ for page in CHECK_LINKS:
         links += 1
 
 readme = (ROOT / "README.md").read_text()
+intro = (ROOT / "docs/START_HERE.md").read_text()
 catalog = (ROOT / "docs/DEMO_CATALOG.md").read_text()
 matrix = (ROOT / "docs/TEST_MATRIX.md").read_text()
 assert len(readme) < 11000, "root README should stay a concise landing page"
 for name in ("Customer Support", "People Analytics", "OrderDesk", "Document Processing"):
-    assert name in readme and name in catalog, f"missing first-class ACME use case: {name}"
+    assert name in readme and name in catalog and name in intro, f"missing first-class ACME use case: {name}"
 for marker in ("one company", "source-built", "NOT RUN", "41 signed records",
                "OpenShell", "v1.17.0", "one-installation", "native Console"):
     assert marker.lower() in (readme + catalog + matrix).lower(), f"missing trust boundary: {marker}"
@@ -59,6 +62,9 @@ assert "v1.17.0-rc.2" in matrix
 assert "2.30.4" in catalog and "2.48.5" in catalog
 assert "read-only" in catalog and "not a fifth" in readme
 assert "README_LEGACY.md" in readme and "README_LEGACY.md" in catalog
+assert "docs/START_HERE.md" in readme and "START_HERE.md" in (ROOT / "docs/README.md").read_text()
+for marker in ("cost controls", "reliability", "shared policy", "session visibility", "historical", "source-built", "NOT"):
+    assert marker.lower() in intro.lower(), f"share-ready overview missing: {marker}"
 
 print(f"PASS canonical Full Demo: {len(CHECK_LINKS)} live docs, "
       f"{links} local links, 4 first-class cases and explicit NOT RUN boundaries")
