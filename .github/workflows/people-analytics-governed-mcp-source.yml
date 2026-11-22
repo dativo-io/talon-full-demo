@@ -1,10 +1,9 @@
-name: People Analytics against the exact governed-MCP Talon merged main source
+name: People Analytics against current Talon main
 
 # Real HR MCP server as the use case's trusted MCP action source, Talon's
 # governed MCP endpoint (talon#431) and a synthetic model upstream; no paid
-# inference. The exact merged main commit is not released: this is SOURCE-BUILT proof,
-# not a published binary. (The RC2-source proof of the proxy-based case stays on
-# its own PR; RC2 predates governed MCP and cannot run this consumer.)
+# inference. Checkout latest core main at run time and record its SHA.
+# Source-built proof is not published-binary/release acceptance.
 on:
   pull_request:
     paths:
@@ -25,13 +24,10 @@ jobs:
         with:
           path: full-demo
           persist-credentials: false
-      - name: Resolve the exact merged main commit
-        id: talon
-        run: echo "sha=$(tr -d '[:space:]' < full-demo/cases/people-analytics-copilot/TALON_GOVERNED_MCP_COMMIT)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           repository: dativo-io/talon
-          ref: ${{ steps.talon.outputs.sha }}
+          ref: main
           path: talon
           persist-credentials: false
       - uses: actions/setup-go@v5
@@ -42,11 +38,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Exact merged-main-source provenance
-        run: |
-          test "$(git -C talon rev-parse HEAD)" = "${{ steps.talon.outputs.sha }}"
-          echo "MERGED MAIN SOURCE ${{ steps.talon.outputs.sha }}, SOURCE BUILT, NOT A PUBLISHED BINARY" >> "$GITHUB_STEP_SUMMARY"
-      - name: Compile exact merged main source and record checksum
+      - name: Record the current Talon main commit used in this run
+        run: echo "Talon main source: $(git -C talon rev-parse HEAD) (source-built, not a release)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Compile checked-out current main and record checksum
         run: |
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev jq
