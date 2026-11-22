@@ -28,7 +28,7 @@ ERROR: an audit-capable Talon CLI could not be resolved.
 
 The presenter requires audit export --session, signed-json, and audit verify
 --file. Set TALON_AUDIT_BIN to a compatible executable, or keep a sibling
-../talon checkout so the pinned CLI can be built and cached automatically.
+../talon checkout so a CLI can be built and cached from that checkout.
 EOF
   else
     cat >&2 <<'EOF'
