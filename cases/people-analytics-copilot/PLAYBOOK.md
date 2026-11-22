@@ -248,6 +248,67 @@ a container network. Do **not** repeatedly `up --build` only `hr-mcp-net` or
 has not yet been built, first stop the full topology as above, then build
 and start **all** its dependent services together instead of a subset.
 
+**Verify both HTTP paths, not just the Workforce home page:**
+
+```bash
+# From the UI container: can the Workforce app reach its separate chart service?
+docker compose -f compose.isolated.yaml exec -T ui \
+  python3 -c "from urllib.request import urlopen; print('Dashboard HTTP', urlopen('http://dashboard:9093/api/dashboard', timeout=5).status)"
+
+# From the Docker host: what mode was actually loaded, and do charts render?
+curl --fail --silent --show-error http://127.0.0.1:8501/api/mode
+curl --fail --silent --show-error --output /dev/null \
+  --write-out 'Charts HTTP %{http_code}\n' http://127.0.0.1:8501/charts
+```
+
+GUIDED mode should report `"mode": "guided"`, with both dashboard and
+charts reporting HTTP `200`. Click **Ask assistant** and confirm a
+deterministic aggregate result with a committed Talon MCP receipt; a
+separate employee-export request must still be denied before dispatch.
+If the dashboard is down, inspect `docker compose -f compose.isolated.yaml
+logs --tail=80 dashboard ui`; the browser UI being reachable on `8501`
+does not demonstrate that its chart dependency on `dashboard:9093` is
+reachable. Do not claim the demo is healthy because only Talon's MCP path
+works.
+
+**Recover LIVE mode instead (optional):** use this only when you already
+have a disposable provider key saved under `openai-api-key` in this
+installation's encrypted vault; otherwise follow step 6 to set it.
+Recreate the whole namespace rather than starting a stale gateway alone:
+
+```bash
+export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
+export HR_DEMO_AI_MODE=live
+
+docker compose -f compose.isolated.yaml \
+  --profile live --profile operator down
+docker compose -f compose.isolated.yaml \
+  --profile live --profile operator up --no-build -d \
+  hr-mcp-net hr-server dashboard talon-mcp talon-gateway ui talon-ui
+
+docker compose -f compose.isolated.yaml exec -T ui \
+  python3 -c "from urllib.request import urlopen; print('Gateway HTTP', urlopen('http://talon-gateway:8082/health', timeout=5).status)"
+curl --fail --silent --show-error http://127.0.0.1:8501/api/mode
+docker compose -f compose.isolated.yaml --profile live logs --tail=60 \
+  hr-server dashboard talon-mcp talon-gateway ui
+```
+
+Expect a gateway HTTP `200` and `"mode": "live"`. **Neither establishes
+a successful provider request**: test **Ask assistant** and verify actual
+provider response and signed cost/usage for that session. If it reports
+`Talon LLM gateway is unreachable`, distinguish network failure from
+provider/authentication failure using the `ui` and `talon-gateway` logs.
+A later `agent_config_reload_rejected_keeping_last_known_good` with
+`127.0.0.1:9091: connect refused` means the HR action source was
+unavailable to the gateway at reload time. Check
+`hr-server` health and its shared network namespace; do not loosen
+agent policy or reset the vault to clear the warning.
+
+See [operational readiness issue #62](https://github.com/dativo-io/talon-full-demo/issues/62)
+for the remaining fail-visible UI/startup improvements. The recipes above
+repair a running demo; they are not proof of a persistent published-release
+customer deployment.
+
 **Remote laptop:** the Workforce app is bound to the **Docker host's**
 `127.0.0.1:8501`; the Console is bound to `127.0.0.1:8787`.
 HTTP `200` when curling on the host does not imply the URL is reachable
