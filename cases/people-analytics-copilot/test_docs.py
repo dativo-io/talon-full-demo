@@ -146,6 +146,39 @@ class DocumentationContract(unittest.TestCase):
         self.assertIn("Approvals", body)
         self.assertNotIn("approve/reject buttons", body.lower())
 
+    def test_governed_mcp_binary_pin_and_safe_reinitialization(self):
+        """Old Talon schema must not silently reject read_only or overwrite vault state."""
+        body = (CASE / "README.md").read_text(encoding="utf-8")
+        prepare = (ROOT / "scripts/prepare-people-analytics-talon.sh").read_text(encoding="utf-8")
+        check = (ROOT / "scripts/check-people-analytics-talon-binary.sh").read_text(encoding="utf-8")
+        agent = (CASE / "agent.talon.yaml").read_text(encoding="utf-8")
+        self.assertEqual(agent.count("read_only: true"), 4)
+        for term in ("scripts/prepare-people-analytics-talon.sh", "scripts/check-people-analytics-talon-binary.sh",
+                     "no model calls", "already exists", "skipping init", "not a valid workaround"):
+            self.assertIn(term.lower(), body.lower())
+        self.assertNotIn('export HR_DEMO_TALON_BIN="$(command -v talon)"', body)
+        self.assertIn('if [ ! -f .state/talon/agent.talon.yaml ]; then', body)
+        self.assertIn('if [ ! -f .state/policy/gateway.talon.yaml ]; then', body)
+        for term in ("TALON_GOVERNED_MCP_COMMIT", "go -C", "git clone", ".state/talon-bin"):
+            self.assertIn(term, prepare)
+        for term in ("go version -m", "vcs.revision=", "TALON_GOVERNED_MCP_COMMIT", "FAIL"):
+            self.assertIn(term, check)
+        for script in ("scripts/prepare-people-analytics-talon.sh",
+                       "scripts/check-people-analytics-talon-binary.sh"):
+            proc = subprocess.run(["bash", "-n", str(ROOT / script)], capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, f"{script}: {proc.stderr}")
+        # A clearly wrong executable should fail before any Talon state change.
+        if shutil.which("go"):
+            import sys
+            proc = subprocess.run(
+                ["bash", str(ROOT / "scripts/check-people-analytics-talon-binary.sh"),
+                 sys.executable],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn("Expected:", proc.stderr)
+            self.assertIn("prepare-people-analytics-talon.sh", proc.stderr)
+
     def test_governed_mcp_only_no_proxy_shim(self):
         """The case uses Talon's governed /mcp; the removed MCP proxy has no shim."""
         removed=("/mcp/proxy","--proxy-config","proxy.talon.yaml","proxy.isolated.talon.yaml")

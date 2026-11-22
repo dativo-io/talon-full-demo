@@ -92,6 +92,8 @@ jobs:
           echo "$RUNNER_TEMP/talon-bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/talon-bin/talon" version
           sha256sum "$RUNNER_TEMP/talon-bin/talon"
+      - name: Refuse a wrong Talon schema/binary before the HR policy test
+        run: bash scripts/check-people-analytics-talon-binary.sh "$RUNNER_TEMP/talon-bin/talon"
       - name: Verify Talon's governed MCP endpoint with the synthetic HR service and signed evidence
         run: bash scripts/test-people-analytics-talon.sh
 
@@ -121,6 +123,8 @@ jobs:
           echo "$RUNNER_TEMP/talon-bin" >> "$GITHUB_PATH"
           echo "HR_DEMO_TALON_BIN=$RUNNER_TEMP/talon-bin/talon" >> "$GITHUB_ENV"
           "$RUNNER_TEMP/talon-bin/talon" version
+      - name: Refuse a stale Talon candidate before starting Compose
+        run: bash scripts/check-people-analytics-talon-binary.sh "$RUNNER_TEMP/talon-bin/talon"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
