@@ -1,8 +1,8 @@
-name: People Analytics against the exact governed-MCP Talon candidate source
+name: People Analytics against the exact governed-MCP Talon merged main source
 
 # Real HR MCP server as the use case's trusted MCP action source, Talon's
 # governed MCP endpoint (talon#431) and a synthetic model upstream; no paid
-# inference. The candidate commit is not released: this is SOURCE-BUILT proof,
+# inference. The exact merged main commit is not released: this is SOURCE-BUILT proof,
 # not a published binary. (The RC2-source proof of the proxy-based case stays on
 # its own PR; RC2 predates governed MCP and cannot run this consumer.)
 on:
@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 jobs:
-  candidate-source:
+  merged-main-source:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -25,7 +25,7 @@ jobs:
         with:
           path: full-demo
           persist-credentials: false
-      - name: Resolve the candidate commit
+      - name: Resolve the exact merged main commit
         id: talon
         run: echo "sha=$(tr -d '[:space:]' < full-demo/cases/people-analytics-copilot/TALON_GOVERNED_MCP_COMMIT)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
@@ -42,11 +42,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Exact candidate-source provenance
+      - name: Exact merged-main-source provenance
         run: |
           test "$(git -C talon rev-parse HEAD)" = "${{ steps.talon.outputs.sha }}"
-          echo "CANDIDATE SOURCE ${{ steps.talon.outputs.sha }}, NOT A PUBLISHED BINARY" >> "$GITHUB_STEP_SUMMARY"
-      - name: Compile exact candidate source and record checksum
+          echo "MERGED MAIN SOURCE ${{ steps.talon.outputs.sha }}, SOURCE BUILT, NOT A PUBLISHED BINARY" >> "$GITHUB_STEP_SUMMARY"
+      - name: Compile exact merged main source and record checksum
         run: |
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev jq
@@ -64,4 +64,4 @@ jobs:
       - name: Explicit proof boundary
         if: ${{ !cancelled() }}
         run: |
-          echo 'PASS = synthetic HR consumer on the governed-MCP candidate SOURCE. NOT RUN = published binary/image, Compose isolation (ci.yml job), paired seven-area Console, LIVE paid model.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'PASS = synthetic HR consumer on the governed-MCP merged main SOURCE. NOT RUN = published binary/image, Compose isolation (ci.yml job), paired seven-area Console, LIVE paid model.' >> "$GITHUB_STEP_SUMMARY"
