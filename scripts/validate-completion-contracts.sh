@@ -165,13 +165,17 @@ for required in \
   "grep -Fq -- '--session'" \
   "grep -Fq -- 'signed-json'" \
   "grep -Fq -- '--file'" \
-  'TALON_PINNED_COMMIT' \
+  'pin="$(git -C "$source" rev-parse HEAD)"' \
   'git -C "$source" worktree add --detach' \
   'CGO_ENABLED=1 go build' \
   '.state/talon-audit-cli'; do
   grep -Fq -- "$required" "$AUDIT_RESOLVER" \
     || { echo "audit CLI resolver missing compatibility contract: $required" >&2; exit 1; }
 done
+if grep -Fq 'TALON_PINNED_COMMIT' "$AUDIT_RESOLVER"; then
+  echo 'audit CLI resolver must not require a historical Talon commit pin' >&2
+  exit 1
+fi
 for required in \
   'TALON_CLI_PROFILE:-runtime' \
   'resolve_talon_audit_bin' \

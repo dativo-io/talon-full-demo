@@ -57,22 +57,17 @@ jobs:
       - name: Exercise released Talon budget, gateway and signed-evidence contract without paid models
         run: make tokeneconomizer-contract
 
-  # People Analytics uses Talon's governed MCP endpoint (talon#431), which no
-  # published Talon release contains yet: these jobs build the exact candidate
-  # commit in cases/people-analytics-copilot/TALON_GOVERNED_MCP_COMMIT from
-  # source (source-built proof, NOT a released artifact).
+  # Resolve current Talon main at checkout time; print its SHA for auditability.
+  # Source-built acceptance does NOT verify a published release artifact.
   people-analytics-talon-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve the governed-MCP Talon candidate commit
-        id: talon
-        run: echo "sha=$(tr -d '[:space:]' < cases/people-analytics-copilot/TALON_GOVERNED_MCP_COMMIT)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           repository: dativo-io/talon
-          ref: ${{ steps.talon.outputs.sha }}
+          ref: main
           path: .talon-src
           persist-credentials: false
       - uses: actions/setup-go@v5
@@ -84,15 +79,17 @@ jobs:
           python-version: "3.12"
       - name: Install workforce metrics dependencies
         run: python -m pip install -r cases/people-analytics-copilot/requirements.txt
-      - name: Build the exact Talon candidate commit
+      - name: Build Talon main and record resolved source
         run: |
-          test "$(git -C .talon-src rev-parse HEAD)" = "${{ steps.talon.outputs.sha }}"
+          echo "People Analytics Talon main: $(git -C .talon-src rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
           mkdir -p "$RUNNER_TEMP/talon-bin"
           (cd .talon-src && go build -o "$RUNNER_TEMP/talon-bin/talon" ./cmd/talon)
           echo "$RUNNER_TEMP/talon-bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/talon-bin/talon" version
           sha256sum "$RUNNER_TEMP/talon-bin/talon"
-      - name: Refuse a wrong Talon schema/binary before the HR policy test
+      - name: Verify executable against checked-out Talon main before HR policy test
+        env:
+          HR_DEMO_TALON_SOURCE_DIR: ${{ github.workspace }}/.talon-src
         run: bash scripts/check-people-analytics-talon-binary.sh "$RUNNER_TEMP/talon-bin/talon"
       - name: Verify Talon's governed MCP endpoint with the synthetic HR service and signed evidence
         run: bash scripts/test-people-analytics-talon.sh
@@ -102,28 +99,27 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve the governed-MCP Talon candidate commit
-        id: talon
-        run: echo "sha=$(tr -d '[:space:]' < cases/people-analytics-copilot/TALON_GOVERNED_MCP_COMMIT)" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           repository: dativo-io/talon
-          ref: ${{ steps.talon.outputs.sha }}
+          ref: main
           path: .talon-src
           persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: .talon-src/go.mod
           cache: false
-      - name: Build the exact Talon candidate for the container network proof
+      - name: Build Talon main for isolated Compose test
         run: |
-          test "$(git -C .talon-src rev-parse HEAD)" = "${{ steps.talon.outputs.sha }}"
+          echo "People Analytics Compose Talon main: $(git -C .talon-src rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
           mkdir -p "$RUNNER_TEMP/talon-bin"
           (cd .talon-src && go build -o "$RUNNER_TEMP/talon-bin/talon" ./cmd/talon)
           echo "$RUNNER_TEMP/talon-bin" >> "$GITHUB_PATH"
           echo "HR_DEMO_TALON_BIN=$RUNNER_TEMP/talon-bin/talon" >> "$GITHUB_ENV"
           "$RUNNER_TEMP/talon-bin/talon" version
-      - name: Refuse a stale Talon candidate before starting Compose
+      - name: Verify executable against checked-out Talon main before Compose
+        env:
+          HR_DEMO_TALON_SOURCE_DIR: ${{ github.workspace }}/.talon-src
         run: bash scripts/check-people-analytics-talon-binary.sh "$RUNNER_TEMP/talon-bin/talon"
       - uses: actions/setup-python@v5
         with:

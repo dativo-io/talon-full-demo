@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
 # Resolve a Talon CLI that supports the evidence interface used by presenters.
-# The running service binary may intentionally be an older released build, so
-# this resolver can build and cache the repository-pinned CLI without restarting
-# or replacing the service.
+# When no installed binary is suitable, build the checked-out core source
+# (typically current main) without changing the running Talon service.
 
 talon_supports_demo_audit() {
   local candidate="$1" export_help verify_help
@@ -21,20 +20,17 @@ talon_supports_demo_audit() {
     && grep -Fq -- '--file' <<<"$verify_help"
 }
 
-build_pinned_talon_audit_cli() {
-  # An older historical demo pin must never impersonate the new OpenShell
-  # execution/presentation interface. Require an explicit matching CLI.
+build_checked_out_talon_audit_cli() {
   [[ "${TALON_REQUIRE_OPENSHELL_AUDIT:-0}" != 1 ]] || return 1
   local root="$1" source pin cache_dir target tmp worktree
-  source="$root/../talon"
+  source="${TALON_REPO:-$root/../talon}"
   command -v git >/dev/null 2>&1 || return 1
   command -v go >/dev/null 2>&1 || return 1
   git -C "$source" rev-parse --git-dir >/dev/null 2>&1 || return 1
-  [[ -s "$root/TALON_PINNED_COMMIT" ]] || return 1
 
-  pin="$(tr -d '[:space:]' <"$root/TALON_PINNED_COMMIT")"
-  [[ "$pin" =~ ^[0-9a-fA-F]{40}$ ]] || return 1
-  git -C "$source" cat-file -e "$pin^{commit}" 2>/dev/null || return 1
+  # The caller supplies a Talon checkout (current main in CI). Build HEAD
+  # from that checkout, never a historical Full Demo pin.
+  pin="$(git -C "$source" rev-parse HEAD)"
 
   cache_dir="$root/.state/talon-audit-cli/$pin"
   target="$cache_dir/talon"
@@ -48,7 +44,7 @@ build_pinned_talon_audit_cli() {
   worktree="$root/.state/talon-audit-source-$pin-$$"
   rm -rf "$worktree" "$tmp"
 
-  printf 'Building the pinned Talon audit CLI once for evidence presentation...\n' >&2
+  printf 'Building the checked-out Talon audit CLI for evidence presentation...\n' >&2
   if ! git -C "$source" worktree add --detach "$worktree" "$pin" >/dev/null 2>&1; then
     return 1
   fi
@@ -100,7 +96,7 @@ resolve_talon_audit_bin() {
     fi
   done
 
-  resolved="$(build_pinned_talon_audit_cli "$root" || true)"
+  resolved="$(build_checked_out_talon_audit_cli "$root" || true)"
   [[ -n "$resolved" ]] || return 1
   printf '%s\n' "$resolved"
 }

@@ -1,4 +1,6 @@
-# Add Talon to a People Analytics application
+# People Analytics — technical reference
+
+> **Looking to run this demo?** Follow the [complete operator playbook](PLAYBOOK.md): current Talon `main`, setup, GUIDED/LIVE, pairing, evidence, troubleshooting, and safe shutdown. **This document is supplementary architecture, verification, and historical test evidence**, not a step-by-step quickstart.
 
 ## Talon at a glance
 
@@ -29,11 +31,11 @@ This example begins with an ordinary workforce application: **DuckDB** stores 1,
 
 Talon is introduced **between the application and its model/MCP endpoints**. We keep the database and chart API as they are; we do not give the AI application raw DuckDB access.
 
-## Governed MCP integration against merged Talon main (#589)
+## Governed MCP integration on Talon main
 
-**Primary acceptance target:** exact source-built Talon `156188dea65cb6feab01aa92093a00e7717a6dd6` (merged `dativo-io/talon#589`, November 22, 2026), pinned in `TALON_GOVERNED_MCP_COMMIT`. It is **not** the RC2 executable and is **not** a published stable release. The default customer architecture is one `POST /mcp`, with the HR backend declared as the use case's trusted `actions.sources.hr`; there is **no** `--proxy-config` or `/mcp/proxy` in this path.
+**Current demo target:** the current `dativo-io/talon` `main` revision resolved at run time. CI and the [operator playbook](PLAYBOOK.md) build the checked-out source and record the source SHA; neither requires a permanently pinned commit. This is **source-built acceptance**, not verification of a published stable binary. The application calls `POST /mcp`; the HR backend is declared as the trusted `actions.sources.hr`. Removed `--proxy-config` and `/mcp/proxy` interfaces are not used.
 
-The read-only aggregate tools execute in one governed call; `hr_employee_export` is forbidden and must have zero HR dispatches. HR SQL rejected **after dispatch** is `UNKNOWN`, not an invented policy denial. Confirm the positive aggregate, negative export, SQL UNKNOWN, hot reload, independent HR counters and verified signed action lifecycle using `scripts/test-people-analytics-talon.sh`. The browser and isolated Docker Compose gates are separate: they must pass on the same pinned SHA to support an end-to-end customer presentation. `X-Talon-Session-ID` is attribution, not authorization. The model remains synthetic unless the opt-in paid-model path is run.
+The read-only aggregate tools execute in one governed call; `hr_employee_export` is forbidden and must have zero HR dispatches. HR SQL rejected **after dispatch** is `UNKNOWN`, not an invented policy denial. Confirm the positive aggregate, negative export, SQL UNKNOWN, hot reload, independent HR counters and verified signed action lifecycle using `scripts/test-people-analytics-talon.sh`. The browser and isolated Docker Compose gates are separate: each run records the actual source SHA and must pass together to support a demo. `X-Talon-Session-ID` is attribution, not authorization. The model remains synthetic unless the opt-in paid-model path is run.
 
 The published-RC2 evidence below is a **historical control for the former pre-convergence architecture**, not acceptance of this upgraded demo.
 
@@ -112,49 +114,40 @@ flowchart LR
 
 This shows the **server-side** boundaries, not direct browser connections to OpenAI or the HR backend. The **Workforce browser** reaches only the Workforce application on port 8501; a separate **operator browser** can pair with the read-only Talon operations console on host-loopback port 8787. Neither browser directly reaches the private HR service. The fixed chart API reads the DuckDB **file** via a read-only Docker volume without Talon. DuckDB is embedded, not a network database; the private HR service reads the same volume. The HR MCP service is the AI use case's **trusted MCP action source**: it listens on `127.0.0.1` inside a namespace shared by `talon-mcp` and the LIVE-only `talon-gateway`, because both Talon processes independently discover the HR action catalog at startup. Both reach the HR backend at `http://127.0.0.1:9091/mcp`; nothing else on the application network can call HR directly. Every tool call from the application goes to Talon's **governed MCP endpoint** (`POST /mcp`, talon#431) and is an Action Gateway operation: policy, at most one dispatch, signed lifecycle evidence. Talon governs intercepted model requests and these MCP actions, while the HR backend independently validates SQL. The gateway runs only in LIVE mode (the GUIDED path makes no model requests); credential-free CI uses a fake provider instead of external OpenAI. The two Talon processes share persisted signed evidence; `talon audit` and `talon costs` read that evidence, not browser-generated totals.
 
-All employee records are fictional. Run the commands below from a trusted Linux host with Docker Compose v2, OpenSSL, Git and Go (for this **source-pinned, unreleased** governed-MCP demo). The customer-ready published-release path remains a separate acceptance gate.
+All employee records are fictional. Run the walkthrough from `cases/people-analytics-copilot` on a Linux host with Docker Compose v2, OpenSSL, Git, and Go.
 
-**Talon version requirement:** this case uses Talon's governed MCP endpoint (talon#431), which **no published Talon release contains yet**. Until one does, it runs only against the candidate commit in [`TALON_GOVERNED_MCP_COMMIT`](TALON_GOVERNED_MCP_COMMIT), built from source by CI — internal acceptance, **not** customer-facing proof. Releases up to v1.17.0-rc.2 serve the removed MCP proxy (`--proxy-config`, `/mcp/proxy`) instead and cannot run this version of the case.
+**Compatibility:** the People Analytics policy requires governed MCP action support, including `read_only`. Talon v1.17.0-rc.2 is not compatible. The demo builds Talon from current `main` and validates it each run; no fixed SHA is required.
 
-**Release acceptance gate:** the complete official v1.17.0 stable release is the customer baseline (core #562–569/#572). RC.1 is incomplete; earlier compatible candidate runs can provide internal Console evidence only. Record the exact tag/commit, platform, executable checksum and image digest. Follow the released [official installation guidance](https://github.com/dativo-io/talon/releases) and verify its artifacts using the matching release's verification instructions. This draft has not yet been exercised on that stable release; do not replace the pin with a floating source build.
+For a customer-facing demo, use a [published Talon release](https://github.com/dativo-io/talon/releases) **only after** it passes the same governed-MCP and Console acceptance checks. Do not silently substitute an older release or change the agent's permissions to make validation pass.
 
-The future no-source-build paths are a verified release Linux binary or published image **after** the target schema is actually released and re-tested. In the meantime this standalone demo requires a **source-built Linux Talon** at the pinned governed-MCP commit. The `read_only: true` overlays on the four HR actions are **supported** by that source commit but **rejected** by older binaries including v1.17.0-rc.2. Removing `read_only` is not a valid workaround: it would change aggregate execution from one-call reads to prepared consequential operations.
+### Prepare Talon
 
-### One-time prerequisite: select the correct Talon binary
-
-From the **Full Demo repository root** on Ubuntu:
+Run these commands **from this directory** (`cases/people-analytics-copilot`) on the Ubuntu Docker host:
 
 ```bash
-bash scripts/prepare-people-analytics-talon.sh
-export HR_DEMO_TALON_BIN="$PWD/.state/talon-bin/talon"
-bash scripts/check-people-analytics-talon-binary.sh "$HR_DEMO_TALON_BIN"
+bash ../../scripts/prepare-people-analytics-talon.sh
+export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
 ```
 
-The builder clones the **exact** `TALON_GOVERNED_MCP_COMMIT` under ignored `.state/talon-source`, builds a Linux executable under ignored `.state/talon-bin` and verifies its embedded Git commit using `go version -m`. It **never modifies** `cases/people-analytics-copilot/.env`, `.state/talon`, existing vault keys or evidence. This is an **internal source-built demo**, not a verification of a published stable artifact. Do not mount a host macOS executable into Linux Docker.
+The helper prepares and checks a compatible Talon executable. It does not reset your existing configuration, secrets, or evidence. This is a source-built demo dependency until a compatible published release passes the same acceptance checks; the script resolves current Talon `main` instead of freezing a SHA.
 
-**Common failure on Ubuntu:** `read_only: Additional property is not allowed` means Compose is mounting the **wrong executable** via `HR_DEMO_TALON_BIN` even if the policy YAML is correct. Check both the host and container before running `talon init`:
+If validation says `read_only: Additional property is not allowed`, Compose is using an incompatible executable. Re-run the helper and check the mounted version with:
 
 ```bash
-cd cases/people-analytics-copilot
-export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
 bash ../../scripts/check-people-analytics-talon-binary.sh "$HR_DEMO_TALON_BIN"
 docker compose -f compose.isolated.yaml run --rm talon-cli talon version
-
-# Confirm the installed source-built Console subcommand and its supported flags.
 docker compose -f compose.isolated.yaml run --rm talon-cli talon ui serve --help
 ```
+
+Removing `read_only` is not a valid workaround: it changes the tool's policy semantics.
 
 If `talon doctor` reports `llm_keys: No LLM provider configured`, that is expected for the **GUIDED** deterministic tool demo: it makes **no model calls**. `talon validate` must still pass policy schema validation. LIVE model mode requires separately configuring an actual provider secret and Talon gateway; `talon doctor`'s LLM readiness check is not a substitute for checking policy compatibility. A standalone `agent.talon.yaml` without `talon.config.yaml` means there is **no company-level baseline** in this isolated case; use the [shared ACME fleet](../../scripts/test-acme-one-fleet.py) to prove four agent identities inheriting one company policy.
 
 ## 1. Start DuckDB and the existing analytics services
 
-From the demo repository:
+Continue from `cases/people-analytics-copilot` with `HR_DEMO_TALON_BIN` set as above:
 
 ```bash
-cd cases/people-analytics-copilot
-export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
-bash ../../scripts/check-people-analytics-talon-binary.sh "$HR_DEMO_TALON_BIN"
-
 # Local secrets for the Talon vault, audit signatures and admin access.
 # .env is ignored by Git; it contains no OpenAI key.
 # Generate keys ONCE. Keep the same .env as long as .state/talon exists.

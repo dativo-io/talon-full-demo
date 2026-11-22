@@ -1,10 +1,7 @@
 name: live-check
 
-# Executes the real-Talon contract (make live-check) against the EXACT commit in
-# TALON_PINNED_COMMIT — the most important contract, previously not in hosted CI.
-# It checks out dativo-io/talon at the pinned SHA, builds it, and runs the MCP
-# release boundary, the shared-identity proof, and the real session-budget engine.
-# TALON_STRICT_PIN=1 makes a commit mismatch a hard failure, not a warning.
+# Test the real Talon MCP/session-budget engine against current Talon main.
+# Git checkout resolves one immutable SHA per job; record it for provenance.
 
 on:
   pull_request:
@@ -24,15 +21,11 @@ jobs:
         with:
           path: talon-full-demo
 
-      - name: Resolve the pinned Talon commit
-        id: pin
-        run: echo "sha=$(cat talon-full-demo/TALON_PINNED_COMMIT)" >> "$GITHUB_OUTPUT"
-
-      - name: Check out dativo-io/talon at the pinned commit
+      - name: Check out dativo-io/talon main
         uses: actions/checkout@v4
         with:
           repository: dativo-io/talon
-          ref: ${{ steps.pin.outputs.sha }}
+          ref: main
           path: talon
 
       - name: Set up Go (matching Talon's toolchain)
@@ -41,17 +34,19 @@ jobs:
           go-version-file: talon/go.mod
           cache: true
 
-      - name: Verify runner dependencies
-        run: command -v jq
+      - name: Verify runner dependencies and record core provenance
+        run: |
+          command -v jq
+          echo "Talon main: $(git -C talon rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Run make live-check against the pinned Talon
+      - name: Run make live-check against current Talon main
         working-directory: talon-full-demo
         env:
           TALON_REPO: ${{ github.workspace }}/talon
-          TALON_STRICT_PIN: "1"
+          # Checkout is main@run-start; no fixed-SHA constraint.
         run: make live-check
 
-      - name: Build and verify the pinned presenter CLI
+      - name: Build and verify the presenter CLI
         working-directory: talon-full-demo
         run: |
           rm -rf .state/talon-audit-cli

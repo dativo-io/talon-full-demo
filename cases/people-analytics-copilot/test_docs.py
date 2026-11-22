@@ -7,7 +7,7 @@ import unittest
 
 CASE=Path(__file__).resolve().parent
 ROOT=CASE.parents[1]
-DOCS=[CASE/"README.md",CASE/"CI_COVERAGE.md",CASE/"screenshots"/"README.md",ROOT/"README.md",ROOT/"docs"/"AUDIENCE_DEMOS.md"]
+DOCS=[CASE/"README.md",CASE/"PLAYBOOK.md",CASE/"CI_COVERAGE.md",CASE/"screenshots"/"README.md",ROOT/"README.md",ROOT/"docs"/"AUDIENCE_DEMOS.md"]
 
 class DocumentationContract(unittest.TestCase):
     def test_links_and_fences(self):
@@ -160,6 +160,20 @@ class DocumentationContract(unittest.TestCase):
         self.assertIn("Approvals", body)
         self.assertNotIn("approve/reject buttons", body.lower())
 
+    def test_quickstart_setup_works_from_case_directory(self):
+        """A user following the case README must not need to guess the cwd."""
+        body = (CASE / "README.md").read_text(encoding="utf-8")
+        setup = body.split("### Prepare Talon", 1)[1].split("## 1.", 1)[0]
+        first_step = body.split("## 1. Start DuckDB", 1)[1].split("## 2.", 1)[0]
+        self.assertIn("from this directory", setup)
+        self.assertIn("bash ../../scripts/prepare-people-analytics-talon.sh", setup)
+        self.assertIn('export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"', setup)
+        self.assertNotIn("bash scripts/prepare-people-analytics-talon.sh", setup)
+        self.assertNotIn("bash scripts/check-people-analytics-talon-binary.sh", setup)
+        self.assertNotIn("cd cases/people-analytics-copilot", first_step)
+        self.assertTrue((CASE / "../../scripts/prepare-people-analytics-talon.sh").resolve().is_file())
+        self.assertTrue((CASE / "../../scripts/check-people-analytics-talon-binary.sh").resolve().is_file())
+
     def test_governed_mcp_binary_pin_and_safe_reinitialization(self):
         """Old Talon schema must not silently reject read_only or overwrite vault state."""
         body = (CASE / "README.md").read_text(encoding="utf-8")
@@ -173,10 +187,15 @@ class DocumentationContract(unittest.TestCase):
         self.assertNotIn('export HR_DEMO_TALON_BIN="$(command -v talon)"', body)
         self.assertIn('if [ ! -f .state/talon/agent.talon.yaml ]; then', body)
         self.assertIn('if [ ! -f .state/policy/gateway.talon.yaml ]; then', body)
-        for term in ("TALON_GOVERNED_MCP_COMMIT", "go -C", "git clone", ".state/talon-bin"):
+        for term in ("origin main", "go -C", "git clone", ".state/talon-bin", "git -C"):
             self.assertIn(term, prepare)
-        for term in ("go version -m", "vcs.revision=", "TALON_GOVERNED_MCP_COMMIT", "FAIL"):
+        for term in ("go version -m", "vcs.revision=", "git -C", "FAIL"):
             self.assertIn(term, check)
+        self.assertNotIn("TALON_GOVERNED_MCP_COMMIT", prepare + check)
+        playbook = (CASE / "PLAYBOOK.md").read_text(encoding="utf-8")
+        self.assertIn("current", playbook)
+        self.assertIn("[dativo-io/talon main](https://github.com/dativo-io/talon/tree/main)", playbook)
+        self.assertNotRegex(playbook, r"(?m)^\s*git(?:\s+-C\s+\S+)?\s+checkout\s+[0-9a-f]{40}\b")
         for script in ("scripts/prepare-people-analytics-talon.sh",
                        "scripts/check-people-analytics-talon-binary.sh"):
             proc = subprocess.run(["bash", "-n", str(ROOT / script)], capture_output=True, text=True)
@@ -190,8 +209,9 @@ class DocumentationContract(unittest.TestCase):
                 capture_output=True, text=True,
             )
             self.assertNotEqual(proc.returncode, 0)
-            self.assertIn("Expected:", proc.stderr)
-            self.assertIn("prepare-people-analytics-talon.sh", proc.stderr)
+            self.assertIn("FAIL:", proc.stderr)
+            self.assertTrue("source checkout" in proc.stderr or "does not match" in proc.stderr,
+                            proc.stderr)
 
     def test_governed_mcp_only_no_proxy_shim(self):
         """The case uses Talon's governed /mcp; the removed MCP proxy has no shim."""
@@ -209,7 +229,7 @@ class DocumentationContract(unittest.TestCase):
         for term in ("actions:","sources:","type: mcp","definitions:","read_only: true",
                      "forbidden_tools:","- hr_employee_export"):
             self.assertIn(term,agent)
-        self.assertRegex((CASE/"TALON_GOVERNED_MCP_COMMIT").read_text().strip(),r"^[0-9a-f]{40}$")
+        self.assertTrue((CASE/"PLAYBOOK.md").is_file())
         app=(CASE/"demo.py").read_text(encoding="utf-8")
         self.assertIn("'/mcp'",app)
         self.assertIn("server/discover",app)

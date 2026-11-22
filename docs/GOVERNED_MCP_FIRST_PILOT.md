@@ -2,21 +2,22 @@
 
 **Status:** a source-built, single-process **four-use-case technical governance test PASSED** ([real one-installation ACME acceptance (all three CI jobs passed)](https://github.com/dativo-io/talon-full-demo/actions/runs/45014911307)) with independent downstream counters, 41 signed records, eight verified operation lifecycles and a paired native Console. The installation was **ephemeral CI**, not a published-release persistent production pilot or a simultaneous end-to-end four-application UI demonstration. See the [live execution index](DEMO_EXPERIENCE_INDEX.md). No paid model keys are required; neither real Shopify payment nor real Claude/OpenShell C01–C12 was exercised.
 
-## 1. Use exactly the validated Talon producer
+## 1. Use Talon's current main
 
-These instructions target the **source-built** merged MCP Action Gateway main, not the published historical RC2. Do not use a moving `main` checkout in a demo.
+The active demo follows `dativo-io/talon` **main at execution time** and records the revision it built. This is source-built proof, not verification of a published release. The RC2 checks remain historical.
 
 ```bash
-git clone https://github.com/dativo-io/talon.git
-git -C talon checkout 156188dea65cb6feab01aa92093a00e7717a6dd6
-test "$(git -C talon rev-parse HEAD)" = "156188dea65cb6feab01aa92093a00e7717a6dd6"
+if [ ! -d talon/.git ]; then git clone --branch main https://github.com/dativo-io/talon.git; fi
+git -C talon fetch origin main
+git -C talon checkout --detach origin/main
 mkdir -p bin
 (cd talon && go build -o ../bin/talon ./cmd/talon)
 bin/talon version
-sha256sum bin/talon   # save alongside every generated proof pack
+git -C talon rev-parse HEAD   # save this run's producer revision
+sha256sum bin/talon          # save the executable checksum
 ```
 
-For a released installation instead, verify a published archive and image at the **same** pinned version/digest first, using the official [release verification and production pilot runbook](https://github.com/dativo-io/talon/blob/156188dea65cb6feab01aa92093a00e7717a6dd6/docs/guides/production-pilot.md). Do not pass off the above binary as an official release artifact.
+If a checkout already exists, skip the clone. Before each planned demo, update and run the acceptance tests against the newly fetched `main`; fail clearly if a newer core change breaks an integration rather than switching back to a historical SHA. For released deployments, use the version's verified official artifact and the [current production pilot guide](https://github.com/dativo-io/talon/blob/main/docs/guides/production-pilot.md). A source build is not an official published release.
 
 ## 2. One organization policy, two distinct use cases
 
@@ -47,4 +48,4 @@ This presumes a configured Talon data directory/agents directory and company bas
 
 **Two distinct acceptance levels:** (1) the new `one-installation-fleet` job in [ACME's current-main workflow](../.github/workflows/acme-governed-main-acceptance.yml) **PASSED** with four native use cases in one live ephemeral Talon installation, common loaded baseline, independently measured outcomes, one signed proof and paired Console; (2) a **persistent official-artifact buyer deployment** with all four actual client UIs, safe restart/restore and one narrated end-to-end presentation remains **NOT RUN**. Component CI on separate stores alone does not establish (1). Other current limits: no real Shopify payment, no anonymous external MCP access, no implicit shell/file/browser containment, no native Console write/reviewer UI, no corporate SSO reviewer authentication and no paid-provider claim unless explicitly run. For the engineering incident, OrderDesk still correctly uses its existing **HTTP** Action Gateway, and Claude Code × OpenShell C01–C12 remain a separate nontrivial gate.
 
-**Executable fixtures:** `make incident-bridge-intents` for OrderDesk, `bash scripts/test-people-analytics-talon.sh` for HR, `bash integrations/n8n/shopify-support/test-n8n.sh` for Shopify (n8n 2.48.5), and `make live-check` on the correct pinned Talon source for synthetic MCP. The [merged-main four-PR CI](../.github/workflows/acme-governed-main-acceptance.yml) exercises these component paths but must not be mistaken for the final shared-fleet buyer run.
+**Executable fixtures:** `make incident-bridge-intents` for OrderDesk, `bash scripts/test-people-analytics-talon.sh` for HR, `bash integrations/n8n/shopify-support/test-n8n.sh` for Shopify (n8n 2.48.5), and `make live-check` on the checked-out current Talon source for synthetic MCP. The [merged-main four-PR CI](../.github/workflows/acme-governed-main-acceptance.yml) exercises these component paths but must not be mistaken for the final shared-fleet buyer run.

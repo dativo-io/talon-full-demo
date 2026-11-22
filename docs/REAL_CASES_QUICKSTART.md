@@ -1,6 +1,8 @@
-# Real cases: the short path
+# Legacy real-provider presenters — reference only
 
-This is the recommended path for testing and presenting the demo against real providers. [SETUP.md](SETUP.md) remains the manual reference.
+> **For new demos on Talon's current `main`, start with the [complete People Analytics playbook](../cases/people-analytics-copilot/PLAYBOOK.md) and the [current-main four-case acceptance](../.github/workflows/acme-governed-main-acceptance.yml).** The older `make real-prepare / real-start` stack below still assumes the retired MCP proxy on port 8081. It has **not** been migrated or accepted against the current Talon `main` and should not be presented as the supported new-customer path. Keep this guide for historical presenter reproduction only.
+
+[SETUP.md](SETUP.md) documents the original manual path; it is not proof of compatibility with current core main.
 
 ## What each level proves
 
