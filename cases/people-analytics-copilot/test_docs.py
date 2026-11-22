@@ -137,6 +137,13 @@ class DocumentationContract(unittest.TestCase):
                          "volumes: *talon-volumes", "./:/case:ro", "env_file:"):
             self.assertNotIn(excluded,service,"Read-only console must not gain HR network or privileged credentials")
         self.assertIn("docker compose -f compose.isolated.yaml --profile operator exec -T talon-ui talon ui pair",body)
+        # Pair prints only an acknowledgement. The generated code appears on
+        # the running Console's stdout, not in the CLI command's output.
+        for item in ("Talon console pairing code: XXXXX-XXXXX-XXXXX-XXXXX",
+                     "--profile operator logs --no-color --tail=30 talon-ui",
+                     "NOT the pairing code", "Generating a new code invalidates",
+                     "--profile operator ps -a talon-ui", "ssh -L 8787:127.0.0.1:8787"):
+            self.assertIn(item, body)
         self.assertIn("talon ui serve --help",body)
         self.assertIn("http://127.0.0.1:8787/",body)
         self.assertIn("read-only",body.lower())
