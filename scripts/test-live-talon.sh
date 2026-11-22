@@ -29,22 +29,14 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TALON_REPO="${TALON_REPO:-$ROOT/../talon}"
-PIN="$(cat "$ROOT/TALON_PINNED_COMMIT")"
-
 [[ -d "$TALON_REPO/examples/product-demo" ]] || {
-  echo "TALON_REPO ($TALON_REPO) is not a Talon checkout; clone dativo-io/talon next to this repository or set TALON_REPO" >&2
+  echo "TALON_REPO ($TALON_REPO) is not a Talon checkout; clone current dativo-io/talon main or set TALON_REPO" >&2
   exit 1
 }
-TALON_HEAD="$(git -C "$TALON_REPO" rev-parse HEAD 2>/dev/null || echo unknown)"
-if [[ "$TALON_HEAD" != "$PIN" ]]; then
-  # Hosted CI sets TALON_STRICT_PIN=1 so an unpinned checkout is a hard failure,
-  # not a warning: the executed contract must be against the audited commit.
-  if [[ "${TALON_STRICT_PIN:-0}" == "1" ]]; then
-    echo "ERROR: TALON_REPO is at $TALON_HEAD; TALON_STRICT_PIN requires $PIN (TALON_PINNED_COMMIT)" >&2
-    exit 1
-  fi
-  echo "WARNING: TALON_REPO is at $TALON_HEAD; this demo is audited against $PIN (TALON_PINNED_COMMIT)" >&2
-fi
+TALON_HEAD="$(git -C "$TALON_REPO" rev-parse HEAD)"
+echo "Talon source checkout for this test: $TALON_HEAD"
+# CI checks out current main for every run; local runners may intentionally
+# inspect a different Talon checkout. Always report the tested source SHA.
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/talon-live-check.XXXXXX")"
 PIDS=()
