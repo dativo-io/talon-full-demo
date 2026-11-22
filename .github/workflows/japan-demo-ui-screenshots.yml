@@ -93,7 +93,7 @@ jobs:
             if 'signin' in page.url or 'login' in page.url:
               page.locator('input[type="email"],input[name="emailOrLdapLoginId"]').first.fill(owner['email'])
               page.locator('input[type="password"]').first.fill(owner['password'])
-              page.locator('button[type="submit"]').first.click()
+              page.get_by_role('button',name='Sign in').first.click()
               page.wait_for_timeout(2500)
               page.goto(base+'/workflow/talonShopifySupport01',wait_until='domcontentloaded',timeout=60000)
             page.wait_for_timeout(8500)
