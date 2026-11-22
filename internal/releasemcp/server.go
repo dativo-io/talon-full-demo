@@ -152,7 +152,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 				// run_nonce MUST be advertised and required: the demo correlates
 				// upstream receipts to the current run by this nonce
 				// (scripts/assert-release-blocked.sh), and a conforming MCP
-				// client sends only declared properties. Talon's proxy forwards
+				// client sends only declared properties. Talon's governed MCP source presents
 				// each tool object verbatim (filtering by name only), so this is
 				// the schema the real client sees. additionalProperties:false is
 				// kept so the client sends exactly {version?, run_nonce}.
@@ -192,11 +192,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			rpcError(w, request.ID, -32603, "receipt write failed")
 			return
 		}
-		reply(w, request.ID, map[string]any{
-			"resultType": "complete",
-			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Synthetic %s completed; no external release action exists", params.Name)}},
-			"isError": false,
-		})
+		reply(w, request.ID, map[string]any{"resultType": "complete", "content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Synthetic %s completed; no external release action exists", params.Name)}}, "isError": false})
 	default:
 		rpcError(w, request.ID, -32601, "method not found")
 	}
