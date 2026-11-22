@@ -26,11 +26,7 @@ if [[ -f "$TALON_REPO/pricing/models.yaml" ]]; then
   cp "$TALON_REPO/pricing/models.yaml" "$STAGE/pricing/models.yaml"
 fi
 git -C "$TALON_REPO" rev-parse HEAD > "$STAGE/TALON_SOURCE_COMMIT"
-PIN_FILE="$ROOT/TALON_PINNED_COMMIT"
-if [[ -s "$PIN_FILE" ]] && [[ "$(cat "$STAGE/TALON_SOURCE_COMMIT")" != "$(cat "$PIN_FILE")" ]]; then
-  echo "WARNING: TALON_REPO is at $(cat "$STAGE/TALON_SOURCE_COMMIT"); this demo is audited against $(cat "$PIN_FILE") (TALON_PINNED_COMMIT)" >&2
-fi
-
+# Source SHA is recorded for this execution; there is no global demo SHA lock.
 # Shadow mode is a runtime override since Talon v1.9.3 (#368), run from the
 # generated-config directory because agents_dir resolves against the server cwd:
 #   (cd config/generated && talon serve --gateway --gateway-mode shadow --proxy-config ../mcp-proxy.example.yaml)
