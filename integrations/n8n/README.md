@@ -1,6 +1,8 @@
 # n8n integrations
 
-This directory contains real, credential-free workflow exports for the pinned `n8n:2.30.4` runtime:
+**There are two different tracks here.** For the **current four-use-case demonstration**, start with [Shopify Support using n8n 2.48.5](shopify-support/README.md), the [four-case catalog](../../docs/DEMO_CATALOG.md), or the [external-reader overview](../../docs/START_HERE.md). The flows below are **historical standalone n8n 2.30.4 fixtures**; they remain useful for clean-import/contract validation but are not the current-main shared-company demo.
+
+This directory also contains credential-free workflow exports tested with the historical pinned `n8n:2.30.4` runtime:
 
 - `quarterly-compliance-workflow.json` — sequential document summaries with a session-budget stop;
 - `vendor-contract-review-workflow.json` — confidential vendor-package review with an egress denial before an approved provider call;
@@ -152,7 +154,7 @@ The presenters fail closed unless application artifacts and signed evidence agre
 
 ## Audit-capable presentation CLI
 
-The already-running Talon service may use a released binary whose `audit export` command predates session-filtered signed exports. Runtime execution continues to use that service unchanged. Presentation commands select a compatible installed CLI or build and cache the repository-pinned CLI under `.state/talon-audit-cli/`. This does not restart or replace the running gateway.
+The already-running Talon service may use a released binary whose `audit export` command predates session-filtered signed exports. Runtime execution continues to use that service unchanged. Presentation commands select a compatible installed CLI or build and cache a CLI from the **currently checked-out Talon source revision** under `.state/talon-audit-cli/`. The resolved SHA is provenance for that run, not a permanent source pin. This does not restart or replace the running gateway.
 
 ## Optional UI import
 
