@@ -23,6 +23,6 @@ git -C "$SOURCE" checkout --detach "$EXPECTED"
 ACTUAL="$(git -C "$SOURCE" rev-parse HEAD)"
 [[ "$ACTUAL" == "$EXPECTED" ]] || { echo "Source SHA does not match pinned candidate" >&2; exit 1; }
 go -C "$SOURCE" build -o "$BINDIR/talon" ./cmd/talon
-"$ROOT/scripts/check-people-analytics-talon-binary.sh" "$BINDIR/talon"
+bash "$ROOT/scripts/check-people-analytics-talon-binary.sh" "$BINDIR/talon"
 printf '\nUse this binary in your current shell (do not reset existing keys/state):\n'
 printf 'export HR_DEMO_TALON_BIN=%q\n' "$BINDIR/talon"
