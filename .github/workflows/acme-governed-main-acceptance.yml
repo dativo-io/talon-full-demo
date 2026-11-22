@@ -113,12 +113,15 @@ jobs:
         env:
           TALON_CLI: ${{ runner.temp }}/bin/talon
         run: make incident-bridge-intents
-      - name: Real gateway budget admission (document processing contract)
+      - name: Real governed MCP and session-budget engine against exact Talon main
         working-directory: full-demo
         env:
           TALON_BIN: ${{ runner.temp }}/bin/talon
-          TALON_TOKEN_CONTRACT_MODE: core-main
-        run: make tokeneconomizer-contract
+          TALON_REPO: ${{ github.workspace }}/talon
+          TALON_STRICT_PIN: '1'
+        run: |
+          test "$(cat TALON_PINNED_COMMIT)" = "$TALON_MAIN_SHA"
+          make live-check
       - name: Acceptance boundary
         if: ${{ !cancelled() }}
         run: |
