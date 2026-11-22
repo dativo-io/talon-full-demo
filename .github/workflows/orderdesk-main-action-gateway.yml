@@ -1,7 +1,7 @@
-name: OrderDesk exact merged-main Action Gateway acceptance (#589)
+name: OrderDesk Action Gateway against current Talon main
 
 # Real PostgreSQL 16 staging outage + deterministic bridge identity and native HTTP Action Gateway,
-# exact merged Talon #589 main source. This lane is NOT C01-C12 OpenShell/Claude acceptance.
+# current Talon main source resolved at checkout time. This lane is NOT C01-C12 OpenShell/Claude acceptance.
 # Historical RC2 proof is preserved in orderdesk-rc2-source.yml.
 on:
   pull_request:
@@ -18,8 +18,6 @@ jobs:
   merged-main-source:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
-    env:
-      TALON_MAIN_COMMIT: 156188dea65cb6feab01aa92093a00e7717a6dd6
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: dativo-io/talon
-          ref: 156188dea65cb6feab01aa92093a00e7717a6dd6
+          ref: main
           path: talon
           persist-credentials: false
       - uses: actions/setup-go@v5
@@ -36,12 +34,9 @@ jobs:
           go-version-file: talon/go.mod
           cache: true
           cache-dependency-path: talon/go.sum
-      - name: Verify exact merged Talon main checkout
-        run: |
-          git -C talon rev-parse HEAD
-          test "$(git -C talon rev-parse HEAD)" = "$TALON_MAIN_COMMIT"
-          echo 'MERGED MAIN SOURCE TEST at exact 156188d, NOT A PUBLISHED RELEASE' >> "$GITHUB_STEP_SUMMARY"
-      - name: Compile pinned main and record binary checksum
+      - name: Record current Talon main source
+        run: echo "Current Talon main: $(git -C talon rev-parse HEAD); source-built, not a published release" >> "$GITHUB_STEP_SUMMARY"
+      - name: Compile checked-out main and record binary checksum
         run: |
           sudo apt-get update
           sudo apt-get install -y libsqlite3-dev jq
