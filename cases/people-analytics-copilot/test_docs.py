@@ -98,9 +98,7 @@ class DocumentationContract(unittest.TestCase):
         self.assertIn("DEMO_BIND_HOST: 127.0.0.1",spec)
         self.assertIn("aliases: [talon-mcp, talon-gateway]",spec)
         self.assertIn("volumes: [hr_data:/data:ro]",spec)
-        gateway=re.search(r'(?ms)^  talon-gateway:\n(?P<service>.*?)(?=^  [\\w-]+:|\\Z)',spec)
-        self.assertIsNotNone(gateway)
-        live=gateway.group("service")
+        live=spec.split("  talon-gateway:\n",1)[1].split("\n  talon-ui:",1)[0]
         for term in ('profiles: ["live"]', 'network_mode: "service:hr-mcp-net"',
                      'hr-server:', 'condition: service_healthy',
                      '"8082"', '"--gateway"'):
