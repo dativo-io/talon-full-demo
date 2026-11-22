@@ -122,16 +122,6 @@ jobs:
         run: |
           test "$(cat TALON_PINNED_COMMIT)" = "$TALON_MAIN_SHA"
           make live-check
-      - name: ONE real Talon installation — FOUR use cases, one company policy, counted outcomes and native Console
-        working-directory: full-demo
-        timeout-minutes: 22
-        env:
-          TALON_FLEET_BIN: ${{ runner.temp }}/bin/talon
-          TALON_CORE_DIR: ${{ github.workspace }}/talon
-          TALON_CORE_SHA: ${{ env.TALON_MAIN_SHA }}
-        run: |
-          python3 -m py_compile scripts/test-acme-one-fleet.py scripts/acme-fleet-provider.py
-          python3 scripts/test-acme-one-fleet.py
       - name: Acceptance boundary
         if: ${{ !cancelled() }}
         run: |
@@ -162,3 +152,69 @@ jobs:
           go test ./internal/mcp/ ./internal/action/ -run 'TestMCP|TestE2E_MCP' -count=1
           make test-mcp-smoke test-mcp-governance-smoke
           echo "PASS: exact merged main MCP SDK and governance smoke (source-built $TALON_MAIN_SHA)" >> "$GITHUB_STEP_SUMMARY"
+
+  one-installation-fleet:
+    name: Four real use cases / one Talon installation and native Console
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out actual Full Demo consumer branches into one reproducible tree
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          path: full-demo
+          persist-credentials: false
+      - name: Merge exact actual PR heads without touching GitHub PRs
+        working-directory: full-demo
+        env:
+          PR51_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "Four-use-case acceptance"
+          git config user.email "four-use-case-acceptance@users.noreply.github.com"
+          for sha in "$PR45_SHA" "$PR46_SHA" "$PR52_SHA" "$PR51_SHA"; do
+            git fetch --no-tags origin "$sha"
+            git merge --no-ff --no-edit "$sha"
+          done
+          for sha in "$PR45_SHA" "$PR46_SHA" "$PR52_SHA" "$PR51_SHA"; do
+            git merge-base --is-ancestor "$sha" HEAD
+          done
+      - uses: actions/checkout@v4
+        with:
+          repository: dativo-io/talon
+          ref: ${{ env.TALON_MAIN_SHA }}
+          path: talon
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: talon/go.mod
+          cache: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile checked-out merged main and record exact provenance
+        run: |
+          test "$(git -C talon rev-parse HEAD)" = "$TALON_MAIN_SHA"
+          mkdir -p "$RUNNER_TEMP/bin"
+          (cd talon && go build -o "$RUNNER_TEMP/bin/talon" ./cmd/talon)
+          "$RUNNER_TEMP/bin/talon" version
+          sha256sum "$RUNNER_TEMP/bin/talon" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Core source: $TALON_MAIN_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Install actual HR DuckDB / workforce dependencies
+        run: python3 -m pip install -r full-demo/cases/people-analytics-copilot/requirements.txt
+      - name: Compile the fleet acceptance and run one live four-application control plane
+        working-directory: full-demo
+        timeout-minutes: 22
+        env:
+          TALON_FLEET_BIN: ${{ runner.temp }}/bin/talon
+          TALON_CORE_DIR: ${{ github.workspace }}/talon
+          TALON_CORE_SHA: ${{ env.TALON_MAIN_SHA }}
+        run: |
+          python3 -m py_compile scripts/test-acme-one-fleet.py scripts/acme-fleet-provider.py
+          python3 scripts/test-acme-one-fleet.py
+          {
+            echo 'PASS: four use-case keys, one Talon process/installation, company policy, real HR MCP, synthetic Shopify refund, document cost denial, synthetic real PostgreSQL recovery.'
+            echo 'PASS: independent backend counters, at-most-one dispatch, independent reviewers, signed action lifecycles and one native paired Console.'
+            echo 'NOT RUN: four full client UIs simultaneously, real Shopify payments, paid model, genuine Claude/OpenShell C01-C12.'
+          } >> "$GITHUB_STEP_SUMMARY"
