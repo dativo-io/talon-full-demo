@@ -190,6 +190,8 @@ jobs:
         run: python scripts/test-people-analytics-browser.py
       - name: Policy flip E2E — identical SQL, permission changed, verified evidence
         run: python scripts/test-people-analytics-policy-change.py
+      - name: Native Operations Console paired browser — seven areas, MCP readiness and signed HR records
+        run: python scripts/test-people-analytics-operator-console.py
       - name: Upload browser failure screenshot
         if: failure()
         uses: actions/upload-artifact@v4
