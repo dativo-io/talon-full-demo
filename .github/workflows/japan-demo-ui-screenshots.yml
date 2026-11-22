@@ -51,6 +51,7 @@ jobs:
           lines.append('}')
           Path('screenshots/n8n-workflow.dot').write_text('\n'.join(lines))
           PY
+          sudo apt-get update -qq && sudo apt-get install -y -qq graphviz
           dot -Tpng screenshots/n8n-workflow.dot -o screenshots/06-source-workflow-diagram.png
       - name: Boot actual n8n editor with committed Shopify workflow
         env:
