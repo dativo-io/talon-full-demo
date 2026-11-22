@@ -19,6 +19,8 @@ This repository contains *customer-facing reference applications and independent
 
 **Choose by your own use case; no single feature is prerequisite.** Each case has its own operator instructions. The [People Analytics playbook](cases/people-analytics-copilot/PLAYBOOK.md) is one complete beginner-to-finish Docker example. The shared-fleet acceptance below is an advanced cross-case check; start with the [reader guide](docs/START_HERE.md) if you only want to understand or share the product.
 
+**Already running the People Analytics demo?** If the private HR network or Workforce UI becomes unavailable, use the [state-preserving whole-stack Compose recovery](cases/people-analytics-copilot/PLAYBOOK.md#recover-safely-after-a-dockernetwork-restart) instead of rebuilding only the shared network owner. GUIDED mode intentionally needs no paid LLM gateway.
+
 **n8n is an orchestrator inside Support and Documents, not a fifth AI use case.** Use one use-case identity/key each and configure the organization baseline once. HR uses canonical governed MCP; OrderDesk's HTTP Action Gateway is intentional. New adopters must **not** use the removed `/mcp/proxy` or `--proxy-config` interfaces.
 
 ## What we have actually proven
