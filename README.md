@@ -56,7 +56,7 @@ make incident-fixture-validate       # PostgreSQL outage and recovery; no Talon
 make incident-talon-preflight        # host-key Talon action; not a sandbox hop
 ```
 
-[Case CI coverage](cases/claude-postgres-incident/CI_COVERAGE.md) and the [ratified C01–C12 contract](docs/CLAUDE_POSTGRES_INCIDENT_CONTRACT.md) specify the remaining same-hop proof. The historical preflight uses v1.16.1, and must be rerun against the exact RC2 published artifact before any RC2 acceptance claim.
+[Case CI coverage](https://github.com/dativo-io/talon-full-demo/blob/7184acd7c3c86493067599a72dd82bee925c9273/cases/claude-postgres-incident/CI_COVERAGE.md) and the [ratified C01–C12 contract](docs/CLAUDE_POSTGRES_INCIDENT_CONTRACT.md) specify the remaining same-hop proof. The historical preflight uses v1.16.1, and must be rerun against the exact RC2 published artifact before any RC2 acceptance claim.
 
 ## People Analytics (standalone)
 
