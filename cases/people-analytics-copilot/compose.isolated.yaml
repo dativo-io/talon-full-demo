@@ -2,10 +2,12 @@
 # UI cannot mount DuckDB or connect directly to the privileged HR service.
 #
 # The HR MCP server is the AI use case's trusted MCP action source. It listens
-# on 127.0.0.1 inside a network namespace (hr-mcp-net) that it shares ONLY with
-# talon-mcp, so Talon reaches it at http://127.0.0.1:9091/mcp (Talon accepts
-# plaintext http for loopback sources only) and nothing on app_net can reach
-# it. The app reaches Talon's governed MCP endpoint at http://talon-mcp:8080/mcp.
+# on 127.0.0.1 inside the network namespace owned by hr-mcp-net, shared with
+# talon-mcp and the opt-in talon-gateway. Both Talon processes load the HR
+# action catalog at startup, so BOTH need the same loopback source address.
+# Nothing else on app_net can reach the private HR listener on port 9091.
+# The application reaches governed MCP at talon-mcp:8080 and, in LIVE mode,
+# the LLM gateway at talon-gateway:8082 (two DNS aliases of hr-mcp-net).
 name: hr-copilot-isolated
 
 x-case-image: &case-image
@@ -43,14 +45,15 @@ services:
     networks: [private_hr]
     restart: "no"
 
-  # Owns the network namespace shared by hr-server and talon-mcp. Its app_net
-  # alias is the only name the app resolves: talon-mcp.
+  # Owns the network namespace shared by hr-server and both Talon data-plane
+  # services. Aliases make the two public Talon ports reachable from the app
+  # without exposing the loopback-only HR backend.
   hr-mcp-net:
     <<: *case-image
     command: ["sleep", "infinity"]
     networks:
       app_net:
-        aliases: [talon-mcp]
+        aliases: [talon-mcp, talon-gateway]
     restart: unless-stopped
 
   hr-server:
@@ -116,15 +119,22 @@ services:
     network_mode: "service:hr-mcp-net"
     restart: unless-stopped
 
+  # LIVE-mode gateway loads the same /state/agent.talon.yaml, including HR
+  # source discovery. If it ran on app_net, 127.0.0.1:9091 would resolve
+  # INSIDE the gateway's own container and startup would fail with ECONNREFUSED.
+  # Share the HR namespace just like talon-mcp, preserving loopback isolation.
   talon-gateway:
     <<: *talon-image
     user: "${HR_DEMO_UID:-1000}:${HR_DEMO_GID:-1000}"
     profiles: ["live"]
+    depends_on:
+      hr-server:
+        condition: service_healthy
     environment: *talon-environment
     volumes: *talon-volumes
     working_dir: /state
     command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8082", "--gateway", "--gateway-config", "/policies/gateway.talon.yaml"]
-    networks: [app_net]
+    network_mode: "service:hr-mcp-net"
     restart: unless-stopped
 
   # Talon operator console: separate read-only process, NOT the Workforce UI.
