@@ -35,7 +35,8 @@ jobs:
           cache: true
           cache-dependency-path: talon/go.sum
       - name: Record current Talon main source
-        run: echo "Current Talon main: $(git -C talon rev-parse HEAD); source-built, not a published release" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Current Talon main: $(git -C talon rev-parse HEAD); source-built, not a published release" >> "$GITHUB_STEP_SUMMARY"
       - name: Compile checked-out main and record binary checksum
         run: |
           sudo apt-get update
