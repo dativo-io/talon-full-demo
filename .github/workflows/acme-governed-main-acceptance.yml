@@ -43,6 +43,11 @@ jobs:
           ref: main
           path: talon
           persist-credentials: false
+      - name: Record resolved Talon main SHA for all acceptance steps
+        run: |
+          sha="$(git -C talon rev-parse HEAD)"
+          echo "TALON_CORE_SHA=$sha" >> "$GITHUB_ENV"
+          echo "Talon main source: $sha" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-go@v5
         with:
           go-version-file: talon/go.mod
@@ -124,6 +129,11 @@ jobs:
           ref: main
           path: talon
           persist-credentials: false
+      - name: Record resolved Talon main SHA for all acceptance steps
+        run: |
+          sha="$(git -C talon rev-parse HEAD)"
+          echo "TALON_CORE_SHA=$sha" >> "$GITHUB_ENV"
+          echo "Talon main source: $sha" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-go@v5
         with:
           go-version-file: talon/go.mod
@@ -157,6 +167,11 @@ jobs:
           ref: main
           path: talon
           persist-credentials: false
+      - name: Record resolved Talon main SHA for all acceptance steps
+        run: |
+          sha="$(git -C talon rev-parse HEAD)"
+          echo "TALON_CORE_SHA=$sha" >> "$GITHUB_ENV"
+          echo "Talon main source: $sha" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-go@v5
         with:
           go-version-file: talon/go.mod
