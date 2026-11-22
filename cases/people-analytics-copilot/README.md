@@ -279,6 +279,18 @@ For real model calls, start Talon's governed MCP endpoint and the LLM gateway **
 docker compose -f compose.isolated.yaml --profile live up --build --force-recreate talon-mcp talon-gateway
 ```
 
+**Why the LIVE gateway must join the HR namespace:** both `talon-mcp` and `talon-gateway` compile the same use-case agent policy and discover its trusted HR MCP source at `http://127.0.0.1:9091/mcp` on startup. In older Compose definitions the gateway was attached directly to `app_net` instead. Its loopback address then pointed to an empty gateway namespace, causing `server/discover: dial tcp 127.0.0.1:9091: connect: connection refused`, despite `talon-mcp` working. Both Talon services now share the `hr-mcp-net` network namespace, have separate app-facing DNS names `talon-mcp:8080` and `talon-gateway:8082`, and wait for the private HR server's health check. **The HR MCP port 9091 stays loopback-only.** No HR database or MCP endpoint is exposed to `app_net`.
+
+To repair an already-running LIVE installation after pulling the fix, **keep `.env` and `.state/talon` unchanged**; ensure `HR_DEMO_TALON_BIN` still points to the verified pinned executable, then from this directory run:
+
+```bash
+docker compose -f compose.isolated.yaml --profile live up -d --force-recreate \
+  hr-mcp-net hr-server talon-mcp talon-gateway ui
+docker compose -f compose.isolated.yaml --profile live logs --tail=30 talon-gateway
+```
+
+This requires the LIVE model provider secret and `gateway.talon.yaml` setup above; it does not provision real OpenAI access by itself. **GUIDED mode needs no model provider and no LIVE gateway:** omit `--profile live` and start `talon-mcp talon-ui ui` with `--profile operator` instead. To stop an old failing LIVE gateway while keeping the governed MCP and Console, run `docker compose -f compose.isolated.yaml stop talon-gateway`.
+
 In another terminal, from this same directory and with `HR_DEMO_TALON_BIN` exported:
 
 ```bash
@@ -301,13 +313,19 @@ No OpenAI key? Run `docker compose -f compose.isolated.yaml --profile operator u
 The two UIs have different jobs. **Workforce app** at [127.0.0.1:8501](http://127.0.0.1:8501/) makes AI/HR requests and shows the synthetic workforce charts. **Talon operations console** at [127.0.0.1:8787](http://127.0.0.1:8787/) explains what Talon saw: runtime status, current versus loaded policy, session evidence, denials, and costs. The console never sends requests to the HR backend or changes policy.
 
 ```bash
-# From cases/people-analytics-copilot: start the operator console, then read its code.
+# From cases/people-analytics-copilot: start the operator console.
+# 'up -d' prints only container status, NOT the code from process stdout.
 docker compose -f compose.isolated.yaml --profile operator up -d talon-ui
+
+# Read the pairing code from the real console process logs (keep it private).
 docker compose -f compose.isolated.yaml --profile operator logs --tail=40 talon-ui
 
-# If the code expired or was used, reissue it inside the console container:
+# If the code has expired or the logs contain no usable code, issue a new one:
 docker compose -f compose.isolated.yaml --profile operator exec -T talon-ui talon ui pair
 docker compose -f compose.isolated.yaml --profile operator logs --tail=20 talon-ui
+
+# If the console has exited or restarted, inspect before requesting a code:
+docker compose -f compose.isolated.yaml --profile operator ps -a talon-ui
 ```
 
 Open **http://127.0.0.1:8787/** and enter the fresh, single-use pairing code. The browser gets a **read-only session cookie**, not an admin, provider, vault or agent key. Do not expose this port beyond localhost or publish pairing codes in screenshots or shared logs. The **`operator` Compose profile** keeps the console opt-in. The Compose service mounts the **same Talon state and policy files**, but runs on `app_net` only (no `private_hr` network); only the evidence **signing** key is passed to it for HMAC verification.
