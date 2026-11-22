@@ -126,15 +126,23 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	modern := r.Header.Get("MCP-Protocol-Version") == "2026-07-28"
 	switch request.Method {
-	case "initialize":
+	case "server/discover":
+		// MCP 2026-07-28 (SEP-2575): Talon discovers this server as a
+		// trusted action source of the coding-assistant use case.
+		if !modern {
+			rpcError(w, request.ID, -32601, "method not found")
+			return
+		}
 		reply(w, request.ID, map[string]any{
-			"protocolVersion": "2025-03-26",
-			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
-			"serverInfo":      map[string]string{"name": "talon-demo-release", "version": "0.1.0"},
+			"resultType":        "complete",
+			"supportedVersions": []string{"2026-07-28"},
+			"capabilities":      map[string]any{"tools": map[string]any{}},
+			"ttlMs":             60000,
+			"cacheScope":        "public",
+			"_meta":             map[string]any{"io.modelcontextprotocol/serverInfo": map[string]string{"name": "talon-demo-release", "version": "0.1.0"}},
 		})
-	case "notifications/initialized":
-		w.WriteHeader(http.StatusAccepted)
 	case "tools/list":
 		tools := make([]map[string]any, 0, 3)
 		for _, name := range []string{"release_status", "release_prepare", "release_publish"} {
@@ -159,7 +167,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 				},
 			})
 		}
-		reply(w, request.ID, map[string]any{"tools": tools})
+		reply(w, request.ID, map[string]any{"resultType": "complete", "tools": tools, "ttlMs": 60000, "cacheScope": "public"})
 	case "tools/call":
 		var params callParams
 		if err := json.Unmarshal(request.Params, &params); err != nil {
@@ -185,6 +193,7 @@ func (s *server) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		reply(w, request.ID, map[string]any{
+			"resultType": "complete",
 			"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("Synthetic %s completed; no external release action exists", params.Name)}},
 			"isError": false,
 		})
