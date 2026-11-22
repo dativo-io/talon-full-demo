@@ -1,5 +1,7 @@
 # Talon operator UI screenshots for People Analytics
 
+**Automated real native UI gate (current main):** `python scripts/test-people-analytics-operator-console.py` now runs the actual `talon-ui` Compose service over the SAME live HR/Talon data store, pairs Chromium using a one-time code from the process's private container log, visits all seven Console areas, checks HR's observed session and effective policy in the read-only API, and confirms no privileged console route. This gate is distinct from `scripts/test-people-analytics-browser.py` (the Workforce app). CI must PASS before claiming operator-browser acceptance; screenshot placeholders below remain placeholders and must not be presented as real captures.
+
 The [People Analytics walkthrough](../README.md) includes five **screenshot slots**. They are intentionally text placeholders until a maintainer captures the real running installation; this PR does **not** ship mocked or generated UI screenshots.
 
 Capture these in a browser at `http://127.0.0.1:8787/`, after pairing with the code from `docker compose -f compose.isolated.yaml --profile operator logs talon-ui`. Save the images in this directory using the filenames below, then replace the corresponding `> **Screenshot slot ...**` text in the case README with a Markdown image:
