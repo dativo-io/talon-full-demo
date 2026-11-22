@@ -2,7 +2,7 @@
 
 *Canonical entry point for customer demos when PRs #45, #46, #51 and #52 integrate. Present status: **coordination and verification guide, not a fully runnable unified ACME installation**. Updated November 22, 2026 for merged Talon main PR #589 (exact source commit `156188dea65cb6feab01aa92093a00e7717a6dd6`). The published RC2 tests remain historical release-control evidence, not proof of this architecture.*
 
-**New-customer, source-pinned adoption recipe:** [ACME First Production Pilot — governed MCP and HTTP Action Gateway](GOVERNED_MCP_FIRST_PILOT.md). This is a component integration guide, not an accepted shared-fleet run.
+**New-customer, source-pinned adoption recipe:** [ACME First Production Pilot — governed MCP and HTTP Action Gateway](GOVERNED_MCP_FIRST_PILOT.md). Component instructions plus a separate **passing shared, single-process governance run** ([real one-installation ACME acceptance (all three CI jobs passed)](https://github.com/dativo-io/talon-full-demo/actions/runs/45014911307)), but not an accepted official-release, full customer-UI deployment.
 
 ## Current adoption path — governed MCP, one canonical Action Gateway
 
@@ -29,7 +29,7 @@ Start with the actual branches: [People Analytics #46](https://github.com/dativo
 
 **n8n is orchestration inside Support and Document Processing, not a fifth AI application.** One `agent.talon.yaml`, one active Talon key and operational identity per AI use case; shared mandatory policy is in company `talon.config.yaml`. Configuration, registered use case, loaded policy, intercepted requests and verified enforcement are four different facts.
 
-**Two-app pilot status: NOT RUN as one shared persistent deployment.** Separate real support and HR fixtures can pass without proving company policy inherited by two simultaneously governed applications. Do not present the combined pilot as accepted.
+**Shared-company technical acceptance: PASS on exact main source.** [real one-installation ACME acceptance (all three CI jobs passed)](https://github.com/dativo-io/talon-full-demo/actions/runs/45014911307) executed four native use-case identities through **one running Talon**, with one `gateway.organization_policy`, independent business counters, one signed store/proof pack and one paired native seven-area Console. Support model traffic and HR MCP traffic reached different downstream systems under distinct keys; OrderDesk staging repair and Document Processing cost admission were also enforced. The run verified **41 signed records and eight valid action lifecycles**, and zero unauthorized export, oversized refund or volume-delete dispatches. It used a temporary CI installation with synthetic provider/Shopify finance and real local DuckDB/PostgreSQL; the actual n8n UI and Claude/OpenShell model runtime were **not** part of this shared process test (n8n 2.48.5 is tested separately). **Published official-artifact persistent deployment, four actual application UIs, restart/recovery and paid models: NOT RUN.** Do not represent this as fully customer-live.
 
 **Native Talon core proof is stronger:** The [published RC2 release pipeline](https://github.com/dativo-io/talon/actions/runs/44881314831) passed its official **first/second use case onboarding, shared company policy, SDK traffic, independent action claims, seven-page Console, restart, cold backup/restore and key replacement** on the released binary/image. That proves *product primitives*, not our specific Full Demo ACME apps running together. Avoid both understating RC2 and overstating Full Demo.
 
