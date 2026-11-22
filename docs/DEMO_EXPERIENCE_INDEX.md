@@ -2,6 +2,8 @@
 
 *Canonical entry point for customer demos when PRs #45, #46, #51 and #52 integrate. Present status: **coordination and verification guide, not a fully runnable unified ACME installation**. Updated November 22, 2026 for merged Talon main PR #589 (exact source commit `156188dea65cb6feab01aa92093a00e7717a6dd6`). The published RC2 tests remain historical release-control evidence, not proof of this architecture.*
 
+**New-customer, source-pinned adoption recipe:** [ACME First Production Pilot — governed MCP and HTTP Action Gateway](GOVERNED_MCP_FIRST_PILOT.md). This is a component integration guide, not an accepted shared-fleet run.
+
 ## Current adoption path — governed MCP, one canonical Action Gateway
 
 **Exact integration baseline:** Talon main `156188dea65cb6feab01aa92093a00e7717a6dd6` (PR #589 merged), **source-built, not a stable release**. The supported MCP client endpoint is **`POST /mcp`** with the authenticated AI use-case key. The removed `/mcp/proxy` and `--proxy-config` are not options for a new customer. The HR service is an `actions.sources.hr` trusted MCP source with read-only aggregates executed in one call. Export is denied and must never reach HR; an HR SQL error **after** authorized dispatch is `UNKNOWN`, not an access-policy denial. A consequential MCP action first prepares an exact operation, then `talon_execute_operation` attempts a single dispatched effect; independent reviewers decide approvals *without dispatch*. Talon generates operation identities, binds arguments, and produces signed Action Gateway lifecycles; operation replay adds no effect, changed arguments conflict, and UNKNOWN stops blind retries. **OrderDesk's existing governed HTTP Action Gateway bridge is appropriate and is not rewritten as an MCP bridge.**
