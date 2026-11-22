@@ -18,7 +18,7 @@ env:
   TALON_MAIN_SHA: 156188dea65cb6feab01aa92093a00e7717a6dd6
   PR45_SHA: 7184acd7c3c86493067599a72dd82bee925c9273
   PR46_SHA: a3de3c976f73b316f95e225fcfc51cb391a546fa
-  PR52_SHA: 003f0a1b8dd38c68ef3e90d9a7ee388f75f0c9fe
+  PR52_SHA: c054c3a0af6ac657e4b8fd3657a4eb5722bc9e0c
 
 jobs:
   integrated-consumers:
