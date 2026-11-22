@@ -139,6 +139,9 @@ cd cases/people-analytics-copilot
 export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
 bash ../../scripts/check-people-analytics-talon-binary.sh "$HR_DEMO_TALON_BIN"
 docker compose -f compose.isolated.yaml run --rm talon-cli talon version
+
+# Confirm the installed source-built Console subcommand and its supported flags.
+docker compose -f compose.isolated.yaml run --rm talon-cli talon ui serve --help
 ```
 
 If `talon doctor` reports `llm_keys: No LLM provider configured`, that is expected for the **GUIDED** deterministic tool demo: it makes **no model calls**. `talon validate` must still pass policy schema validation. LIVE model mode requires separately configuring an actual provider secret and Talon gateway; `talon doctor`'s LLM readiness check is not a substitute for checking policy compatibility. A standalone `agent.talon.yaml` without `talon.config.yaml` means there is **no company-level baseline** in this isolated case; use the [shared ACME fleet](../../scripts/test-acme-one-fleet.py) to prove four agent identities inheriting one company policy.
