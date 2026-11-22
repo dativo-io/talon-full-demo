@@ -1,5 +1,7 @@
 # Full Demo documentation
 
+**Sharing Talon with someone new?** Send the [short, feature-neutral Start Here guide](START_HERE.md). It explains the company-wide story without requiring Linux, a specific application or a model key.
+
 The **source of truth for current demonstrations** is [the repository README](../README.md), followed by the [four-use-case catalog](DEMO_CATALOG.md) and [runtime acceptance matrix](TEST_MATRIX.md). Historical component instructions remain accessible but are never promoted to current release acceptance by implication.
 
 ## Start with a buyer
