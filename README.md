@@ -19,7 +19,7 @@ This repository contains *customer-facing reference applications and independent
 
 **Choose by your own use case; no single feature is prerequisite.** Each case has its own operator instructions. The [People Analytics playbook](cases/people-analytics-copilot/PLAYBOOK.md) is one complete beginner-to-finish Docker example. The shared-fleet acceptance below is an advanced cross-case check; start with the [reader guide](docs/START_HERE.md) if you only want to understand or share the product.
 
-**Already running the People Analytics demo?** If the private HR network or Workforce UI becomes unavailable, use the [state-preserving whole-stack Compose recovery](cases/people-analytics-copilot/PLAYBOOK.md#recover-safely-after-a-dockernetwork-restart) instead of rebuilding only the shared network owner. GUIDED mode intentionally needs no paid LLM gateway.
+**Already running the People Analytics demo?** Use the [state-preserving GUIDED/LIVE recovery and health checks](cases/people-analytics-copilot/PLAYBOOK.md#recover-safely-after-a-dockernetwork-restart) when the dashboard, MCP or model gateway becomes unreachable. Do not rebuild only the shared network owner or reset the vault. **GUIDED** runs deterministic assistance through real governed MCP, without an LLM gateway; **LIVE** requires an already-configured model key and a reachable gateway. The [operational readiness follow-up](https://github.com/dativo-io/talon-full-demo/issues/62) is still open.
 
 **n8n is an orchestrator inside Support and Documents, not a fifth AI use case.** Use one use-case identity/key each and configure the organization baseline once. HR uses canonical governed MCP; OrderDesk's HTTP Action Gateway is intentional. New adopters must **not** use the removed `/mcp/proxy` or `--proxy-config` interfaces.
 
@@ -30,6 +30,50 @@ A [historical four-use-case acceptance run](https://github.com/dativo-io/talon-f
 The [current-main CI acceptance on PR #59](https://github.com/dativo-io/talon-full-demo/pull/59/checks) subsequently passed all 19 checks without a permanent core SHA. Consumer CI executes real n8n **2.48.5** and a synthetic merchant refund adapter. It proves €25 allow, €249 review-then-claim, €750 deny and replay refusal. Approval itself causes zero effects. The independent HR browser/Compose gate also passed. Consult the [test matrix](docs/TEST_MATRIX.md) for sources and precise claims.
 
 **Not proven / not customer-live:** four complete application UIs simultaneously in one persistent **published v1.17.0 stable** installation; genuine Claude Code × OpenShell same-hop C01–C12; live Shopify payments; paid model/provider calls; Zendesk installation; or recovery of that full customer fleet. A historical published **v1.17.0-rc.2** consumer test is separately recorded in [RC2 acceptance](docs/RC2_CONSUMER_ACCEPTANCE.md). Do not substitute source-built results for released-artifact acceptance.
+
+## People Analytics: recover an existing demo
+
+This optional example is **not required** to evaluate the other Talon use cases.
+From the **Linux Docker host**, in an **already initialized** People Analytics
+checkout (with images built and original `.env`, vault and signing keys intact):
+
+```bash
+cd ~/src/talon-full-demo/cases/people-analytics-copilot
+export HR_DEMO_TALON_BIN="$(realpath ../../.state/talon-bin/talon)"
+test -x "$HR_DEMO_TALON_BIN"
+
+# Remove the entire container topology, NEVER the named volumes.
+docker compose -f compose.isolated.yaml --profile live --profile operator down
+
+# Select ONE mode. Start with GUIDED when diagnosing unavailable services.
+export HR_DEMO_AI_MODE=guided
+docker compose -f compose.isolated.yaml --profile operator up --no-build -d \
+  hr-mcp-net hr-server dashboard talon-mcp ui talon-ui
+```
+
+Check the real dashboard from the UI container, then the browser route and
+active mode (the page itself returning HTTP 200 is **not** enough):
+
+```bash
+docker compose -f compose.isolated.yaml exec -T ui \
+  python3 -c "from urllib.request import urlopen; print('Dashboard:', urlopen('http://dashboard:9093/api/dashboard', timeout=5).status)"
+curl -fsS http://127.0.0.1:8501/api/mode
+curl -fsS -o /dev/null -w 'Charts: %{http_code}\n' http://127.0.0.1:8501/charts
+```
+
+Expect dashboard/charts `200` and `"mode": "guided"`. **LIVE**
+is opt-in: only after verifying the provider secret was saved in the
+existing encrypted Talon vault, do another whole-stack `down` (still
+**without** `-v`) and run the same `up --no-build` with
+`HR_DEMO_AI_MODE=live`, both `--profile live --profile operator`, and
+`talon-gateway` included. From the UI container check
+`http://talon-gateway:8082/health` before attempting **Ask assistant**.
+Gateway HTTP 200 proves network reachability, **not** successful paid
+inference or a valid provider key. See the
+[full operator recipe](cases/people-analytics-copilot/PLAYBOOK.md#recover-safely-after-a-dockernetwork-restart)
+for complete LIVE commands, SSH tunneling and log triage. A Console
+`LLM gateway offline` report can be expected in GUIDED mode, but
+`Configuration activation degraded` must still be investigated.
 
 ## Run the supported, credential-free proofs
 
