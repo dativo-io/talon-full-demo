@@ -115,7 +115,10 @@ services:
     environment: *talon-environment
     volumes: *talon-volumes
     working_dir: /state
-    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8080"]
+    # Native MCP enforces the same company action policy as LIVE and Console.
+    # Without --gateway-config it reads scaffolded /state/talon.config.yaml,
+    # yielding different enforcement and permanent Console degraded readiness.
+    command: ["talon", "serve", "--host", "0.0.0.0", "--port", "8080", "--gateway-config", "/policies/gateway.talon.yaml"]
     network_mode: "service:hr-mcp-net"
     restart: unless-stopped
 
