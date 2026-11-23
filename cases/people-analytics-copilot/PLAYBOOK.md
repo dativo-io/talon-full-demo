@@ -322,6 +322,21 @@ Then open `http://127.0.0.1:8501/` and `http://127.0.0.1:8787/` on
 the laptop. If the Console works but the Workforce app does not, check that
 port `8501` is included in the tunnel and that no local process owns it.
 
+**Configuration activation must agree across both Talon servers.**
+The native `talon-mcp` process serves governed MCP actions and applies the
+company action policy even without `--gateway`. It must explicitly use the
+same `/policies/gateway.talon.yaml` as the LIVE gateway and read-only Console.
+The one-time `talon init` scaffold generates a distinct
+`/state/talon.config.yaml`; without the explicit CLI config path the native
+process loads those different bytes, and the Console correctly reports
+`Configuration activation: Degraded` even while the endpoints are green.
+The Compose file now binds the native process to the correct path. After
+updating the repository, verify that
+`.state/policy/gateway.talon.yaml` exists and is the intended company
+policy, then use the **whole-stack** restart above (no `-v`) to activate
+the exact same bytes in both processes. Do not copy the scaffold over
+the company policy or suppress the readiness warning.
+
 **Console readiness:** GUIDED mode intentionally does **not** start the
 optional LIVE LLM gateway. A prior graceful shutdown may remain visible as
 an `LLM gateway is offline` runtime fact in the Console; do not mistake this
