@@ -105,6 +105,14 @@ class DocumentationContract(unittest.TestCase):
             self.assertIn(term,live)
         self.assertNotIn('networks: [app_net]',live)
         self.assertNotIn('ports:',live)
+        # Both data-plane processes enforce the *same* company baseline.
+        # Without an explicit path native serve falls back to the scaffolded
+        # /state/talon.config.yaml, not the policy used by LIVE and Console.
+        native=spec.split("  talon-mcp:\n",1)[1].split("\n  talon-gateway:",1)[0]
+        self.assertIn('"--gateway-config", "/policies/gateway.talon.yaml"',native)
+        self.assertIn('"--gateway-config", "/policies/gateway.talon.yaml"',live)
+        self.assertNotIn('"--gateway"',native,
+                         "Native MCP must not accidentally enable the LLM gateway")
 
     def test_existing_vault_key_continuity_guard(self):
         """Do not advise regenerating credentials over persisted demo evidence."""
